@@ -167,10 +167,9 @@ fn main() {
             }
             println!();
 
-            let display_count = listings.len().min(10);
-            if display_count > 0 {
-                println!("First {} entries:", display_count);
-                for (i, listing) in listings.iter().take(display_count).enumerate() {
+            if !listings.is_empty() {
+                println!("Entries:");
+                for (i, listing) in listings.iter().enumerate() {
                     println!(
                         "{}. {} - {} ({})",
                         i + 1,
