@@ -1,5 +1,6 @@
 use crate::parser::{ParseError, parse_hansard_detail, parse_hansard_list, parse_person_details};
 use crate::types::{HansardDetail, HansardListing, PersonDetails};
+
 use reqwest::Client;
 use std::time::Duration;
 
@@ -7,7 +8,6 @@ use std::time::Duration;
 pub enum ScraperError {
     #[error("HTTP request failed: {0}")]
     RequestError(#[from] reqwest::Error),
-
     #[error("Parse error: {0}")]
     ParseError(#[from] ParseError),
 }
