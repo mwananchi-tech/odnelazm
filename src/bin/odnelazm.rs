@@ -93,7 +93,8 @@ fn validate_and_parse_filters(
     Ok((limit, offset, start, end))
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
@@ -122,7 +123,7 @@ fn main() {
 
             println!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
 
-            let mut listings = match scraper.fetch_hansard_list() {
+            let mut listings = match scraper.fetch_hansard_list().await {
                 Ok(listings) => listings,
                 Err(e) => {
                     eprintln!("Error fetching hansard list: {}", e);

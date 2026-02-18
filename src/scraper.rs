@@ -1,13 +1,13 @@
-use crate::parser::{parse_hansard_list, ParseError};
+use crate::parser::{ParseError, parse_hansard_list};
 use crate::types::HansardListing;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ScraperError {
     #[error("HTTP request failed: {0}")]
     RequestError(#[from] reqwest::Error),
-    
+
     #[error("Parse error: {0}")]
     ParseError(#[from] ParseError),
 }
@@ -23,22 +23,22 @@ impl WebScraper {
             .timeout(Duration::from_secs(30))
             .user_agent("odnelazm/0.1.0")
             .build()?;
-        
+
         Ok(Self {
             client,
             base_url: "https://info.mzalendo.com".to_string(),
         })
     }
 
-    pub fn fetch_hansard_list(&self) -> Result<Vec<HansardListing>, ScraperError> {
+    pub async fn fetch_hansard_list(&self) -> Result<Vec<HansardListing>, ScraperError> {
         let url = format!("{}/hansard/", self.base_url);
-        let html = self.client.get(&url).send()?.text()?;
+        let html = self.client.get(&url).send().await?.text().await?;
         let listings = parse_hansard_list(&html)?;
         Ok(listings)
     }
 
-    pub fn fetch_hansard_detail(&self, url: &str) -> Result<String, ScraperError> {
-        let html = self.client.get(url).send()?.text()?;
+    pub async fn fetch_hansard_detail(&self, url: &str) -> Result<String, ScraperError> {
+        let html = self.client.get(url).send().await?.text().await?;
         Ok(html)
     }
 }
@@ -48,4 +48,3 @@ impl Default for WebScraper {
         Self::new().expect("Failed to create WebScraper")
     }
 }
-
