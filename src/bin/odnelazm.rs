@@ -1,5 +1,6 @@
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
+use log::LevelFilter;
 use odnelazm::scraper::WebScraper;
 use std::process;
 
@@ -7,8 +8,41 @@ use std::process;
 #[command(name = "odnelazm")]
 #[command(about = "A mzalendo.com hansard scraper", long_about = None)]
 struct Cli {
+    #[arg(
+        short = 'l',
+        long = "log-level",
+        value_enum,
+        default_value = "info",
+        global = true,
+        help = "Set the logging level"
+    )]
+    log_level: LogLevel,
+
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+enum LogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl From<LogLevel> for LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Off => LevelFilter::Off,
+            LogLevel::Error => LevelFilter::Error,
+            LogLevel::Warn => LevelFilter::Warn,
+            LogLevel::Info => LevelFilter::Info,
+            LogLevel::Debug => LevelFilter::Debug,
+            LogLevel::Trace => LevelFilter::Trace,
+        }
+    }
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -131,6 +165,10 @@ fn validate_and_parse_filters(
 async fn main() {
     let cli = Cli::parse();
 
+    env_logger::Builder::new()
+        .filter_level(cli.log_level.clone().into())
+        .init();
+
     match cli.command {
         Commands::List {
             limit,
@@ -143,7 +181,7 @@ async fn main() {
                 match validate_and_parse_filters(limit, offset, start_date, end_date) {
                     Ok(filters) => filters,
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        log::error!("{}", e);
                         process::exit(1);
                     }
                 };
@@ -151,17 +189,17 @@ async fn main() {
             let scraper = match WebScraper::new() {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Error creating scraper: {}", e);
+                    log::error!("Error creating scraper: {}", e);
                     process::exit(1);
                 }
             };
 
-            println!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
+            log::info!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
 
             let mut listings = match scraper.fetch_hansard_list().await {
                 Ok(listings) => listings,
                 Err(e) => {
-                    eprintln!("Error fetching hansard list: {}", e);
+                    log::error!("Error fetching hansard list: {}", e);
                     process::exit(1);
                 }
             };
@@ -180,8 +218,8 @@ async fn main() {
 
             if let Some(off) = offset {
                 if off >= listings.len() {
-                    eprintln!(
-                        "Error: Offset ({}) is greater than or equal to available results ({})",
+                    log::error!(
+                        "Offset ({}) is greater than or equal to available results ({})",
                         off,
                         listings.len()
                     );
@@ -198,7 +236,7 @@ async fn main() {
                 OutputFormat::Json => match serde_json::to_string_pretty(&listings) {
                     Ok(json) => println!("{}", json),
                     Err(e) => {
-                        eprintln!("Error serializing to JSON: {}", e);
+                        log::error!("Error serializing to JSON: {}", e);
                         process::exit(1);
                     }
                 },
@@ -260,30 +298,67 @@ async fn main() {
             let scraper = match WebScraper::new() {
                 Ok(s) => s,
                 Err(e) => {
-                    eprintln!("Error creating scraper: {}", e);
+                    log::error!("Error creating scraper: {}", e);
                     process::exit(1);
                 }
             };
 
-            println!("Fetching hansard detail from {}...", url);
+            log::info!("Fetching hansard detail from {}...", url);
 
-            let detail = match scraper.fetch_hansard_detail_parsed(&url).await {
+            let mut detail = match scraper.fetch_hansard_detail_parsed(&url).await {
                 Ok(detail) => detail,
                 Err(e) => {
-                    eprintln!("Error fetching hansard detail: {}", e);
+                    log::error!("Error fetching hansard detail: {}", e);
                     process::exit(1);
                 }
             };
 
             if fetch_speakers {
-                println!("Note: Speaker detail fetching not yet implemented");
+                use std::collections::{HashMap, HashSet};
+
+                let speaker_urls: HashSet<String> = detail
+                    .sections
+                    .iter()
+                    .flat_map(|s| &s.contributions)
+                    .filter_map(|c| c.speaker_url.as_ref())
+                    .cloned()
+                    .collect();
+
+                if !speaker_urls.is_empty() {
+                    log::info!("Fetching {} speaker profiles...", speaker_urls.len());
+
+                    let mut speaker_details_map = HashMap::new();
+                    for speaker_url in speaker_urls {
+                        match scraper.fetch_person_details(&speaker_url).await {
+                            Ok(details) => {
+                                speaker_details_map.insert(speaker_url.clone(), details);
+                            }
+                            Err(e) => {
+                                log::warn!("Failed to fetch speaker {}: {}", speaker_url, e);
+                            }
+                        }
+                    }
+
+                    for section in &mut detail.sections {
+                        for contrib in &mut section.contributions {
+                            if let Some(url) = &contrib.speaker_url {
+                                contrib.speaker_details = speaker_details_map.get(url).cloned();
+                            }
+                        }
+                    }
+
+                    log::info!(
+                        "Successfully fetched {} speaker profiles",
+                        speaker_details_map.len()
+                    );
+                }
             }
 
             match format {
                 OutputFormat::Json => match serde_json::to_string_pretty(&detail) {
                     Ok(json) => println!("{}", json),
                     Err(e) => {
-                        eprintln!("Error serializing to JSON: {}", e);
+                        log::error!("Error serializing to JSON: {}", e);
                         process::exit(1);
                     }
                 },
@@ -302,10 +377,13 @@ async fn main() {
 
                     for (i, section) in detail.sections.iter().enumerate() {
                         println!("\n[{}] {}", i + 1, section.section_type);
+                        if let Some(title) = &section.title {
+                            println!("  Title: {}", title);
+                        }
                         if !section.contributions.is_empty() {
                             println!("  Contributions: {}", section.contributions.len());
 
-                            for (j, contrib) in section.contributions.iter().take(3).enumerate() {
+                            for (j, contrib) in section.contributions.iter().enumerate() {
                                 println!("\n  [Contribution {}]", j + 1);
                                 println!("    Speaker: {}", contrib.speaker_name);
                                 if let Some(role) = &contrib.speaker_role {
@@ -314,42 +392,35 @@ async fn main() {
                                 if let Some(url) = &contrib.speaker_url {
                                     println!("    Profile URL: {}", url);
                                 }
-                                let preview = if contrib.content.len() > 150 {
-                                    format!("{}...", &contrib.content[..150])
-                                } else {
-                                    contrib.content.clone()
-                                };
-                                println!("    Content: {}", preview);
-                                if !contrib.procedural_notes.is_empty() {
-                                    println!(
-                                        "    Procedural notes: {}",
-                                        contrib.procedural_notes.len()
-                                    );
+                                if let Some(details) = &contrib.speaker_details {
+                                    println!("    Speaker Details:");
+                                    println!("      Name: {}", details.name);
+                                    if let Some(party) = &details.party {
+                                        println!("      Party: {}", party);
+                                    }
+                                    if let Some(email) = &details.email {
+                                        println!("      Email: {}", email);
+                                    }
+                                    if let Some(tel) = &details.telephone {
+                                        println!("      Telephone: {}", tel);
+                                    }
+                                    if let Some(pos) = &details.current_position {
+                                        println!("      Position: {}", pos);
+                                    }
+                                    if let Some(const_) = &details.constituency {
+                                        println!("      Constituency: {}", const_);
+                                    }
                                 }
-                            }
-
-                            if section.contributions.len() > 3 {
-                                println!(
-                                    "\n  ... and {} more contributions",
-                                    section.contributions.len() - 3
-                                );
+                                println!("    Content: {}", contrib.content);
+                                if !contrib.procedural_notes.is_empty() {
+                                    println!("    Procedural notes:");
+                                    for note in &contrib.procedural_notes {
+                                        println!("      - {}", note);
+                                    }
+                                }
                             }
                         }
                     }
-
-                    let total_contributions: usize =
-                        detail.sections.iter().map(|s| s.contributions.len()).sum();
-                    let speakers_with_urls = detail
-                        .sections
-                        .iter()
-                        .flat_map(|s| &s.contributions)
-                        .filter(|c| c.speaker_url.is_some())
-                        .count();
-
-                    println!("\n=== STATISTICS ===");
-                    println!("Total sections: {}", detail.sections.len());
-                    println!("Total contributions: {}", total_contributions);
-                    println!("Speakers with profile URLs: {}", speakers_with_urls);
                 }
             }
         }
