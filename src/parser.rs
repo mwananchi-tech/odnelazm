@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_parse_hansard_list_from_sample() {
-        let html = fs::read_to_string("samples/root-page/Hansard __ Mzalendo.html")
+        let html = fs::read_to_string("fixtures/root-page/Hansard __ Mzalendo")
             .expect("Failed to read sample HTML file");
 
         let listings = parse_hansard_list(&html).expect("Failed to parse hansard list");
@@ -600,8 +600,8 @@ mod tests {
 
     #[test]
     fn test_parse_hansard_detail_2020() {
-        let html = fs::read_to_string("samples/hansard_detail_2020.html")
-            .expect("Failed to read sample file");
+        let html =
+            fs::read_to_string("fixtures/hansard_detail_2020").expect("Failed to read sample file");
         let url = "https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00";
 
         let detail = parse_hansard_detail(&html, url).expect("Failed to parse hansard detail");
@@ -629,7 +629,7 @@ mod tests {
 
     #[test]
     fn test_parse_person_details_farhiya() {
-        let html = fs::read_to_string("samples/persons/person_farhiya.html")
+        let html = fs::read_to_string("fixtures/persons/person_farhiya")
             .expect("Failed to read sample file");
         let url = "/person/farhiya-ali-haji/";
 
@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn test_parse_person_details_samson() {
-        let html = fs::read_to_string("samples/persons/person_samson.html")
+        let html = fs::read_to_string("fixtures/persons/person_samson")
             .expect("Failed to read sample file");
         let url = "/person/cherarkey-k-samson/";
 
