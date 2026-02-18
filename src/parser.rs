@@ -1,6 +1,6 @@
-use crate::types::{HansardListing, House};
+use crate::types::{Contribution, HansardDetail, HansardListing, HansardSection, House};
 use chrono::{NaiveDate, NaiveTime};
-use scraper::{Html, Selector};
+use scraper::{ElementRef, Html, Selector};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
@@ -156,6 +156,190 @@ fn parse_end_time_from_display(display_text: &str) -> Result<Option<NaiveTime>, 
     Ok(None)
 }
 
+pub fn parse_hansard_detail(html: &str, url: &str) -> Result<HansardDetail, ParseError> {
+    let document = Html::parse_document(html);
+
+    let parts: Vec<&str> = url.split('/').filter(|s| !s.is_empty()).collect();
+    let house_str = parts
+        .get(parts.len() - 2)
+        .ok_or_else(|| ParseError::UrlParseError("Could not extract house from URL".to_string()))?;
+    let house = match house_str.to_lowercase().as_str() {
+        "senate" => House::Senate,
+        "national_assembly" => House::NationalAssembly,
+        _ => return Err(ParseError::InvalidHouse(house_str.to_string())),
+    };
+
+    let date_time_str = parts
+        .last()
+        .ok_or_else(|| ParseError::UrlParseError("Could not extract date from URL".to_string()))?;
+    let (date, start_time, _end_time) = parse_date_time(date_time_str, "")?;
+
+    let h2_selector = Selector::parse("h2").unwrap();
+    let parliament_number = document
+        .select(&h2_selector)
+        .map(|elem| elem.text().collect::<String>().trim().to_string())
+        .find(|text| text.contains("PARLIAMENT"))
+        .unwrap_or_else(|| "PARLIAMENT OF KENYA".to_string());
+
+    let session_info = document
+        .select(&h2_selector)
+        .map(|elem| elem.text().collect::<String>().trim().to_string())
+        .find(|text| text.contains("Session"))
+        .unwrap_or_else(String::new);
+
+    let session_number = if session_info.is_empty() {
+        "Unknown Session".to_string()
+    } else {
+        session_info.clone()
+    };
+
+    let page_number_selector = Selector::parse("li.page_number").unwrap();
+    let session_type = if let Some(page_elem) = document.select(&page_number_selector).next() {
+        let text = page_elem.text().collect::<String>();
+        if text.contains("Special Sitting") {
+            "Special Sitting".to_string()
+        } else if text.contains("Morning") {
+            "Morning Sitting".to_string()
+        } else if text.contains("Afternoon") {
+            "Afternoon Sitting".to_string()
+        } else {
+            "Regular Sitting".to_string()
+        }
+    } else {
+        "Regular Sitting".to_string()
+    };
+
+    let scene_selector = Selector::parse("li.scene").unwrap();
+    let speaker_in_chair = document
+        .select(&scene_selector)
+        .find_map(|elem| {
+            let text = elem.text().collect::<String>();
+            if text.contains("in the Chair") {
+                Some(text.trim().to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| "[Speaker information not found]".to_string());
+
+    let sections = parse_sections(&document)?;
+
+    Ok(HansardDetail {
+        house,
+        date,
+        start_time,
+        end_time: None,
+        parliament_number,
+        session_number,
+        session_type,
+        speaker_in_chair,
+        sections,
+    })
+}
+
+fn parse_sections(document: &Html) -> Result<Vec<HansardSection>, ParseError> {
+    let mut sections = Vec::new();
+    let mut current_section: Option<HansardSection> = None;
+
+    let all_items_selector = Selector::parse("li.heading, li.speech, li.scene").unwrap();
+
+    for element in document.select(&all_items_selector) {
+        let class = element.value().attr("class").unwrap_or("");
+
+        if class.contains("heading") {
+            if let Some(section) = current_section.take() {
+                sections.push(section);
+            }
+
+            let heading_text = element.text().collect::<String>().trim().to_string();
+
+            if heading_text.contains("PARLIAMENT")
+                || heading_text.contains("SENATE")
+                || heading_text.contains("NATIONAL ASSEMBLY")
+            {
+                continue;
+            }
+
+            current_section = Some(HansardSection {
+                section_type: heading_text.clone(),
+                title: None,
+                contributions: Vec::new(),
+            });
+        } else if class.contains("speech") {
+            if let Some(ref mut section) = current_section
+                && let Ok(contribution) = parse_contribution(element)
+            {
+                section.contributions.push(contribution);
+            }
+        } else if class.contains("scene")
+            && let Some(ref mut section) = current_section
+        {
+            let scene_text = element.text().collect::<String>().trim().to_string();
+            if !scene_text.is_empty()
+                && !section.contributions.is_empty()
+                && let Some(last_contribution) = section.contributions.last_mut()
+            {
+                last_contribution.procedural_notes.push(scene_text);
+            }
+        }
+    }
+
+    if let Some(section) = current_section {
+        sections.push(section);
+    }
+
+    Ok(sections)
+}
+
+fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
+    let strong_selector = Selector::parse("strong").unwrap();
+    let a_selector = Selector::parse("a").unwrap();
+
+    let (speaker_name, speaker_url) =
+        if let Some(strong_elem) = element.select(&strong_selector).next() {
+            if let Some(a_elem) = strong_elem.select(&a_selector).next() {
+                let name = a_elem.text().collect::<String>().trim().to_string();
+                let url = a_elem.value().attr("href").map(|s| s.to_string());
+                (name, url)
+            } else {
+                let name = strong_elem.text().collect::<String>().trim().to_string();
+                (name, None)
+            }
+        } else {
+            return Err(ParseError::MissingField("speaker name".to_string()));
+        };
+
+    let full_text = element.text().collect::<String>();
+
+    let speaker_role = if full_text.contains('(') && full_text.contains(')') {
+        let start = full_text.find('(').unwrap();
+        let end = full_text.find(')').unwrap();
+        if end > start {
+            Some(full_text[start + 1..end].trim().to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let p_selector = Selector::parse("p").unwrap();
+    let content = element
+        .select(&p_selector)
+        .map(|p| p.text().collect::<String>().trim().to_string())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    Ok(Contribution {
+        speaker_name,
+        speaker_role,
+        speaker_url,
+        speaker_details: None,
+        content,
+        procedural_notes: Vec::new(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,5 +435,34 @@ mod tests {
         assert_eq!(listings[0].house, House::Senate);
         assert_eq!(listings[1].house, House::Senate);
         assert_eq!(listings[2].house, House::NationalAssembly);
+    }
+
+    #[test]
+    fn test_parse_hansard_detail_2020() {
+        let html = fs::read_to_string("samples/hansard_detail_2020.html")
+            .expect("Failed to read sample file");
+        let url = "https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00";
+
+        let detail = parse_hansard_detail(&html, url).expect("Failed to parse hansard detail");
+
+        assert_eq!(detail.house, House::Senate);
+        assert_eq!(detail.date.to_string(), "2020-12-29");
+        assert!(detail.parliament_number.contains("PARLIAMENT"));
+        assert!(detail.session_type.contains("Sitting"));
+        assert!(!detail.sections.is_empty());
+
+        let has_contributions = detail
+            .sections
+            .iter()
+            .any(|section| !section.contributions.is_empty());
+        assert!(has_contributions, "Should have at least one contribution");
+
+        let has_speaker_urls = detail.sections.iter().any(|section| {
+            section
+                .contributions
+                .iter()
+                .any(|c| c.speaker_url.is_some())
+        });
+        assert!(has_speaker_urls, "2020 hansard should have speaker URLs");
     }
 }

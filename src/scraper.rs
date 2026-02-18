@@ -1,5 +1,5 @@
-use crate::parser::{ParseError, parse_hansard_list};
-use crate::types::HansardListing;
+use crate::parser::{ParseError, parse_hansard_detail, parse_hansard_list};
+use crate::types::{HansardDetail, HansardListing};
 use reqwest::Client;
 use std::time::Duration;
 
@@ -40,6 +40,15 @@ impl WebScraper {
     pub async fn fetch_hansard_detail(&self, url: &str) -> Result<String, ScraperError> {
         let html = self.client.get(url).send().await?.text().await?;
         Ok(html)
+    }
+
+    pub async fn fetch_hansard_detail_parsed(
+        &self,
+        url: &str,
+    ) -> Result<HansardDetail, ScraperError> {
+        let html = self.fetch_hansard_detail(url).await?;
+        let detail = parse_hansard_detail(&html, url)?;
+        Ok(detail)
     }
 }
 

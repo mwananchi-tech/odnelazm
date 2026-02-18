@@ -49,6 +49,25 @@ enum Commands {
         )]
         format: OutputFormat,
     },
+    Detail {
+        #[arg(help = "URL of the hansard detail page to fetch")]
+        url: String,
+
+        #[arg(
+            short = 'o',
+            long = "output",
+            value_enum,
+            default_value = "text",
+            help = "Output format (text or json)"
+        )]
+        format: OutputFormat,
+
+        #[arg(
+            long,
+            help = "Fetch speaker details from person profile pages (recursive)"
+        )]
+        fetch_speakers: bool,
+    },
 }
 
 type FilterResult = Result<
@@ -176,15 +195,13 @@ async fn main() {
             }
 
             match format {
-                OutputFormat::Json => {
-                    match serde_json::to_string_pretty(&listings) {
-                        Ok(json) => println!("{}", json),
-                        Err(e) => {
-                            eprintln!("Error serializing to JSON: {}", e);
-                            process::exit(1);
-                        }
+                OutputFormat::Json => match serde_json::to_string_pretty(&listings) {
+                    Ok(json) => println!("{}", json),
+                    Err(e) => {
+                        eprintln!("Error serializing to JSON: {}", e);
+                        process::exit(1);
                     }
-                }
+                },
                 OutputFormat::Text => {
                     println!("Successfully fetched {} hansard listings", total_fetched);
                     if start_date.is_some() || end_date.is_some() {
@@ -232,6 +249,107 @@ async fn main() {
                     println!("  Senate sittings: {}", senate_count);
                     println!("  National Assembly sittings: {}", assembly_count);
                     println!("  Total: {}", listings.len());
+                }
+            }
+        }
+        Commands::Detail {
+            url,
+            format,
+            fetch_speakers,
+        } => {
+            let scraper = match WebScraper::new() {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Error creating scraper: {}", e);
+                    process::exit(1);
+                }
+            };
+
+            println!("Fetching hansard detail from {}...", url);
+
+            let detail = match scraper.fetch_hansard_detail_parsed(&url).await {
+                Ok(detail) => detail,
+                Err(e) => {
+                    eprintln!("Error fetching hansard detail: {}", e);
+                    process::exit(1);
+                }
+            };
+
+            if fetch_speakers {
+                println!("Note: Speaker detail fetching not yet implemented");
+            }
+
+            match format {
+                OutputFormat::Json => match serde_json::to_string_pretty(&detail) {
+                    Ok(json) => println!("{}", json),
+                    Err(e) => {
+                        eprintln!("Error serializing to JSON: {}", e);
+                        process::exit(1);
+                    }
+                },
+                OutputFormat::Text => {
+                    println!("\n=== HANSARD DETAIL ===");
+                    println!("House: {}", detail.house.to_string());
+                    println!("Date: {}", detail.date);
+                    if let Some(start) = detail.start_time {
+                        println!("Start Time: {}", start);
+                    }
+                    println!("Parliament: {}", detail.parliament_number);
+                    println!("Session: {}", detail.session_number);
+                    println!("Session Type: {}", detail.session_type);
+                    println!("Speaker in Chair: {}", detail.speaker_in_chair);
+                    println!("\n=== SECTIONS ({}) ===", detail.sections.len());
+
+                    for (i, section) in detail.sections.iter().enumerate() {
+                        println!("\n[{}] {}", i + 1, section.section_type);
+                        if !section.contributions.is_empty() {
+                            println!("  Contributions: {}", section.contributions.len());
+
+                            for (j, contrib) in section.contributions.iter().take(3).enumerate() {
+                                println!("\n  [Contribution {}]", j + 1);
+                                println!("    Speaker: {}", contrib.speaker_name);
+                                if let Some(role) = &contrib.speaker_role {
+                                    println!("    Role: {}", role);
+                                }
+                                if let Some(url) = &contrib.speaker_url {
+                                    println!("    Profile URL: {}", url);
+                                }
+                                let preview = if contrib.content.len() > 150 {
+                                    format!("{}...", &contrib.content[..150])
+                                } else {
+                                    contrib.content.clone()
+                                };
+                                println!("    Content: {}", preview);
+                                if !contrib.procedural_notes.is_empty() {
+                                    println!(
+                                        "    Procedural notes: {}",
+                                        contrib.procedural_notes.len()
+                                    );
+                                }
+                            }
+
+                            if section.contributions.len() > 3 {
+                                println!(
+                                    "\n  ... and {} more contributions",
+                                    section.contributions.len() - 3
+                                );
+                            }
+                        }
+                    }
+
+                    let total_contributions: usize =
+                        detail.sections.iter().map(|s| s.contributions.len()).sum();
+                    let speakers_with_urls = detail
+                        .sections
+                        .iter()
+                        .flat_map(|s| &s.contributions)
+                        .filter(|c| c.speaker_url.is_some())
+                        .count();
+
+                    println!("\n=== STATISTICS ===");
+                    println!("Total sections: {}", detail.sections.len());
+                    println!("Total contributions: {}", total_contributions);
+                    println!("Speakers with profile URLs: {}", speakers_with_urls);
                 }
             }
         }
