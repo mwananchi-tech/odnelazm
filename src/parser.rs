@@ -105,8 +105,9 @@ fn parse_date_time(
         .parse::<u32>()
         .map_err(|_| ParseError::DateParseError(format!("Invalid day: {}", parts[2])))?;
 
-    let date = NaiveDate::from_ymd_opt(year, month, day)
-        .ok_or_else(|| ParseError::DateParseError(format!("Invalid date: {}-{}-{}", year, month, day)))?;
+    let date = NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
+        ParseError::DateParseError(format!("Invalid date: {}-{}-{}", year, month, day))
+    })?;
 
     let start_time = if parts.len() >= 6 {
         let hour = parts[3]
@@ -119,8 +120,11 @@ fn parse_date_time(
             .parse::<u32>()
             .map_err(|_| ParseError::TimeParseError(format!("Invalid second: {}", parts[5])))?;
 
-        Some(NaiveTime::from_hms_opt(hour, minute, second)
-            .ok_or_else(|| ParseError::TimeParseError(format!("Invalid time: {}:{}:{}", hour, minute, second)))?)
+        Some(
+            NaiveTime::from_hms_opt(hour, minute, second).ok_or_else(|| {
+                ParseError::TimeParseError(format!("Invalid time: {}:{}:{}", hour, minute, second))
+            })?,
+        )
     } else {
         None
     };
@@ -136,15 +140,16 @@ fn parse_end_time_from_display(display_text: &str) -> Result<Option<NaiveTime>, 
         let time_parts: Vec<&str> = time_str.split(':').take(2).collect();
 
         if time_parts.len() == 2 {
-            let hour = time_parts[0].trim()
-                .parse::<u32>()
-                .map_err(|_| ParseError::TimeParseError(format!("Invalid end hour: {}", time_parts[0])))?;
-            let minute = time_parts[1].trim()
-                .parse::<u32>()
-                .map_err(|_| ParseError::TimeParseError(format!("Invalid end minute: {}", time_parts[1])))?;
+            let hour = time_parts[0].trim().parse::<u32>().map_err(|_| {
+                ParseError::TimeParseError(format!("Invalid end hour: {}", time_parts[0]))
+            })?;
+            let minute = time_parts[1].trim().parse::<u32>().map_err(|_| {
+                ParseError::TimeParseError(format!("Invalid end minute: {}", time_parts[1]))
+            })?;
 
-            return Ok(Some(NaiveTime::from_hms_opt(hour, minute, 0)
-                .ok_or_else(|| ParseError::TimeParseError(format!("Invalid end time: {}:{}", hour, minute)))?));
+            return Ok(Some(NaiveTime::from_hms_opt(hour, minute, 0).ok_or_else(
+                || ParseError::TimeParseError(format!("Invalid end time: {}:{}", hour, minute)),
+            )?));
         }
     }
 
@@ -163,8 +168,7 @@ mod tests {
         let html = fs::read_to_string("samples/root-page/Hansard __ Mzalendo.html")
             .expect("Failed to read sample HTML file");
 
-        let listings = parse_hansard_list(&html)
-            .expect("Failed to parse hansard list");
+        let listings = parse_hansard_list(&html).expect("Failed to parse hansard list");
 
         assert!(!listings.is_empty(), "Should parse at least one listing");
 
@@ -178,7 +182,8 @@ mod tests {
         assert_eq!(first.date, NaiveDate::from_ymd_opt(2025, 7, 17).unwrap());
         assert_eq!(first.display_text, "Senate 2025-07-17");
 
-        let with_time = listings.iter()
+        let with_time = listings
+            .iter()
             .find(|l| l.display_text.contains("2025-07-01: 14:30 to 18:42"))
             .expect("Should find entry with time range");
 
@@ -196,8 +201,7 @@ mod tests {
             </ul>
         "#;
 
-        let listings = parse_hansard_list(html)
-            .expect("Failed to parse");
+        let listings = parse_hansard_list(html).expect("Failed to parse");
 
         assert_eq!(listings.len(), 1);
         let listing = &listings[0];
@@ -215,8 +219,7 @@ mod tests {
             </ul>
         "#;
 
-        let listings = parse_hansard_list(html)
-            .expect("Failed to parse");
+        let listings = parse_hansard_list(html).expect("Failed to parse");
 
         assert_eq!(listings.len(), 1);
         let listing = &listings[0];
@@ -242,8 +245,7 @@ mod tests {
             </ul>
         "#;
 
-        let listings = parse_hansard_list(html)
-            .expect("Failed to parse");
+        let listings = parse_hansard_list(html).expect("Failed to parse");
 
         assert_eq!(listings.len(), 3);
         assert_eq!(listings[0].house, House::Senate);
@@ -251,4 +253,3 @@ mod tests {
         assert_eq!(listings[2].house, House::NationalAssembly);
     }
 }
-
