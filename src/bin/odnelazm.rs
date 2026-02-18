@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use odnelazm::scraper::WebScraper;
 use std::process;
 
@@ -9,6 +9,12 @@ use std::process;
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+enum OutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Subcommand)]
@@ -33,6 +39,15 @@ enum Commands {
             help = "Filter sessions up to this date"
         )]
         end_date: Option<String>,
+
+        #[arg(
+            short = 'o',
+            long = "output",
+            value_enum,
+            default_value = "text",
+            help = "Output format (text or json)"
+        )]
+        format: OutputFormat,
     },
 }
 
@@ -103,6 +118,7 @@ async fn main() {
             offset,
             start_date,
             end_date,
+            format,
         } => {
             let (limit, offset, start_date, end_date) =
                 match validate_and_parse_filters(limit, offset, start_date, end_date) {
@@ -159,52 +175,65 @@ async fn main() {
                 listings.truncate(lim);
             }
 
-            println!("Successfully fetched {} hansard listings", total_fetched);
-            if start_date.is_some() || end_date.is_some() {
-                println!("After date filtering: {} listings", after_date_filter);
-            }
-            if offset.is_some() || limit.is_some() {
-                println!("After pagination: {} listings", listings.len());
-            }
-            println!();
-
-            if !listings.is_empty() {
-                println!("Entries:");
-                for (i, listing) in listings.iter().enumerate() {
-                    println!(
-                        "{}. {} - {} ({})",
-                        i + 1,
-                        listing.house_name(),
-                        listing.date,
-                        listing.display_text
-                    );
-
-                    if let Some(start) = listing.start_time {
-                        print!("   Start: {}", start);
-                        if let Some(end) = listing.end_time {
-                            println!(" | End: {}", end);
-                        } else {
-                            println!();
+            match format {
+                OutputFormat::Json => {
+                    match serde_json::to_string_pretty(&listings) {
+                        Ok(json) => println!("{}", json),
+                        Err(e) => {
+                            eprintln!("Error serializing to JSON: {}", e);
+                            process::exit(1);
                         }
                     }
                 }
-            } else {
-                println!("No entries to display.");
+                OutputFormat::Text => {
+                    println!("Successfully fetched {} hansard listings", total_fetched);
+                    if start_date.is_some() || end_date.is_some() {
+                        println!("After date filtering: {} listings", after_date_filter);
+                    }
+                    if offset.is_some() || limit.is_some() {
+                        println!("After pagination: {} listings", listings.len());
+                    }
+                    println!();
+
+                    if !listings.is_empty() {
+                        println!("Entries:");
+                        for (i, listing) in listings.iter().enumerate() {
+                            println!(
+                                "{}. {} - {} ({})",
+                                i + 1,
+                                listing.house_name(),
+                                listing.date,
+                                listing.display_text
+                            );
+
+                            if let Some(start) = listing.start_time {
+                                print!("   Start: {}", start);
+                                if let Some(end) = listing.end_time {
+                                    println!(" | End: {}", end);
+                                } else {
+                                    println!();
+                                }
+                            }
+                        }
+                    } else {
+                        println!("No entries to display.");
+                    }
+
+                    let senate_count = listings
+                        .iter()
+                        .filter(|l| matches!(l.house, odnelazm::types::House::Senate))
+                        .count();
+                    let assembly_count = listings
+                        .iter()
+                        .filter(|l| matches!(l.house, odnelazm::types::House::NationalAssembly))
+                        .count();
+
+                    println!("\nStatistics:");
+                    println!("  Senate sittings: {}", senate_count);
+                    println!("  National Assembly sittings: {}", assembly_count);
+                    println!("  Total: {}", listings.len());
+                }
             }
-
-            let senate_count = listings
-                .iter()
-                .filter(|l| matches!(l.house, odnelazm::types::House::Senate))
-                .count();
-            let assembly_count = listings
-                .iter()
-                .filter(|l| matches!(l.house, odnelazm::types::House::NationalAssembly))
-                .count();
-
-            println!("\nStatistics:");
-            println!("  Senate sittings: {}", senate_count);
-            println!("  National Assembly sittings: {}", assembly_count);
-            println!("  Total: {}", listings.len());
         }
     }
 }
