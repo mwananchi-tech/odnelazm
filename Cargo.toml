@@ -9,5 +9,6 @@ clap = { version = "4.5.59", features = ["derive"] }
 reqwest = "0.13.2"
 scraper = "0.25.0"
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 thiserror = "2.0.18"
 tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
