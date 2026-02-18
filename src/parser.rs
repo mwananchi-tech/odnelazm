@@ -1,5 +1,8 @@
-use crate::types::{Contribution, HansardDetail, HansardListing, HansardSection, House};
+use crate::types::{
+    Contribution, HansardDetail, HansardListing, HansardSection, House, PersonDetails,
+};
 use chrono::{NaiveDate, NaiveTime};
+use regex::Regex;
 use scraper::{ElementRef, Html, Selector};
 
 #[derive(Debug, thiserror::Error)]
@@ -295,7 +298,7 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
     let strong_selector = Selector::parse("strong").unwrap();
     let a_selector = Selector::parse("a").unwrap();
 
-    let (speaker_name, speaker_url) =
+    let (mut speaker_name, speaker_url) =
         if let Some(strong_elem) = element.select(&strong_selector).next() {
             if let Some(a_elem) = strong_elem.select(&a_selector).next() {
                 let name = a_elem.text().collect::<String>().trim().to_string();
@@ -309,19 +312,99 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
             return Err(ParseError::MissingField("speaker name".to_string()));
         };
 
-    let full_text = element.text().collect::<String>();
+    // Extract role from text between <strong> and <p> tags (not from content)
+    let p_selector = Selector::parse("p").unwrap();
+    let strong_text = element
+        .select(&strong_selector)
+        .next()
+        .map(|e| e.text().collect::<String>())
+        .unwrap_or_default();
 
-    let speaker_role = if full_text.contains('(') && full_text.contains(')') {
-        let start = full_text.find('(').unwrap();
-        let end = full_text.find(')').unwrap();
+    let full_text = element.text().collect::<String>();
+    let content_text = element
+        .select(&p_selector)
+        .map(|p| p.text().collect::<String>())
+        .collect::<Vec<_>>()
+        .join("");
+
+    // Get text between strong tag and content (where role usually appears)
+    let header_text = full_text
+        .replace(&strong_text, "")
+        .replace(&content_text, "");
+
+    let mut speaker_role = if header_text.contains('(') && header_text.contains(')') {
+        let start = header_text.find('(').unwrap();
+        let end = header_text.rfind(')').unwrap(); // Use rfind to get the LAST closing paren
         if end > start {
-            Some(full_text[start + 1..end].trim().to_string())
+            Some(header_text[start + 1..end].trim().to_string())
         } else {
             None
         }
     } else {
         None
     };
+
+    // XXX: Normalize speaker name/role inconsistencies from hansard authors.
+    // Sometimes they write "<strong>Hon. Lusaka</strong> (The Speaker)" and other times
+    // "<strong>The Speaker (Hon. Lusaka)</strong>" or "<strong>Mwala, UDA</strong> (Hon. Vincent Musau)".
+    // We detect and normalize these cases by swapping when appropriate.
+
+    // Regex patterns for detecting names, roles, and constituencies
+    let name_pattern = Regex::new(r"^(Hon\.|Sen\.)\s").unwrap();
+    let role_pattern = Regex::new(r"^The\s|Ayes|Noes|Teller|Speaker|Chairperson").unwrap();
+    let constituency_pattern = Regex::new(r".+,\s*.+").unwrap(); // Matches "Mwala, UDA" format
+
+    // Case 1: Name is constituency/party and role is actual person name - swap them
+    // e.g., name="Mwala, UDA" role="Hon. Vincent Musau" -> swap
+    if let Some(role) = &speaker_role {
+        let name_is_constituency =
+            constituency_pattern.is_match(&speaker_name) && !name_pattern.is_match(&speaker_name);
+        let role_is_person_name = name_pattern.is_match(role);
+
+        if name_is_constituency && role_is_person_name {
+            let temp = speaker_name;
+            speaker_name = role.clone();
+            speaker_role = Some(temp);
+        }
+    }
+
+    // Case 2: Role in parentheses looks like a name, and name looks like a role - swap them
+    // e.g., name="The Speaker" role="Hon. Lusaka" -> swap
+    if let Some(role) = &speaker_role {
+        let role_looks_like_name = name_pattern.is_match(role);
+        let name_looks_like_role = role_pattern.is_match(&speaker_name);
+
+        if role_looks_like_name && name_looks_like_role {
+            let temp = speaker_name;
+            speaker_name = role.clone();
+            speaker_role = Some(temp);
+        }
+    }
+
+    // Case 3: Name contains parentheses with what looks like an actual name inside
+    // e.g., "The Speaker (Hon. Lusaka)" -> extract "Hon. Lusaka" as name, "The Speaker" as role
+    if speaker_role.is_none() {
+        let parentheses_pattern = Regex::new(r"^(.+?)\s*\((.+?)\)$").unwrap();
+        let name_clone = speaker_name.clone();
+        if let Some(caps) = parentheses_pattern.captures(&name_clone) {
+            let outer = caps
+                .get(1)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+            let inner = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_string())
+                .unwrap_or_default();
+
+            let inner_looks_like_name = name_pattern.is_match(&inner);
+            let outer_looks_like_role = role_pattern.is_match(&outer);
+
+            if inner_looks_like_name && outer_looks_like_role {
+                speaker_name = inner;
+                speaker_role = Some(outer);
+            }
+        }
+    }
 
     let p_selector = Selector::parse("p").unwrap();
     let content = element
@@ -337,6 +420,87 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
         speaker_details: None,
         content,
         procedural_notes: Vec::new(),
+    })
+}
+
+fn normalize_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+pub fn parse_person_details(html: &str, url: &str) -> Result<PersonDetails, ParseError> {
+    let document = Html::parse_document(html);
+
+    let slug = url
+        .trim_end_matches('/')
+        .split('/')
+        .next_back()
+        .ok_or_else(|| ParseError::UrlParseError("Could not extract slug from URL".to_string()))?
+        .to_string();
+
+    let h1_selector = Selector::parse("h1").unwrap();
+    let name = document
+        .select(&h1_selector)
+        .next()
+        .map(|elem| normalize_whitespace(&elem.text().collect::<String>()))
+        .ok_or_else(|| ParseError::MissingField("name".to_string()))?;
+
+    let p_selector = Selector::parse("p").unwrap();
+    let summary = document
+        .select(&p_selector)
+        .find(|elem| {
+            let text = elem.text().collect::<String>();
+            !text.trim().is_empty()
+                && !text.contains("Email")
+                && !text.contains("Telephone")
+                && !text.contains("@")
+        })
+        .map(|elem| normalize_whitespace(&elem.text().collect::<String>()));
+
+    let party_selector = Selector::parse(".party-membership").unwrap();
+    let (party, party_url) = if let Some(party_elem) = document.select(&party_selector).next() {
+        let party_name = normalize_whitespace(&party_elem.text().collect::<String>());
+        let party_link = party_elem.value().attr("href").map(|s| s.to_string());
+        (Some(party_name), party_link)
+    } else {
+        (None, None)
+    };
+
+    let email_selector = Selector::parse("a[href^='mailto:']").unwrap();
+    let email = document
+        .select(&email_selector)
+        .next()
+        .and_then(|elem| elem.value().attr("href"))
+        .map(|href| href.trim_start_matches("mailto:").to_string());
+
+    let tel_selector = Selector::parse("a[href^='tel:']").unwrap();
+    let telephone = document
+        .select(&tel_selector)
+        .next()
+        .and_then(|elem| elem.value().attr("href"))
+        .map(|href| href.trim_start_matches("tel:").to_string());
+
+    let position_selector = Selector::parse(".position.ongoing h4").unwrap();
+    let current_position = document
+        .select(&position_selector)
+        .next()
+        .map(|elem| normalize_whitespace(&elem.text().collect::<String>()));
+
+    let place_selector = Selector::parse(".position.ongoing a[href^='/place/']").unwrap();
+    let constituency = document
+        .select(&place_selector)
+        .next()
+        .map(|elem| normalize_whitespace(&elem.text().collect::<String>()));
+
+    Ok(PersonDetails {
+        name,
+        slug,
+        summary,
+        party,
+        party_url,
+        email,
+        telephone,
+        current_position,
+        constituency,
     })
 }
 
@@ -464,5 +628,42 @@ mod tests {
                 .any(|c| c.speaker_url.is_some())
         });
         assert!(has_speaker_urls, "2020 hansard should have speaker URLs");
+    }
+
+    #[test]
+    fn test_parse_person_details_farhiya() {
+        let html = fs::read_to_string("samples/persons/person_farhiya.html")
+            .expect("Failed to read sample file");
+        let url = "/person/farhiya-ali-haji/";
+
+        let person = parse_person_details(&html, url).expect("Failed to parse person details");
+
+        assert_eq!(person.name, "Farhiya Ali Haji");
+        assert_eq!(person.slug, "farhiya-ali-haji");
+        assert!(person.summary.is_some());
+        assert_eq!(person.party, Some("Jubilee Party".to_string()));
+        assert_eq!(
+            person.party_url,
+            Some("/organisation/jubilee_party/".to_string())
+        );
+        assert_eq!(person.email, Some("farhiyaali1@gmail.com".to_string()));
+        assert_eq!(person.telephone, Some("0722801011".to_string()));
+        assert!(person.current_position.is_some());
+    }
+
+    #[test]
+    fn test_parse_person_details_samson() {
+        let html = fs::read_to_string("samples/persons/person_samson.html")
+            .expect("Failed to read sample file");
+        let url = "/person/cherarkey-k-samson/";
+
+        let person = parse_person_details(&html, url).expect("Failed to parse person details");
+
+        assert_eq!(person.name, "Cherarkey K Samson");
+        assert_eq!(person.slug, "cherarkey-k-samson");
+        assert!(
+            person.party.is_none()
+                || person.party == Some("Not a member of any parties or coalitions".to_string())
+        );
     }
 }

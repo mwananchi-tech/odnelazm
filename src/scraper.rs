@@ -1,5 +1,5 @@
-use crate::parser::{ParseError, parse_hansard_detail, parse_hansard_list};
-use crate::types::{HansardDetail, HansardListing};
+use crate::parser::{ParseError, parse_hansard_detail, parse_hansard_list, parse_person_details};
+use crate::types::{HansardDetail, HansardListing, PersonDetails};
 use reqwest::Client;
 use std::time::Duration;
 
@@ -49,6 +49,35 @@ impl WebScraper {
         let html = self.fetch_hansard_detail(url).await?;
         let detail = parse_hansard_detail(&html, url)?;
         Ok(detail)
+    }
+
+    pub async fn fetch_person_details(&self, url: &str) -> Result<PersonDetails, ScraperError> {
+        let full_url = if url.starts_with("http") {
+            url.to_string()
+        } else {
+            format!("{}{}", self.base_url, url)
+        };
+        let response = self.client.get(&full_url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(ScraperError::ParseError(ParseError::MissingField(format!(
+                "HTTP {}: {}",
+                response.status(),
+                url
+            ))));
+        }
+
+        let html = response.text().await?;
+
+        if html.trim().is_empty() {
+            return Err(ScraperError::ParseError(ParseError::MissingField(format!(
+                "Empty response for {}",
+                url
+            ))));
+        }
+
+        let details = parse_person_details(&html, url)?;
+        Ok(details)
     }
 }
 
