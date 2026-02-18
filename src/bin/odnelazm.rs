@@ -1,0 +1,210 @@
+use chrono::NaiveDate;
+use clap::{Parser, Subcommand};
+use odnelazm::scraper::WebScraper;
+use std::process;
+
+#[derive(Parser)]
+#[command(name = "odnelazm")]
+#[command(about = "A mzalendo.com hansard scraper", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    List {
+        #[arg(long, help = "Maximum number of results to return")]
+        limit: Option<usize>,
+
+        #[arg(long, help = "Number of results to skip from the beginning")]
+        offset: Option<usize>,
+
+        #[arg(
+            long,
+            value_name = "YYYY-MM-DD",
+            help = "Filter sessions from this date onwards"
+        )]
+        start_date: Option<String>,
+
+        #[arg(
+            long,
+            value_name = "YYYY-MM-DD",
+            help = "Filter sessions up to this date"
+        )]
+        end_date: Option<String>,
+    },
+}
+
+type FilterResult = Result<
+    (
+        Option<usize>,
+        Option<usize>,
+        Option<NaiveDate>,
+        Option<NaiveDate>,
+    ),
+    String,
+>;
+
+fn parse_date(date_str: &str) -> Result<NaiveDate, String> {
+    NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+        .map_err(|_| format!("Invalid date format '{}'. Expected YYYY-MM-DD", date_str))
+}
+
+fn validate_and_parse_filters(
+    limit: Option<usize>,
+    offset: Option<usize>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+) -> FilterResult {
+    let start = if let Some(ref s) = start_date {
+        Some(parse_date(s)?)
+    } else {
+        None
+    };
+
+    let end = if let Some(ref e) = end_date {
+        Some(parse_date(e)?)
+    } else {
+        None
+    };
+
+    if let (Some(start), Some(end)) = (start, end)
+        && start > end
+    {
+        return Err(format!(
+            "Start date ({}) cannot be after end date ({})",
+            start, end
+        ));
+    }
+
+    if let Some(off) = offset
+        && off == 0
+    {
+        return Err("Offset must be greater than 0".to_string());
+    }
+
+    if let Some(lim) = limit
+        && lim == 0
+    {
+        return Err("Limit must be greater than 0".to_string());
+    }
+
+    Ok((limit, offset, start, end))
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Commands::List {
+            limit,
+            offset,
+            start_date,
+            end_date,
+        } => {
+            let (limit, offset, start_date, end_date) =
+                match validate_and_parse_filters(limit, offset, start_date, end_date) {
+                    Ok(filters) => filters,
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        process::exit(1);
+                    }
+                };
+
+            let scraper = match WebScraper::new() {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Error creating scraper: {}", e);
+                    process::exit(1);
+                }
+            };
+
+            println!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
+
+            let mut listings = match scraper.fetch_hansard_list() {
+                Ok(listings) => listings,
+                Err(e) => {
+                    eprintln!("Error fetching hansard list: {}", e);
+                    process::exit(1);
+                }
+            };
+
+            let total_fetched = listings.len();
+
+            if let Some(start) = start_date {
+                listings.retain(|l| l.date >= start);
+            }
+
+            if let Some(end) = end_date {
+                listings.retain(|l| l.date <= end);
+            }
+
+            let after_date_filter = listings.len();
+
+            if let Some(off) = offset {
+                if off >= listings.len() {
+                    eprintln!(
+                        "Error: Offset ({}) is greater than or equal to available results ({})",
+                        off,
+                        listings.len()
+                    );
+                    process::exit(1);
+                }
+                listings = listings.into_iter().skip(off).collect();
+            }
+
+            if let Some(lim) = limit {
+                listings.truncate(lim);
+            }
+
+            println!("Successfully fetched {} hansard listings", total_fetched);
+            if start_date.is_some() || end_date.is_some() {
+                println!("After date filtering: {} listings", after_date_filter);
+            }
+            if offset.is_some() || limit.is_some() {
+                println!("After pagination: {} listings", listings.len());
+            }
+            println!();
+
+            let display_count = listings.len().min(10);
+            if display_count > 0 {
+                println!("First {} entries:", display_count);
+                for (i, listing) in listings.iter().take(display_count).enumerate() {
+                    println!(
+                        "{}. {} - {} ({})",
+                        i + 1,
+                        listing.house_name(),
+                        listing.date,
+                        listing.display_text
+                    );
+
+                    if let Some(start) = listing.start_time {
+                        print!("   Start: {}", start);
+                        if let Some(end) = listing.end_time {
+                            println!(" | End: {}", end);
+                        } else {
+                            println!();
+                        }
+                    }
+                }
+            } else {
+                println!("No entries to display.");
+            }
+
+            let senate_count = listings
+                .iter()
+                .filter(|l| matches!(l.house, odnelazm::types::House::Senate))
+                .count();
+            let assembly_count = listings
+                .iter()
+                .filter(|l| matches!(l.house, odnelazm::types::House::NationalAssembly))
+                .count();
+
+            println!("\nStatistics:");
+            println!("  Senate sittings: {}", senate_count);
+            println!("  National Assembly sittings: {}", assembly_count);
+            println!("  Total: {}", listings.len());
+        }
+    }
+}
