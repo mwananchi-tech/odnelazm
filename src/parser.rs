@@ -1,6 +1,7 @@
 use crate::types::{
     Contribution, HansardDetail, HansardListing, HansardSection, House, PersonDetails,
 };
+
 use chrono::{NaiveDate, NaiveTime};
 use regex::Regex;
 use scraper::{ElementRef, Html, Selector};
@@ -9,16 +10,12 @@ use scraper::{ElementRef, Html, Selector};
 pub enum ParseError {
     #[error("Failed to parse URL: {0}")]
     UrlParseError(String),
-
     #[error("Failed to parse date: {0}")]
     DateParseError(String),
-
     #[error("Failed to parse time: {0}")]
     TimeParseError(String),
-
     #[error("Invalid house type: {0}")]
     InvalidHouse(String),
-
     #[error("Missing required field: {0}")]
     MissingField(String),
 }
