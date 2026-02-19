@@ -364,7 +364,7 @@ async fn main() {
                 },
                 OutputFormat::Text => {
                     println!("\n=== HANSARD DETAIL ===");
-                    println!("House: {}", detail.house.to_string());
+                    println!("House: {}", detail.house);
                     println!("Date: {}", detail.date);
                     if let Some(start) = detail.start_time {
                         println!("Start Time: {}", start);
