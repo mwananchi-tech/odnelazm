@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::types::{
     Contribution, HansardDetail, HansardListing, HansardSection, House, PersonDetails,
 };
@@ -57,11 +59,7 @@ fn parse_hansard_entry(url: &str, display_text: &str) -> Result<HansardListing, 
     }
 
     let house_str = parts[parts.len() - 2];
-    let house = match house_str {
-        "senate" => House::Senate,
-        "national_assembly" => House::NationalAssembly,
-        _ => return Err(ParseError::InvalidHouse(house_str.to_string())),
-    };
+    let house = House::from_str(house_str)?;
 
     let date_time_str = parts[parts.len() - 1];
     let (date, start_time, end_time) = parse_date_time(date_time_str, display_text)?;
@@ -346,12 +344,12 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
     // "<strong>The Speaker (Hon. Lusaka)</strong>" or "<strong>Mwala, UDA</strong> (Hon. Vincent Musau)".
     // We detect and normalize these cases by swapping when appropriate.
 
-    // Regex patterns for detecting names, roles, and constituencies
+    // regex patterns for detecting names, roles, and constituencies
     let name_pattern = Regex::new(r"^(Hon\.|Sen\.)\s").unwrap();
     let role_pattern = Regex::new(r"^The\s|Ayes|Noes|Teller|Speaker|Chairperson").unwrap();
     let constituency_pattern = Regex::new(r".+,\s*.+").unwrap(); // Matches "Mwala, UDA" format
 
-    // Case 1: Name is constituency/party and role is actual person name - swap them
+    // case 1: Name is constituency/party and role is actual person name - swap them
     // e.g., name="Mwala, UDA" role="Hon. Vincent Musau" -> swap
     if let Some(role) = &speaker_role {
         let name_is_constituency =
@@ -365,7 +363,7 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
         }
     }
 
-    // Case 2: Role in parentheses looks like a name, and name looks like a role - swap them
+    // case 2: Role in parentheses looks like a name, and name looks like a role - swap them
     // e.g., name="The Speaker" role="Hon. Lusaka" -> swap
     if let Some(role) = &speaker_role {
         let role_looks_like_name = name_pattern.is_match(role);
@@ -378,7 +376,7 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
         }
     }
 
-    // Case 3: Name contains parentheses with what looks like an actual name inside
+    // case 3: Name contains parentheses with what looks like an actual name inside
     // e.g., "The Speaker (Hon. Lusaka)" -> extract "Hon. Lusaka" as name, "The Speaker" as role
     if speaker_role.is_none() {
         let parentheses_pattern = Regex::new(r"^(.+?)\s*\((.+?)\)$").unwrap();

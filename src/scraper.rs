@@ -12,6 +12,7 @@ pub enum ScraperError {
     ParseError(#[from] ParseError),
 }
 
+#[derive(Debug, Clone)]
 pub struct WebScraper {
     client: Client,
     base_url: String,
@@ -78,11 +79,5 @@ impl WebScraper {
 
         let details = parse_person_details(&html, url)?;
         Ok(details)
-    }
-}
-
-impl Default for WebScraper {
-    fn default() -> Self {
-        Self::new().expect("Failed to create WebScraper")
     }
 }

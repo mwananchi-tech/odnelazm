@@ -1,5 +1,9 @@
+use std::{fmt::Display, str::FromStr};
+
 use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
+
+use crate::parser::ParseError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -8,11 +12,23 @@ pub enum House {
     NationalAssembly,
 }
 
-impl House {
-    pub fn to_string(&self) -> &str {
+impl FromStr for House {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "senate" => Ok(House::Senate),
+            "national_assembly" => Ok(House::NationalAssembly),
+            _ => Err(ParseError::InvalidHouse(s.to_string())),
+        }
+    }
+}
+
+impl Display for House {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            House::Senate => "Senate",
-            House::NationalAssembly => "National Assembly",
+            House::Senate => writeln!(f, "Senate"),
+            House::NationalAssembly => writeln!(f, "National Assembly"),
         }
     }
 }
@@ -43,13 +59,6 @@ impl HansardListing {
             end_time,
             url,
             display_text,
-        }
-    }
-
-    pub fn house_name(&self) -> &str {
-        match self.house {
-            House::Senate => "Senate",
-            House::NationalAssembly => "National Assembly",
         }
     }
 }
