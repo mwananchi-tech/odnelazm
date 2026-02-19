@@ -2,6 +2,7 @@ use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::LevelFilter;
 use odnelazm::scraper::WebScraper;
+use odnelazm::types::House;
 use std::process;
 
 #[derive(Parser)]
@@ -79,7 +80,7 @@ enum Commands {
             long = "output",
             value_enum,
             default_value = "text",
-            help = "Output format (text or json)"
+            help = "Output format"
         )]
         format: OutputFormat,
     },
@@ -92,14 +93,11 @@ enum Commands {
             long = "output",
             value_enum,
             default_value = "text",
-            help = "Output format (text or json)"
+            help = "Output format"
         )]
         format: OutputFormat,
 
-        #[arg(
-            long,
-            help = "Fetch speaker details from person profile pages (recursive)"
-        )]
+        #[arg(long, help = "Fetch speaker details from person profile pages")]
         fetch_speakers: bool,
     },
 }
@@ -125,40 +123,36 @@ fn validate_and_parse_filters(
     start_date: Option<String>,
     end_date: Option<String>,
 ) -> FilterResult {
-    let start = if let Some(ref s) = start_date {
-        Some(parse_date(s)?)
-    } else {
-        None
-    };
+    let start = start_date.as_deref().map(parse_date).transpose()?;
+    let end = end_date.as_deref().map(parse_date).transpose()?;
 
-    let end = if let Some(ref e) = end_date {
-        Some(parse_date(e)?)
-    } else {
-        None
+    let Some(s) = start else {
+        return Ok((limit, offset, None, None));
     };
-
-    if let (Some(start), Some(end)) = (start, end)
-        && start > end
-    {
-        return Err(format!(
-            "Start date ({}) cannot be after end date ({})",
-            start, end
-        ));
+    let Some(e) = end else {
+        return Ok((limit, offset, start, None));
+    };
+    if s > e {
+        return Err(format!("Start date ({s}) cannot be after end date ({e})"));
     }
-
-    if let Some(off) = offset
-        && off == 0
-    {
+    if offset.is_some_and(|o| o == 0) {
         return Err("Offset must be greater than 0".to_string());
     }
-
-    if let Some(lim) = limit
-        && lim == 0
-    {
+    if limit.is_some_and(|l| l == 0) {
         return Err("Limit must be greater than 0".to_string());
     }
 
     Ok((limit, offset, start, end))
+}
+
+fn serialize_json<T: serde::Serialize>(value: &T) {
+    match serde_json::to_string_pretty(value) {
+        Ok(json) => println!("{}", json),
+        Err(e) => {
+            log::error!("Error serializing to JSON: {}", e);
+            process::exit(1);
+        }
+    }
 }
 
 #[tokio::main]
@@ -177,39 +171,30 @@ async fn main() {
             end_date,
             format,
         } => {
-            let (limit, offset, start_date, end_date) =
-                match validate_and_parse_filters(limit, offset, start_date, end_date) {
-                    Ok(filters) => filters,
-                    Err(e) => {
-                        log::error!("{}", e);
-                        process::exit(1);
-                    }
-                };
+            let (limit, offset, start_date, end_date) = validate_and_parse_filters(
+                limit, offset, start_date, end_date,
+            )
+            .unwrap_or_else(|e| {
+                log::error!("{}", e);
+                process::exit(1);
+            });
 
-            let scraper = match WebScraper::new() {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("Error creating scraper: {}", e);
-                    process::exit(1);
-                }
-            };
-
+            let scraper = WebScraper::new().unwrap_or_else(|e| {
+                log::error!("Error creating scraper: {}", e);
+                process::exit(1);
+            });
             log::info!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
 
-            let mut listings = match scraper.fetch_hansard_list().await {
-                Ok(listings) => listings,
-                Err(e) => {
-                    log::error!("Error fetching hansard list: {}", e);
-                    process::exit(1);
-                }
-            };
+            let mut listings = scraper.fetch_hansard_list().await.unwrap_or_else(|e| {
+                log::error!("Error fetching hansard list: {}", e);
+                process::exit(1);
+            });
 
             let total_fetched = listings.len();
 
             if let Some(start) = start_date {
                 listings.retain(|l| l.date >= start);
             }
-
             if let Some(end) = end_date {
                 listings.retain(|l| l.date <= end);
             }
@@ -233,87 +218,60 @@ async fn main() {
             }
 
             match format {
-                OutputFormat::Json => match serde_json::to_string_pretty(&listings) {
-                    Ok(json) => println!("{}", json),
-                    Err(e) => {
-                        log::error!("Error serializing to JSON: {}", e);
-                        process::exit(1);
-                    }
-                },
+                OutputFormat::Json => serialize_json(&listings),
                 OutputFormat::Text => {
-                    println!("Successfully fetched {} hansard listings", total_fetched);
+                    log::info!("Fetched {} hansard listings", total_fetched);
+
                     if start_date.is_some() || end_date.is_some() {
-                        println!("After date filtering: {} listings", after_date_filter);
+                        log::info!("After date filtering: {}", after_date_filter);
                     }
                     if offset.is_some() || limit.is_some() {
-                        println!("After pagination: {} listings", listings.len());
+                        log::info!("After pagination: {}", listings.len());
                     }
-                    println!();
 
-                    if !listings.is_empty() {
-                        println!("Entries:");
-                        for (i, listing) in listings.iter().enumerate() {
-                            println!(
-                                "{}. {} - {} ({})",
-                                i + 1,
-                                listing.house,
-                                listing.date,
-                                listing.display_text
-                            );
-
-                            if let Some(start) = listing.start_time {
-                                print!("   Start: {}", start);
-                                if let Some(end) = listing.end_time {
-                                    println!(" | End: {}", end);
-                                } else {
-                                    println!();
-                                }
-                            }
-                        }
-                    } else {
+                    if listings.is_empty() {
                         println!("No entries to display.");
+                    } else {
+                        for (i, listing) in listings.iter().enumerate() {
+                            println!("{:>3}. {}", i + 1, listing);
+                        }
+
+                        let senate_count =
+                            listings.iter().filter(|l| l.house == House::Senate).count();
+                        let assembly_count = listings
+                            .iter()
+                            .filter(|l| l.house == House::NationalAssembly)
+                            .count();
+
+                        println!("\nStatistics:");
+                        println!("  Senate sittings:           {}", senate_count);
+                        println!("  National Assembly sittings: {}", assembly_count);
+                        println!("  Total:                     {}", listings.len());
                     }
-
-                    let senate_count = listings
-                        .iter()
-                        .filter(|l| matches!(l.house, odnelazm::types::House::Senate))
-                        .count();
-                    let assembly_count = listings
-                        .iter()
-                        .filter(|l| matches!(l.house, odnelazm::types::House::NationalAssembly))
-                        .count();
-
-                    println!("\nStatistics:");
-                    println!("  Senate sittings: {}", senate_count);
-                    println!("  National Assembly sittings: {}", assembly_count);
-                    println!("  Total: {}", listings.len());
                 }
             }
         }
+
         Commands::Detail {
             url,
             format,
             fetch_speakers,
         } => {
-            let scraper = match WebScraper::new() {
-                Ok(s) => s,
-                Err(e) => {
-                    log::error!("Error creating scraper: {}", e);
-                    process::exit(1);
-                }
-            };
-
+            let scraper = WebScraper::new().unwrap_or_else(|e| {
+                log::error!("Error creating scraper: {}", e);
+                process::exit(1);
+            });
             log::info!("Fetching hansard detail from {}...", url);
 
-            let mut detail = match scraper.fetch_hansard_detail_parsed(&url).await {
-                Ok(detail) => detail,
-                Err(e) => {
+            let mut detail = scraper
+                .fetch_hansard_detail_parsed(&url)
+                .await
+                .unwrap_or_else(|e| {
                     log::error!("Error fetching hansard detail: {}", e);
                     process::exit(1);
-                }
-            };
+                });
 
-            if fetch_speakers {
+            if fetch_speakers && matches!(format, OutputFormat::Json) {
                 use std::collections::{HashMap, HashSet};
 
                 let speaker_urls: HashSet<String> = detail
@@ -327,101 +285,38 @@ async fn main() {
                 if !speaker_urls.is_empty() {
                     log::info!("Fetching {} speaker profiles...", speaker_urls.len());
 
-                    let mut speaker_details_map = HashMap::new();
+                    let mut speaker_map = HashMap::new();
                     for speaker_url in speaker_urls {
                         match scraper.fetch_person_details(&speaker_url).await {
                             Ok(details) => {
-                                speaker_details_map.insert(speaker_url.clone(), details);
+                                speaker_map.insert(speaker_url, details);
                             }
-                            Err(e) => {
-                                log::warn!("Failed to fetch speaker {}: {}", speaker_url, e);
-                            }
+                            Err(e) => log::warn!("Failed to fetch speaker {}: {}", speaker_url, e),
                         }
                     }
 
-                    for section in &mut detail.sections {
-                        for contrib in &mut section.contributions {
-                            if let Some(url) = &contrib.speaker_url {
-                                contrib.speaker_details = speaker_details_map.get(url).cloned();
-                            }
+                    for contrib in detail
+                        .sections
+                        .iter_mut()
+                        .flat_map(|s| &mut s.contributions)
+                    {
+                        if let Some(url) = &contrib.speaker_url {
+                            contrib.speaker_details = speaker_map.get(url).cloned();
                         }
                     }
 
                     log::info!(
                         "Successfully fetched {} speaker profiles",
-                        speaker_details_map.len()
+                        speaker_map.len()
                     );
                 }
+            } else {
+                log::warn!("Fetching speakers skipped for {:?} format", format);
             }
 
             match format {
-                OutputFormat::Json => match serde_json::to_string_pretty(&detail) {
-                    Ok(json) => println!("{}", json),
-                    Err(e) => {
-                        log::error!("Error serializing to JSON: {}", e);
-                        process::exit(1);
-                    }
-                },
-                OutputFormat::Text => {
-                    println!("\n=== HANSARD DETAIL ===");
-                    println!("House: {}", detail.house);
-                    println!("Date: {}", detail.date);
-                    if let Some(start) = detail.start_time {
-                        println!("Start Time: {}", start);
-                    }
-                    println!("Parliament: {}", detail.parliament_number);
-                    println!("Session: {}", detail.session_number);
-                    println!("Session Type: {}", detail.session_type);
-                    println!("Speaker in Chair: {}", detail.speaker_in_chair);
-                    println!("\n=== SECTIONS ({}) ===", detail.sections.len());
-
-                    for (i, section) in detail.sections.iter().enumerate() {
-                        println!("\n[{}] {}", i + 1, section.section_type);
-                        if let Some(title) = &section.title {
-                            println!("  Title: {}", title);
-                        }
-                        if !section.contributions.is_empty() {
-                            println!("  Contributions: {}", section.contributions.len());
-
-                            for (j, contrib) in section.contributions.iter().enumerate() {
-                                println!("\n  [Contribution {}]", j + 1);
-                                println!("    Speaker: {}", contrib.speaker_name);
-                                if let Some(role) = &contrib.speaker_role {
-                                    println!("    Role: {}", role);
-                                }
-                                if let Some(url) = &contrib.speaker_url {
-                                    println!("    Profile URL: {}", url);
-                                }
-                                if let Some(details) = &contrib.speaker_details {
-                                    println!("    Speaker Details:");
-                                    println!("      Name: {}", details.name);
-                                    if let Some(party) = &details.party {
-                                        println!("      Party: {}", party);
-                                    }
-                                    if let Some(email) = &details.email {
-                                        println!("      Email: {}", email);
-                                    }
-                                    if let Some(tel) = &details.telephone {
-                                        println!("      Telephone: {}", tel);
-                                    }
-                                    if let Some(pos) = &details.current_position {
-                                        println!("      Position: {}", pos);
-                                    }
-                                    if let Some(const_) = &details.constituency {
-                                        println!("      Constituency: {}", const_);
-                                    }
-                                }
-                                println!("    Content: {}", contrib.content);
-                                if !contrib.procedural_notes.is_empty() {
-                                    println!("    Procedural notes:");
-                                    for note in &contrib.procedural_notes {
-                                        println!("      - {}", note);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                OutputFormat::Json => serialize_json(&detail),
+                OutputFormat::Text => println!("{}", detail),
             }
         }
     }
