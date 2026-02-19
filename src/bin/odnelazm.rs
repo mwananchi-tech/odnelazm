@@ -256,7 +256,7 @@ async fn main() {
                             println!(
                                 "{}. {} - {} ({})",
                                 i + 1,
-                                listing.house_name(),
+                                listing.house,
                                 listing.date,
                                 listing.display_text
                             );
