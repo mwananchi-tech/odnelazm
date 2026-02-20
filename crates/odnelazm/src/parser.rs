@@ -17,7 +17,7 @@ pub enum ParseError {
     DateParseError(String),
     #[error("Failed to parse time: {0}")]
     TimeParseError(String),
-    #[error("Invalid house type: {0}")]
+    #[error("Invalid house type, accepted values are 'senate' and 'national_assembly': {0}")]
     InvalidHouse(String),
     #[error("Missing required field: {0}")]
     MissingField(String),
