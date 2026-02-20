@@ -1,17 +1,12 @@
-[package]
-name = "odnelazm"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["crates/odnelazm", "crates/odnelazm-cli"]
+resolver = "2"
 
-[dependencies]
-chrono = { version = "0.4.43", features = ["serde"] }
-clap = { version = "4.5.59", features = ["derive"] }
-env_logger = "0.11.6"
-log = "0.4.22"
-regex = "1.11.1"
-reqwest = "0.13.2"
-scraper = "0.25.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
-thiserror = "2.0.18"
-tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
+
+[workspace.package]
+authors = ["c12i <hello@c12i.xyz>"]
+edition = "2024"
+repository = "https://github.com/c12i/odnelazm"
+categories = ["parser-implementations", "command-line-utilities"]
+license = "MIT"
+license-file = "LICENSE"

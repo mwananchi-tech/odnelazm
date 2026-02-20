@@ -964,11 +964,9 @@ dependencies = [
 
 [[package]]
 name = "odnelazm"
-version = "0.1.0"
+version = "1.0.0-beta.1"
 dependencies = [
  "chrono",
- "clap",
- "env_logger",
  "log",
  "regex",
  "reqwest",
@@ -976,6 +974,19 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "odnelazm-cli"
+version = "1.0.0-beta.1"
+dependencies = [
+ "chrono",
+ "clap",
+ "env_logger",
+ "log",
+ "odnelazm",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
