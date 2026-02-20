@@ -57,6 +57,7 @@ enum OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// List available parliamentary sittings with optional filtering and pagination
     List {
         #[arg(long, help = "Maximum number of results to return")]
         limit: Option<usize>,
@@ -87,6 +88,7 @@ enum Commands {
         )]
         format: OutputFormat,
     },
+    /// Fetch the full transcript of a sitting including sections, contributions and procedural notes
     Detail {
         #[arg(help = "URL of the hansard detail page to fetch")]
         url: String,
