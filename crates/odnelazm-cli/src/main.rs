@@ -102,7 +102,7 @@ enum Commands {
 
         #[arg(
             long,
-            value_parser = parse_house,
+            value_parser = |s: &str| House::from_str(s).map_err(|e| e.to_string()),
             help = "Filter by house"
         )]
         house: Option<House>,
@@ -124,10 +124,6 @@ enum Commands {
         #[arg(long, help = "Fetch speaker details from person profile pages")]
         fetch_speakers: bool,
     },
-}
-
-fn parse_house(s: &str) -> Result<House, String> {
-    House::from_str(s).map_err(|e| e.to_string())
 }
 
 fn serialize_json<T: serde::Serialize>(value: &T) {
