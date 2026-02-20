@@ -1,7 +1,7 @@
 [package]
 name = "odnelazm"
 description = "A mzalendo.com web scaraper and parser"
-version = "1.0.0-beta.1"
+version = "1.0.0-beta.2"
 readme = "README.md"
 authors.workspace = true
 edition.workspace = true
