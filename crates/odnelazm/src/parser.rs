@@ -237,7 +237,7 @@ fn parse_hansard_entry(url: &str, display_text: &str) -> Result<HansardListing, 
     let full_url = if url.starts_with("http") {
         url.to_string()
     } else {
-        format!("https://info.mzalendo.com{}", url)
+        format!("{}{}", crate::BASE_URL, url)
     };
 
     Ok(HansardListing {
