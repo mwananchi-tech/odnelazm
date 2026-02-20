@@ -2,6 +2,7 @@
 name = "odnelazm-cli"
 description = "Command Line Interface for interacting with scraped data from odnelazm"
 version = "1.0.0-beta.1"
+readme = "README.md"
 authors.workspace = true
 edition.workspace = true
 categories.workspace = true
