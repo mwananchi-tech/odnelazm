@@ -251,7 +251,7 @@ async fn main() {
             log::info!("Fetching hansard detail from {}...", url);
 
             let mut detail = scraper
-                .fetch_hansard_detail_parsed(&url)
+                .fetch_hansard_detail(&url)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error fetching hansard detail: {}", e);
