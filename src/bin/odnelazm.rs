@@ -1,9 +1,10 @@
+use std::process;
+
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::LevelFilter;
 use odnelazm::scraper::WebScraper;
 use odnelazm::types::House;
-use std::process;
 
 #[derive(Parser)]
 #[command(name = "odnelazm")]
@@ -163,6 +164,11 @@ async fn main() {
         .filter_level(cli.log_level.clone().into())
         .init();
 
+    let scraper = WebScraper::new().unwrap_or_else(|e| {
+        log::error!("Error creating scraper: {}", e);
+        process::exit(1);
+    });
+
     match cli.command {
         Commands::List {
             limit,
@@ -175,14 +181,10 @@ async fn main() {
                 limit, offset, start_date, end_date,
             )
             .unwrap_or_else(|e| {
-                log::error!("{}", e);
+                log::error!("Invalid args: {}", e);
                 process::exit(1);
             });
 
-            let scraper = WebScraper::new().unwrap_or_else(|e| {
-                log::error!("Error creating scraper: {}", e);
-                process::exit(1);
-            });
             log::info!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
 
             let mut listings = scraper.fetch_hansard_list().await.unwrap_or_else(|e| {
@@ -190,16 +192,12 @@ async fn main() {
                 process::exit(1);
             });
 
-            let total_fetched = listings.len();
-
             if let Some(start) = start_date {
                 listings.retain(|l| l.date >= start);
             }
             if let Some(end) = end_date {
                 listings.retain(|l| l.date <= end);
             }
-
-            let after_date_filter = listings.len();
 
             if let Some(off) = offset {
                 if off >= listings.len() {
@@ -220,15 +218,6 @@ async fn main() {
             match format {
                 OutputFormat::Json => serialize_json(&listings),
                 OutputFormat::Text => {
-                    log::info!("Fetched {} hansard listings", total_fetched);
-
-                    if start_date.is_some() || end_date.is_some() {
-                        log::info!("After date filtering: {}", after_date_filter);
-                    }
-                    if offset.is_some() || limit.is_some() {
-                        log::info!("After pagination: {}", listings.len());
-                    }
-
                     if listings.is_empty() {
                         println!("No entries to display.");
                     } else {
@@ -244,9 +233,9 @@ async fn main() {
                             .count();
 
                         println!("\nStatistics:");
-                        println!("  Senate sittings:           {}", senate_count);
+                        println!("  Senate sittings:            {}", senate_count);
                         println!("  National Assembly sittings: {}", assembly_count);
-                        println!("  Total:                     {}", listings.len());
+                        println!("  Total:                      {}", listings.len());
                     }
                 }
             }
@@ -257,10 +246,6 @@ async fn main() {
             format,
             fetch_speakers,
         } => {
-            let scraper = WebScraper::new().unwrap_or_else(|e| {
-                log::error!("Error creating scraper: {}", e);
-                process::exit(1);
-            });
             log::info!("Fetching hansard detail from {}...", url);
 
             let mut detail = scraper
