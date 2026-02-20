@@ -12,12 +12,12 @@ use scraper::{ElementRef, Html, Selector};
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
     #[error("Failed to parse URL: {0}")]
-    UrlParseError(String),
+    UrlParse(String),
     #[error("Failed to parse date: {0}")]
-    DateParseError(String),
+    DateParse(String),
     #[error("Failed to parse time: {0}")]
-    TimeParseError(String),
-    #[error("Invalid house type: {0}")]
+    TimeParse(String),
+    #[error("Invalid house type, accepted values are 'senate' and 'national_assembly': {0}")]
     InvalidHouse(String),
     #[error("Missing required field: {0}")]
     MissingField(String),
@@ -84,12 +84,12 @@ pub fn parse_hansard_detail(html: &str, url: &str) -> Result<HansardDetail, Pars
 
     let house_str = parts
         .get(parts.len().wrapping_sub(2))
-        .ok_or_else(|| ParseError::UrlParseError("Could not extract house from URL".to_string()))?;
+        .ok_or_else(|| ParseError::UrlParse("Could not extract house from URL".to_string()))?;
     let house = House::from_str(house_str)?;
 
     let date_time_str = parts
         .last()
-        .ok_or_else(|| ParseError::UrlParseError("Could not extract date from URL".to_string()))?;
+        .ok_or_else(|| ParseError::UrlParse("Could not extract date from URL".to_string()))?;
     let (date, start_time, _) = parse_date_time(date_time_str, "")?;
 
     let h2_selector = Selector::parse("h2").unwrap();
@@ -148,7 +148,7 @@ pub fn parse_person_details(html: &str, url: &str) -> Result<PersonDetails, Pars
         .trim_end_matches('/')
         .split('/')
         .next_back()
-        .ok_or_else(|| ParseError::UrlParseError("Could not extract slug from URL".to_string()))?
+        .ok_or_else(|| ParseError::UrlParse("Could not extract slug from URL".to_string()))?
         .to_string();
 
     let h1_selector = Selector::parse("h1").unwrap();
@@ -225,7 +225,7 @@ fn parse_hansard_entry(url: &str, display_text: &str) -> Result<HansardListing, 
     let parts: Vec<&str> = url.split('/').filter(|s| !s.is_empty()).collect();
 
     if parts.len() < 4 {
-        return Err(ParseError::UrlParseError(format!(
+        return Err(ParseError::UrlParse(format!(
             "URL has insufficient parts: {}",
             url
         )));
@@ -257,7 +257,7 @@ fn parse_date_time(
     let parts: Vec<&str> = date_time_str.split('-').collect();
 
     if parts.len() < 3 {
-        return Err(ParseError::DateParseError(format!(
+        return Err(ParseError::DateParse(format!(
             "Invalid date format: {}",
             date_time_str
         )));
@@ -265,17 +265,17 @@ fn parse_date_time(
 
     let parse_u32 = |s: &str, label: &str| -> Result<u32, ParseError> {
         s.parse()
-            .map_err(|_| ParseError::DateParseError(format!("Invalid {}: {}", label, s)))
+            .map_err(|_| ParseError::DateParse(format!("Invalid {}: {}", label, s)))
     };
 
     let year = parts[0]
         .parse::<i32>()
-        .map_err(|_| ParseError::DateParseError(format!("Invalid year: {}", parts[0])))?;
+        .map_err(|_| ParseError::DateParse(format!("Invalid year: {}", parts[0])))?;
     let month = parse_u32(parts[1], "month")?;
     let day = parse_u32(parts[2], "day")?;
 
     let date = NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
-        ParseError::DateParseError(format!("Invalid date: {}-{}-{}", year, month, day))
+        ParseError::DateParse(format!("Invalid date: {}-{}-{}", year, month, day))
     })?;
 
     let start_time = if parts.len() >= 6 {
@@ -285,7 +285,7 @@ fn parse_date_time(
 
         Some(
             NaiveTime::from_hms_opt(hour, minute, second).ok_or_else(|| {
-                ParseError::TimeParseError(format!("Invalid time: {}:{}:{}", hour, minute, second))
+                ParseError::TimeParse(format!("Invalid time: {}:{}:{}", hour, minute, second))
             })?,
         )
     } else {
@@ -304,13 +304,13 @@ fn parse_end_time_from_display(display_text: &str) -> Result<Option<NaiveTime>, 
 
     let hour: u32 = caps[1]
         .parse()
-        .map_err(|_| ParseError::TimeParseError(format!("Invalid end hour: {}", &caps[1])))?;
+        .map_err(|_| ParseError::TimeParse(format!("Invalid end hour: {}", &caps[1])))?;
     let minute: u32 = caps[2]
         .parse()
-        .map_err(|_| ParseError::TimeParseError(format!("Invalid end minute: {}", &caps[2])))?;
+        .map_err(|_| ParseError::TimeParse(format!("Invalid end minute: {}", &caps[2])))?;
 
     NaiveTime::from_hms_opt(hour, minute, 0)
-        .ok_or_else(|| ParseError::TimeParseError(format!("Invalid end time: {}:{}", hour, minute)))
+        .ok_or_else(|| ParseError::TimeParse(format!("Invalid end time: {}:{}", hour, minute)))
         .map(Some)
 }
 
