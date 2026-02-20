@@ -9,4 +9,3 @@ edition = "2024"
 repository = "https://github.com/c12i/odnelazm"
 categories = ["parser-implementations", "command-line-utilities"]
 license = "MIT"
-license-file = "LICENSE"
