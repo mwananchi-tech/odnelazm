@@ -27,7 +27,7 @@ impl WebScraper {
 
         Ok(Self {
             client,
-            base_url: "https://info.mzalendo.com".to_string(),
+            base_url: crate::BASE_URL.to_string(),
         })
     }
 
