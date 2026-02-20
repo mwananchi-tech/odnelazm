@@ -42,11 +42,19 @@ impl McpServer {
     ) -> Result<String, McpError> {
         let filters = filters
             .validate()
+            .inspect_err(|e| log::error!("Invalid params: {e}"))
             .map_err(|e| McpError::invalid_params(e, None))?;
 
-        let listings = self.scraper.fetch_hansard_list().await.map_err(|e| {
-            McpError::internal_error(format!("Failed to fetch hansard list: {e}"), None)
-        })?;
+        log::info!("Fetching hansard listings...");
+
+        let listings = self
+            .scraper
+            .fetch_hansard_list()
+            .await
+            .inspect_err(|e| log::error!("Failed to fetch hansard list: {e}"))
+            .map_err(|e| {
+                McpError::internal_error(format!("Failed to fetch hansard list: {e}"), None)
+            })?;
 
         let listings = filters.apply(listings);
 
@@ -75,8 +83,10 @@ impl McpServer {
             .scraper
             .fetch_hansard_detail(&params.url_or_slug)
             .await
+            .inspect_err(|e| log::error!("Failed to fetch hansard detail: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
 
+        // TODO: Repeated code in odnelazm-cli; needs refactor
         if params.fetch_speakers {
             let speaker_urls: HashSet<String> = sitting
                 .sections
