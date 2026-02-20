@@ -7,11 +7,9 @@ use std::time::Duration;
 #[derive(Debug, thiserror::Error)]
 pub enum ScraperError {
     #[error("HTTP request failed: {0}")]
-    RequestError(#[from] reqwest::Error),
+    HttpError(#[from] reqwest::Error),
     #[error("Parse error: {0}")]
     ParseError(#[from] ParseError),
-    #[error("Page not found: {0}")]
-    NotFound(String),
 }
 
 #[derive(Debug, Clone)]
@@ -60,10 +58,6 @@ impl WebScraper {
             .error_for_status()?
             .text()
             .await?;
-
-        if html.contains("Page Not Found") || html.contains("404") {
-            return Err(ScraperError::NotFound(url.into()));
-        }
 
         let detail = parse_hansard_detail(&html, url)?;
         Ok(detail)
