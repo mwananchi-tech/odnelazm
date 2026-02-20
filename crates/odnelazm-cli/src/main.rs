@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::process;
+use std::str::FromStr;
 
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -7,6 +8,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use log::LevelFilter;
 use odnelazm::scraper::WebScraper;
 use odnelazm::types::House;
+use odnelazm::utils::{ListingFilter, ListingStats};
 
 #[derive(Parser)]
 #[command(name = "odnelazm")]
@@ -59,25 +61,35 @@ enum OutputFormat {
 enum Commands {
     /// List available parliamentary sittings with optional filtering and pagination
     List {
-        #[arg(long, help = "Maximum number of results to return")]
+        #[arg(
+            long,
+            help = "Maximum number of results to return",
+            value_parser = clap::value_parser!(u16).range(1..)
+        )]
         limit: Option<usize>,
 
-        #[arg(long, help = "Number of results to skip from the beginning")]
+        #[arg(
+            long,
+            help = "Number of results to skip from the beginning",
+            value_parser = clap::value_parser!(u16).range(1..)
+        )]
         offset: Option<usize>,
 
         #[arg(
             long,
             value_name = "YYYY-MM-DD",
-            help = "Filter sessions from this date onwards"
+            help = "Filter sessions from this date onwards",
+            value_parser = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|e| e.to_string()),
         )]
-        start_date: Option<String>,
+        start_date: Option<NaiveDate>,
 
         #[arg(
             long,
             value_name = "YYYY-MM-DD",
-            help = "Filter sessions up to this date"
+            help = "Filter sessions up to this date",
+            value_parser = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|e| e.to_string()),
         )]
-        end_date: Option<String>,
+        end_date: Option<NaiveDate>,
 
         #[arg(
             short = 'o',
@@ -87,6 +99,13 @@ enum Commands {
             help = "Output format"
         )]
         format: OutputFormat,
+
+        #[arg(
+            long,
+            value_parser = |s: &str| House::from_str(s).map_err(|e| e.to_string()),
+            help = "Filter by house"
+        )]
+        house: Option<House>,
     },
     /// Fetch the full transcript of a sitting including sections, contributions and procedural notes
     Detail {
@@ -105,49 +124,6 @@ enum Commands {
         #[arg(long, help = "Fetch speaker details from person profile pages")]
         fetch_speakers: bool,
     },
-}
-
-type FilterResult = Result<
-    (
-        Option<usize>,
-        Option<usize>,
-        Option<NaiveDate>,
-        Option<NaiveDate>,
-    ),
-    String,
->;
-
-fn parse_date(date_str: &str) -> Result<NaiveDate, String> {
-    NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-        .map_err(|_| format!("Invalid date format '{}'. Expected YYYY-MM-DD", date_str))
-}
-
-fn validate_and_parse_filters(
-    limit: Option<usize>,
-    offset: Option<usize>,
-    start_date: Option<String>,
-    end_date: Option<String>,
-) -> FilterResult {
-    let start = start_date.as_deref().map(parse_date).transpose()?;
-    let end = end_date.as_deref().map(parse_date).transpose()?;
-
-    let Some(s) = start else {
-        return Ok((limit, offset, None, None));
-    };
-    let Some(e) = end else {
-        return Ok((limit, offset, start, None));
-    };
-    if s > e {
-        return Err(format!("Start date ({s}) cannot be after end date ({e})"));
-    }
-    if offset.is_some_and(|o| o == 0) {
-        return Err("Offset must be greater than 0".to_string());
-    }
-    if limit.is_some_and(|l| l == 0) {
-        return Err("Limit must be greater than 0".to_string());
-    }
-
-    Ok((limit, offset, start, end))
 }
 
 fn serialize_json<T: serde::Serialize>(value: &T) {
@@ -180,12 +156,18 @@ async fn main() {
             start_date,
             end_date,
             format,
+            house,
         } => {
-            let (limit, offset, start_date, end_date) = validate_and_parse_filters(
-                limit, offset, start_date, end_date,
-            )
-            .unwrap_or_else(|e| {
-                log::error!("Invalid args: {}", e);
+            let listing_filters = ListingFilter {
+                limit,
+                offset,
+                start_date,
+                end_date,
+                house,
+            };
+
+            let listing_filters = listing_filters.validate().unwrap_or_else(|e| {
+                log::error!("Invalid args: {e}");
                 process::exit(1);
             });
 
@@ -196,28 +178,7 @@ async fn main() {
                 process::exit(1);
             });
 
-            if let Some(start) = start_date {
-                listings.retain(|l| l.date >= start);
-            }
-            if let Some(end) = end_date {
-                listings.retain(|l| l.date <= end);
-            }
-
-            if let Some(off) = offset {
-                if off >= listings.len() {
-                    log::error!(
-                        "Offset ({}) is greater than or equal to available results ({})",
-                        off,
-                        listings.len()
-                    );
-                    process::exit(1);
-                }
-                listings = listings.into_iter().skip(off).collect();
-            }
-
-            if let Some(lim) = limit {
-                listings.truncate(lim);
-            }
+            listings = listing_filters.apply(listings);
 
             match format {
                 OutputFormat::Json => serialize_json(&listings),
@@ -228,18 +189,7 @@ async fn main() {
                         for (i, listing) in listings.iter().enumerate() {
                             println!("{:>3}. {}", i + 1, listing);
                         }
-
-                        let senate_count =
-                            listings.iter().filter(|l| l.house == House::Senate).count();
-                        let assembly_count = listings
-                            .iter()
-                            .filter(|l| l.house == House::NationalAssembly)
-                            .count();
-
-                        println!("\nStatistics:");
-                        println!("  Senate sittings:            {}", senate_count);
-                        println!("  National Assembly sittings: {}", assembly_count);
-                        println!("  Total:                      {}", listings.len());
+                        print!("{}", ListingStats::from_hansard_listings(&listings));
                     }
                 }
             }
