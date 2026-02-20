@@ -24,7 +24,11 @@ impl WebScraper {
     pub fn new() -> Result<Self, ScraperError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent("odnelazm/0.1.0")
+            .user_agent(format!(
+                "{}/{}",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ))
             .build()?;
 
         Ok(Self {
