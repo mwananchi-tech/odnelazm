@@ -6,6 +6,28 @@ use serde::{Deserialize, Serialize};
 use crate::parser::ParseError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HansardListing {
+    pub house: House,
+    pub date: NaiveDate,
+    pub start_time: Option<NaiveTime>,
+    pub end_time: Option<NaiveTime>,
+    pub url: String,
+    pub display_text: String,
+}
+
+impl Display for HansardListing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {} — {}", self.house, self.date, self.display_text)?;
+
+        match (self.start_time, self.end_time) {
+            (Some(start), Some(end)) => write!(f, "\n   Time: {} – {}", start, end),
+            (Some(start), None) => write!(f, "\n   Start: {}", start),
+            _ => Ok(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum House {
     Senate,
@@ -29,48 +51,6 @@ impl Display for House {
         match self {
             House::Senate => write!(f, "Senate"),
             House::NationalAssembly => write!(f, "National Assembly"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HansardListing {
-    pub house: House,
-    pub date: NaiveDate,
-    pub start_time: Option<NaiveTime>,
-    pub end_time: Option<NaiveTime>,
-    pub url: String,
-    pub display_text: String,
-}
-
-impl Display for HansardListing {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {} — {}", self.house, self.date, self.display_text)?;
-
-        match (self.start_time, self.end_time) {
-            (Some(start), Some(end)) => write!(f, "\n   Time: {} – {}", start, end),
-            (Some(start), None) => write!(f, "\n   Start: {}", start),
-            _ => Ok(()),
-        }
-    }
-}
-
-impl HansardListing {
-    pub fn new(
-        house: House,
-        date: NaiveDate,
-        start_time: Option<NaiveTime>,
-        end_time: Option<NaiveTime>,
-        url: String,
-        display_text: String,
-    ) -> Self {
-        Self {
-            house,
-            date,
-            start_time,
-            end_time,
-            url,
-            display_text,
         }
     }
 }
