@@ -1,0 +1,27 @@
+[package]
+name = "odnelazm-mcp"
+version = "1.0.0-beta.1"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+categories.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "odnelazm-mcp-local"
+path = "./src/bin/mcp-local.rs"
+
+[[bin]]
+name = "odnelazm-mcp-web"
+path = "./src/bin/mcp-web.rs"
+
+[dependencies]
+anyhow = "1.0"
+axum = "0.8.8"
+rmcp = { version = "0.16", features = [
+  "server",
+  "transport-io",
+  "transport-streamable-http-server",
+] }
+tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread"] }
+tower-http = { version = "0.6", features = ["cors"] }
