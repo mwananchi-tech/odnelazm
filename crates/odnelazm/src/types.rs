@@ -131,6 +131,9 @@ impl Display for Contribution {
             write!(f, " ({})", role)?;
         }
         writeln!(f)?;
+        if let Some(details) = &self.speaker_details {
+            writeln!(f, "    {}", details)?;
+        }
         writeln!(f, "    {}", self.content)?;
         for note in &self.procedural_notes {
             writeln!(f, "    [{}]", note)?;
@@ -138,7 +141,6 @@ impl Display for Contribution {
         Ok(())
     }
 }
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PersonDetails {
     pub name: String,
