@@ -1,7 +1,9 @@
+use std::collections::{HashMap, HashSet};
 use std::process;
 
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
+use futures::stream::{FuturesUnordered, StreamExt};
 use log::LevelFilter;
 use odnelazm::scraper::WebScraper;
 use odnelazm::types::House;
@@ -256,9 +258,7 @@ async fn main() {
                     process::exit(1);
                 });
 
-            if fetch_speakers && matches!(format, OutputFormat::Json) {
-                use std::collections::{HashMap, HashSet};
-
+            if fetch_speakers {
                 let speaker_urls: HashSet<String> = detail
                     .sections
                     .iter()
@@ -270,13 +270,21 @@ async fn main() {
                 if !speaker_urls.is_empty() {
                     log::info!("Fetching {} speaker profiles...", speaker_urls.len());
 
+                    let mut futures: FuturesUnordered<_> = speaker_urls
+                        .iter()
+                        .map(|url| {
+                            let scraper = &scraper;
+                            async move { (url, scraper.fetch_person_details(url).await) }
+                        })
+                        .collect();
+
                     let mut speaker_map = HashMap::new();
-                    for speaker_url in speaker_urls {
-                        match scraper.fetch_person_details(&speaker_url).await {
+                    while let Some((url, result)) = futures.next().await {
+                        match result {
                             Ok(details) => {
-                                speaker_map.insert(speaker_url, details);
+                                speaker_map.insert(url.clone(), details);
                             }
-                            Err(e) => log::warn!("Failed to fetch speaker {}: {}", speaker_url, e),
+                            Err(e) => log::warn!("Failed to fetch speaker {}: {}", url, e),
                         }
                     }
 
