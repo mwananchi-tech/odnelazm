@@ -10,6 +10,8 @@ pub enum ScraperError {
     RequestError(#[from] reqwest::Error),
     #[error("Parse error: {0}")]
     ParseError(#[from] ParseError),
+    #[error("Page not found: {0}")]
+    NotFound(String),
 }
 
 #[derive(Debug, Clone)]
@@ -22,32 +24,47 @@ impl WebScraper {
     pub fn new() -> Result<Self, ScraperError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
-            .user_agent("odnelazm/0.1.0")
+            .user_agent(format!(
+                "{}/{}",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ))
             .build()?;
 
         Ok(Self {
             client,
-            base_url: "https://info.mzalendo.com".to_string(),
+            base_url: crate::BASE_URL.to_string(),
         })
     }
 
     pub async fn fetch_hansard_list(&self) -> Result<Vec<HansardListing>, ScraperError> {
         let url = format!("{}/hansard/", self.base_url);
-        let html = self.client.get(&url).send().await?.text().await?;
+        let html = self
+            .client
+            .get(&url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
         let listings = parse_hansard_list(&html)?;
         Ok(listings)
     }
 
-    pub async fn fetch_hansard_detail(&self, url: &str) -> Result<String, ScraperError> {
-        let html = self.client.get(url).send().await?.text().await?;
-        Ok(html)
-    }
+    pub async fn fetch_hansard_detail(&self, url: &str) -> Result<HansardDetail, ScraperError> {
+        let html = self
+            .client
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
 
-    pub async fn fetch_hansard_detail_parsed(
-        &self,
-        url: &str,
-    ) -> Result<HansardDetail, ScraperError> {
-        let html = self.fetch_hansard_detail(url).await?;
+        if html.contains("Page Not Found") || html.contains("404") {
+            return Err(ScraperError::NotFound(url.into()));
+        }
+
         let detail = parse_hansard_detail(&html, url)?;
         Ok(detail)
     }
@@ -58,17 +75,15 @@ impl WebScraper {
         } else {
             format!("{}{}", self.base_url, url)
         };
-        let response = self.client.get(&full_url).send().await?;
 
-        if !response.status().is_success() {
-            return Err(ScraperError::ParseError(ParseError::MissingField(format!(
-                "HTTP {}: {}",
-                response.status(),
-                url
-            ))));
-        }
-
-        let html = response.text().await?;
+        let html = self
+            .client
+            .get(&full_url)
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
 
         if html.trim().is_empty() {
             return Err(ScraperError::ParseError(ParseError::MissingField(format!(
