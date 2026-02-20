@@ -1237,7 +1237,9 @@ version = "1.0.0-beta.1"
 dependencies = [
  "anyhow",
  "axum",
+ "odnelazm",
  "rmcp",
+ "serde_json",
  "tokio",
  "tower-http",
 ]
