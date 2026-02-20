@@ -1,13 +1,21 @@
-use odnelazm::scraper::WebScraper;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+};
+
+use futures::{StreamExt, stream::FuturesUnordered};
+use odnelazm::{
+    scraper::WebScraper,
+    utils::{ListingFilter, ListingStats},
+};
 use rmcp::{
     ServerHandler,
-    handler::server::tool::ToolRouter,
-    model::{
-        CallToolResult, ErrorData as McpError, Implementation, ProtocolVersion, ServerCapabilities,
-        ServerInfo,
-    },
+    handler::server::{tool::ToolRouter, wrapper::Parameters},
+    model::{ErrorData as McpError, ServerCapabilities, ServerInfo},
     tool, tool_handler, tool_router,
 };
+use schemars::JsonSchema;
+use serde::Deserialize;
 
 #[derive(Debug, Clone)]
 pub struct McpServer {
@@ -24,30 +32,139 @@ impl McpServer {
         })
     }
 
-    #[tool(description = "List all parliamentary sessions")]
-    pub async fn list_sittings(&self) -> Result<CallToolResult, McpError> {
-        todo!()
+    #[tool(
+        name = "list_sittings",
+        description = "List available parliamentary sittings with optional filtering and pagination."
+    )]
+    pub async fn list_sittings(
+        &self,
+        Parameters(filters): Parameters<ListingFilter>,
+    ) -> Result<String, McpError> {
+        let filters = filters
+            .validate()
+            .map_err(|e| McpError::invalid_params(e, None))?;
+
+        let listings = self.scraper.fetch_hansard_list().await.map_err(|e| {
+            McpError::internal_error(format!("Failed to fetch hansard list: {e}"), None)
+        })?;
+
+        let listings = filters.apply(listings);
+
+        let mut output = String::new();
+        for (i, listing) in listings.iter().enumerate() {
+            writeln!(output, "{:>3}. {}", i + 1, listing).map_err(|e| {
+                McpError::internal_error(format!("Failed to write to output: {}", e), None)
+            })?;
+        }
+        write!(output, "{}", ListingStats::from_hansard_listings(&listings)).map_err(|e| {
+            McpError::internal_error(format!("Failed to write to output: {}", e), None)
+        })?;
+
+        Ok(output)
     }
 
-    #[tool(description = "Get the full hansard of a given sitting")]
-    pub async fn get_sitting(&self) -> Result<CallToolResult, McpError> {
-        todo!()
+    #[tool(
+        name = "get_sitting",
+        description = "Fetch the full transcript of a sitting including sections, contributions and procedural notes"
+    )]
+    pub async fn get_sitting(
+        &self,
+        Parameters(params): Parameters<GetSittingParams>,
+    ) -> Result<String, McpError> {
+        let mut sitting = self
+            .scraper
+            .fetch_hansard_detail(&params.url_or_slug)
+            .await
+            .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
+
+        if params.fetch_speakers {
+            let speaker_urls: HashSet<String> = sitting
+                .sections
+                .iter()
+                .flat_map(|s| &s.contributions)
+                .filter_map(|c| c.speaker_url.as_ref())
+                .cloned()
+                .collect();
+
+            if !speaker_urls.is_empty() {
+                log::info!("Fetching {} speaker profiles...", speaker_urls.len());
+
+                let mut futures: FuturesUnordered<_> = speaker_urls
+                    .iter()
+                    .map(|url| {
+                        let scraper = &self.scraper;
+                        async move { (url, scraper.fetch_person_details(url).await) }
+                    })
+                    .collect();
+
+                let mut speaker_map = HashMap::new();
+                while let Some((url, result)) = futures.next().await {
+                    match result {
+                        Ok(details) => {
+                            speaker_map.insert(params.url_or_slug.clone(), details);
+                        }
+                        Err(e) => log::warn!("Failed to fetch speaker {}: {}", url, e),
+                    }
+                }
+
+                for contrib in sitting
+                    .sections
+                    .iter_mut()
+                    .flat_map(|s| &mut s.contributions)
+                {
+                    if let Some(url) = &contrib.speaker_url {
+                        contrib.speaker_details = speaker_map.get(url).cloned();
+                    }
+                }
+
+                log::info!(
+                    "Successfully fetched {} speaker profiles",
+                    speaker_map.len()
+                );
+            }
+        } else {
+            log::info!("Fetching speakers skipped");
+        }
+
+        Ok(sitting.to_string())
     }
 
-    #[tool(description = "Get additional details of a speaker/member")]
-    pub async fn get_person(&self) -> Result<CallToolResult, McpError> {
-        todo!()
+    #[tool(
+        name = "get_person",
+        description = "Fetch speaker details from person profile pages"
+    )]
+    pub async fn get_person(
+        &self,
+        Parameters(params): Parameters<GetPersonParams>,
+    ) -> Result<String, McpError> {
+        let person = self
+            .scraper
+            .fetch_person_details(&params.url_or_slug)
+            .await
+            .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
+
+        Ok(person.to_string())
     }
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct GetSittingParams {
+    url_or_slug: String,
+    fetch_speakers: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct GetPersonParams {
+    url_or_slug: String,
 }
 
 #[tool_handler]
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            protocol_version: ProtocolVersion::V_2025_06_18,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation::from_build_env(),
             instructions: Some(include_str!("./instructions.md").to_string()),
+            ..Default::default()
         }
     }
 }

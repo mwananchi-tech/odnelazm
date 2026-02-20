@@ -1,6 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use chrono::{NaiveDate, NaiveTime};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::parser::ParseError;
@@ -27,7 +28,7 @@ impl Display for HansardListing {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum House {
     Senate,

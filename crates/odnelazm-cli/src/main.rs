@@ -256,7 +256,7 @@ async fn main() {
                     );
                 }
             } else {
-                log::warn!("Fetching speakers skipped for {:?} format", format);
+                log::info!("Fetching speakers skipped for {:?} format", format);
             }
 
             match format {

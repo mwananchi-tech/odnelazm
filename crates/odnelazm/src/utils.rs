@@ -1,8 +1,10 @@
 use crate::types::{HansardListing, House};
 
 use chrono::NaiveDate;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct ListingFilter {
     pub start_date: Option<NaiveDate>,
     pub end_date: Option<NaiveDate>,
