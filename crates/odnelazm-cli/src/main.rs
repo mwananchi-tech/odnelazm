@@ -62,14 +62,14 @@ enum Commands {
     /// List available parliamentary sittings with optional filtering and pagination
     List {
         #[arg(
-            long, 
-            help = "Maximum number of results to return", 
+            long,
+            help = "Maximum number of results to return",
             value_parser = clap::value_parser!(u16).range(1..)
         )]
         limit: Option<usize>,
 
         #[arg(
-            long, 
+            long,
             help = "Number of results to skip from the beginning",
             value_parser = clap::value_parser!(u16).range(1..)
         )]
