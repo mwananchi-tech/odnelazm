@@ -6,4 +6,4 @@ Tools for scraping, parsing, and accessing hansard data from [mzalendo.com](http
 
 - [odnelazm](./crates/odnelazm/) - core scraper and parser
 - [odnelazm-cli](./crates/odnelazm-cli/) - command line interface
-- odnelazm-mcp - MCP server for LLM client access (WIP)
+- [odnelazm-mcp](./crates/odnelazm-mcp) - MCP server for LLM client access
