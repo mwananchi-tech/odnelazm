@@ -6,6 +6,6 @@ resolver = "2"
 [workspace.package]
 authors = ["c12i <hello@c12i.xyz>"]
 edition = "2024"
-repository = "https://github.com/c12i/odnelazm"
+repository = "https://github.com/mwananchi-tech/odnelazm"
 categories = ["parser-implementations", "command-line-utilities"]
 license = "MIT"
