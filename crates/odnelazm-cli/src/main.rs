@@ -1,10 +1,8 @@
-use std::collections::{HashMap, HashSet};
 use std::process;
 use std::str::FromStr;
 
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
-use futures::stream::{FuturesUnordered, StreamExt};
 use log::LevelFilter;
 use odnelazm::scraper::WebScraper;
 use odnelazm::types::House;
@@ -171,8 +169,6 @@ async fn main() {
                 process::exit(1);
             });
 
-            log::info!("Fetching hansard list from https://info.mzalendo.com/hansard/...");
-
             let mut listings = scraper.fetch_hansard_list().await.unwrap_or_else(|e| {
                 log::error!("Error fetching hansard list: {}", e);
                 process::exit(1);
@@ -200,65 +196,13 @@ async fn main() {
             format,
             fetch_speakers,
         } => {
-            log::info!("Fetching hansard detail from {}...", url);
-
-            let mut detail = scraper
-                .fetch_hansard_detail(&url)
+            let detail = scraper
+                .fetch_hansard_detail(&url, fetch_speakers)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error fetching hansard detail: {}", e);
                     process::exit(1);
                 });
-
-            // TODO: Repeated code in odnelazm-mcp; needs refactor
-            if fetch_speakers {
-                let speaker_urls: HashSet<String> = detail
-                    .sections
-                    .iter()
-                    .flat_map(|s| &s.contributions)
-                    .filter_map(|c| c.speaker_url.as_ref())
-                    .cloned()
-                    .collect();
-
-                if !speaker_urls.is_empty() {
-                    log::info!("Fetching {} speaker profiles...", speaker_urls.len());
-
-                    let mut futures: FuturesUnordered<_> = speaker_urls
-                        .iter()
-                        .map(|url| {
-                            let scraper = &scraper;
-                            async move { (url, scraper.fetch_person_details(url).await) }
-                        })
-                        .collect();
-
-                    let mut speaker_map = HashMap::new();
-                    while let Some((url, result)) = futures.next().await {
-                        match result {
-                            Ok(details) => {
-                                speaker_map.insert(url.clone(), details);
-                            }
-                            Err(e) => log::warn!("Failed to fetch speaker {}: {}", url, e),
-                        }
-                    }
-
-                    for contrib in detail
-                        .sections
-                        .iter_mut()
-                        .flat_map(|s| &mut s.contributions)
-                    {
-                        if let Some(url) = &contrib.speaker_url {
-                            contrib.speaker_details = speaker_map.get(url).cloned();
-                        }
-                    }
-
-                    log::info!(
-                        "Successfully fetched {} speaker profiles",
-                        speaker_map.len()
-                    );
-                }
-            } else {
-                log::info!("Fetching speakers skipped for {:?} format", format);
-            }
 
             match format {
                 OutputFormat::Json => serialize_json(&detail),

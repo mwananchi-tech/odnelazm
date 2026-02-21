@@ -1,6 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
-use futures::{StreamExt, stream::FuturesUnordered};
 use odnelazm::{scraper::WebScraper, utils::ListingFilter};
 use rmcp::{
     ServerHandler,
@@ -39,8 +36,6 @@ impl McpServer {
             .inspect_err(|e| log::error!("Invalid params: {e:?}"))
             .map_err(|e| McpError::invalid_params(e, None))?;
 
-        log::info!("Fetching hansard listings...");
-
         let listings = self
             .scraper
             .fetch_hansard_list()
@@ -71,62 +66,12 @@ impl McpServer {
         &self,
         Parameters(params): Parameters<GetSittingParams>,
     ) -> Result<String, McpError> {
-        let mut sitting = self
+        let sitting = self
             .scraper
-            .fetch_hansard_detail(&params.url_or_slug)
+            .fetch_hansard_detail(&params.url_or_slug, params.fetch_speakers)
             .await
             .inspect_err(|e| log::error!("Failed to fetch hansard detail: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
-
-        // TODO: Repeated code in odnelazm-cli; needs refactor
-        if params.fetch_speakers {
-            let speaker_urls: HashSet<String> = sitting
-                .sections
-                .iter()
-                .flat_map(|s| &s.contributions)
-                .filter_map(|c| c.speaker_url.as_ref())
-                .cloned()
-                .collect();
-
-            if !speaker_urls.is_empty() {
-                log::info!("Fetching {} speaker profiles...", speaker_urls.len());
-
-                let mut futures: FuturesUnordered<_> = speaker_urls
-                    .iter()
-                    .map(|url| {
-                        let scraper = &self.scraper;
-                        async move { (url, scraper.fetch_person_details(url).await) }
-                    })
-                    .collect();
-
-                let mut speaker_map = HashMap::new();
-                while let Some((url, result)) = futures.next().await {
-                    match result {
-                        Ok(details) => {
-                            speaker_map.insert(params.url_or_slug.clone(), details);
-                        }
-                        Err(e) => log::warn!("Failed to fetch speaker {}: {}", url, e),
-                    }
-                }
-
-                for contrib in sitting
-                    .sections
-                    .iter_mut()
-                    .flat_map(|s| &mut s.contributions)
-                {
-                    if let Some(url) = &contrib.speaker_url {
-                        contrib.speaker_details = speaker_map.get(url).cloned();
-                    }
-                }
-
-                log::info!(
-                    "Successfully fetched {} speaker profiles",
-                    speaker_map.len()
-                );
-            }
-        } else {
-            log::info!("Fetching speakers skipped");
-        }
 
         Ok(sitting.to_string())
     }
