@@ -1214,7 +1214,7 @@ dependencies = [
 
 [[package]]
 name = "odnelazm"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "chrono",
  "futures",
@@ -1230,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "odnelazm-cli"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "chrono",
  "clap",
