@@ -5,15 +5,15 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct ListingFilter {
-    pub start_date: Option<NaiveDate>,
-    pub end_date: Option<NaiveDate>,
+pub struct ListingFilter<D = NaiveDate> {
+    pub start_date: Option<D>,
+    pub end_date: Option<D>,
     pub house: Option<House>,
     pub limit: Option<usize>,
     pub offset: Option<usize>,
 }
 
-impl Default for ListingFilter {
+impl<D> Default for ListingFilter<D> {
     fn default() -> Self {
         Self {
             start_date: None,
@@ -25,7 +25,7 @@ impl Default for ListingFilter {
     }
 }
 
-impl ListingFilter {
+impl ListingFilter<NaiveDate> {
     pub fn apply(self, mut listings: Vec<HansardListing>) -> Vec<HansardListing> {
         if let Some(start) = self.start_date {
             listings.retain(|l| l.date >= start);
