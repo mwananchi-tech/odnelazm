@@ -1,6 +1,7 @@
 use std::{fmt::Display, str::FromStr};
 
 use chrono::{NaiveDate, NaiveTime};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::parser::ParseError;
@@ -27,7 +28,7 @@ impl Display for HansardListing {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum House {
     Senate,
@@ -131,6 +132,9 @@ impl Display for Contribution {
             write!(f, " ({})", role)?;
         }
         writeln!(f)?;
+        if let Some(details) = &self.speaker_details {
+            writeln!(f, "    {}", details)?;
+        }
         writeln!(f, "    {}", self.content)?;
         for note in &self.procedural_notes {
             writeln!(f, "    [{}]", note)?;
@@ -138,7 +142,6 @@ impl Display for Contribution {
         Ok(())
     }
 }
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PersonDetails {
     pub name: String,
