@@ -1207,6 +1207,7 @@ name = "odnelazm"
 version = "1.0.0-beta.2"
 dependencies = [
  "chrono",
+ "futures",
  "log",
  "regex",
  "reqwest",
@@ -1224,7 +1225,6 @@ dependencies = [
  "chrono",
  "clap",
  "env_logger",
- "futures",
  "log",
  "odnelazm",
  "serde",
@@ -1239,7 +1239,6 @@ dependencies = [
  "anyhow",
  "axum",
  "env_logger",
- "futures",
  "log",
  "odnelazm",
  "rmcp",

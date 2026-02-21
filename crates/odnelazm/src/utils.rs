@@ -13,6 +13,18 @@ pub struct ListingFilter {
     pub offset: Option<usize>,
 }
 
+impl Default for ListingFilter {
+    fn default() -> Self {
+        Self {
+            start_date: None,
+            end_date: None,
+            house: None,
+            limit: Some(10),
+            offset: None,
+        }
+    }
+}
+
 impl ListingFilter {
     pub fn apply(self, mut listings: Vec<HansardListing>) -> Vec<HansardListing> {
         if let Some(start) = self.start_date {
