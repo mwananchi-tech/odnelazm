@@ -1,6 +1,7 @@
 [package]
 name = "odnelazm-mcp"
 version = "1.0.0-beta.1"
+description = "A MCP server that allows LLM clients to interact with Kenyan parliementary sittings data"
 authors.workspace = true
 edition.workspace = true
 repository.workspace = true
