@@ -1,13 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Write,
-};
+use std::collections::{HashMap, HashSet};
 
 use futures::{StreamExt, stream::FuturesUnordered};
-use odnelazm::{
-    scraper::WebScraper,
-    utils::{ListingFilter, ListingStats},
-};
+use odnelazm::{scraper::WebScraper, utils::ListingFilter};
 use rmcp::{
     ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
@@ -42,7 +36,7 @@ impl McpServer {
     ) -> Result<String, McpError> {
         let filters = filters
             .validate()
-            .inspect_err(|e| log::error!("Invalid params: {e}"))
+            .inspect_err(|e| log::error!("Invalid params: {e:?}"))
             .map_err(|e| McpError::invalid_params(e, None))?;
 
         log::info!("Fetching hansard listings...");
@@ -51,24 +45,22 @@ impl McpServer {
             .scraper
             .fetch_hansard_list()
             .await
-            .inspect_err(|e| log::error!("Failed to fetch hansard list: {e}"))
+            .inspect_err(|e| log::error!("Failed to fetch hansard list: {e:?}"))
             .map_err(|e| {
-                McpError::internal_error(format!("Failed to fetch hansard list: {e}"), None)
+                McpError::internal_error(format!("Failed to fetch hansard list: {e:?}"), None)
             })?;
 
         let listings = filters.apply(listings);
-
-        let mut output = String::new();
-        for (i, listing) in listings.iter().enumerate() {
-            writeln!(output, "{:>3}. {}", i + 1, listing).map_err(|e| {
-                McpError::internal_error(format!("Failed to write to output: {}", e), None)
+        let json = serde_json::to_string_pretty(&listings)
+            .inspect_err(|e| log::error!("Serialization error: {e:?}"))
+            .map_err(|e| {
+                McpError::internal_error(
+                    format!("Failed to serialize hansard listings: {e:?}"),
+                    None,
+                )
             })?;
-        }
-        write!(output, "{}", ListingStats::from_hansard_listings(&listings)).map_err(|e| {
-            McpError::internal_error(format!("Failed to write to output: {}", e), None)
-        })?;
 
-        Ok(output)
+        Ok(json)
     }
 
     #[tool(
