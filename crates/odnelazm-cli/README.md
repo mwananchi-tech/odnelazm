@@ -93,14 +93,16 @@ odnelazm current sitting https://mzalendo.com/democracy-tools/hansard/thursday-1
 
 List members of parliament.
 
-| Flag                      | Description                   |
-| ------------------------- | ----------------------------- |
-| `--page N`                | Page number (default: 1)      |
-| `-o, --output text\|json` | Output format (default: text) |
+| Flag                      | Description                                     |
+| ------------------------- | ----------------------------------------------- |
+| `--page N`                | Page number (default: 1)                        |
+| `--all`                   | Fetch all pages at once (conflicts with --page) |
+| `-o, --output text\|json` | Output format (default: text)                   |
 
 ```bash
 odnelazm current members na 13th-parliament
 odnelazm current members senate 13th-parliament --page 2 -o json
+odnelazm current members na 13th-parliament --all -o json
 ```
 
 ### current profile
