@@ -68,7 +68,7 @@ impl McpServer {
     ) -> Result<String, McpError> {
         let sitting = self
             .scraper
-            .fetch_hansard_detail(&params.url_or_slug, params.fetch_speakers)
+            .fetch_hansard_sitting(&params.url_or_slug, params.fetch_speakers)
             .await
             .inspect_err(|e| log::error!("Failed to fetch hansard detail: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;

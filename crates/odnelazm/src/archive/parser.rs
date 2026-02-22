@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use super::types::{
-    Contribution, HansardDetail, HansardListing, HansardSection, House, PersonDetails,
+    Contribution, HansardSitting, HansardListing, HansardSection, House, PersonDetails,
 };
 
 use chrono::{NaiveDate, NaiveTime};
@@ -77,7 +77,7 @@ pub fn parse_hansard_list(html: &str) -> Result<Vec<HansardListing>, ParseError>
     Ok(listings)
 }
 
-pub fn parse_hansard_detail(html: &str, url: &str) -> Result<HansardDetail, ParseError> {
+pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, ParseError> {
     let document = Html::parse_document(html);
 
     let parts: Vec<&str> = url.split('/').filter(|s| !s.is_empty()).collect();
@@ -128,7 +128,7 @@ pub fn parse_hansard_detail(html: &str, url: &str) -> Result<HansardDetail, Pars
 
     let sections = parse_sections(&document)?;
 
-    Ok(HansardDetail {
+    Ok(HansardSitting {
         house,
         date,
         start_time,
@@ -559,12 +559,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_hansard_detail_2020() {
+    fn test_parse_hansard_sitting_2020() {
         let html = fs::read_to_string("fixtures/archive/hansard_detail_2020")
             .expect("Failed to read sample file");
         let url = "https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00";
 
-        let detail = parse_hansard_detail(&html, url).expect("Failed to parse hansard detail");
+        let detail = parse_hansard_sitting(&html, url).expect("Failed to parse hansard detail");
 
         assert_eq!(detail.house, House::Senate);
         assert_eq!(detail.date.to_string(), "2020-12-29");

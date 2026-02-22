@@ -27,7 +27,7 @@ impl Display for HansardListing {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HansardDetail {
+pub struct HansardSitting {
     pub house: House,
     pub date: NaiveDate,
     pub start_time: Option<NaiveTime>,
@@ -39,7 +39,7 @@ pub struct HansardDetail {
     pub sections: Vec<HansardSection>,
 }
 
-impl Display for HansardDetail {
+impl Display for HansardSitting {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "┌─ {} ─ {}", self.house, self.date)?;
         if let Some(start) = self.start_time {
