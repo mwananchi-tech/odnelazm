@@ -4,7 +4,7 @@ use chrono::{NaiveDate, NaiveTime};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::parser::ParseError;
+use super::parser::ParseError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HansardListing {

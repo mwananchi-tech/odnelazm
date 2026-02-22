@@ -4,9 +4,11 @@ use std::str::FromStr;
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::LevelFilter;
-use odnelazm::scraper::WebScraper;
-use odnelazm::types::House;
-use odnelazm::utils::{ListingFilter, ListingStats};
+use odnelazm::archive::{
+    WebScraper,
+    types::House,
+    utils::{ListingFilter, ListingStats},
+};
 
 #[derive(Parser)]
 #[command(name = "odnelazm")]
