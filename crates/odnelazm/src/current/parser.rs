@@ -700,10 +700,14 @@ fn flush_pending_speaker(
 
 pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseError> {
     let document = Html::parse_document(html);
-    let item_sel = Selector::parse("a.members-list--item").unwrap();
-    let name_sel = Selector::parse("div.members-list--name").unwrap();
+    let item_sel =
+        Selector::parse("a.members-list--item, a.senators-list--item").unwrap();
+    let name_sel =
+        Selector::parse("div.members-list--name, div.senators-list--name").unwrap();
     let leader_role_sel = Selector::parse("p.leader-role").unwrap();
-    let repr_sel = Selector::parse("div.members-list--representation").unwrap();
+    let repr_sel =
+        Selector::parse("div.members-list--representation, div.senators-list--representation")
+            .unwrap();
 
     let mut members = Vec::new();
 
@@ -778,14 +782,63 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty());
 
-    let elected_post_sel = Selector::parse("p.elected-post").unwrap();
-    let mut elected_posts = document.select(&elected_post_sel);
-    let position = elected_posts
+    let photo_sel = Selector::parse("img.member-list--image").unwrap();
+    let photo_url = document
+        .select(&photo_sel)
         .next()
-        .map(|e| normalize_whitespace(&elem_text(e)))
-        .filter(|s| !s.is_empty());
-    let party = elected_posts
-        .next()
+        .and_then(|e| e.value().attr("src"))
+        .map(str::to_string);
+
+    let header_two_sel = Selector::parse("h2.header-two").unwrap();
+    let parties_heading_sel = Selector::parse("h2.header-two, h2.header-three").unwrap();
+    let p_sel = Selector::parse("p").unwrap();
+
+    // Positions: collect all p under "CURRENT POSITIONS" h2.header-two,
+    // handling both NA (wrapped in div.position-section) and Senate (direct p.elected-post siblings).
+    let positions: Vec<String> = document
+        .select(&header_two_sel)
+        .find(|h| elem_text(*h).contains("CURRENT POSITIONS"))
+        .map(|h| {
+            let mut results = Vec::new();
+            for sibling in h.next_siblings().filter_map(ElementRef::wrap) {
+                if sibling.value().name() == "h2" {
+                    break;
+                }
+                if sibling.value().name() == "div"
+                    && sibling
+                        .value()
+                        .attr("class")
+                        .unwrap_or("")
+                        .contains("position-section")
+                {
+                    // NA: collect all p inside the position-section div
+                    results.extend(
+                        sibling
+                            .select(&p_sel)
+                            .map(|e| normalize_whitespace(&elem_text(e)))
+                            .filter(|s| !s.is_empty()),
+                    );
+                } else if sibling.value().name() == "p" {
+                    // Senate: direct p siblings (elected-post role + plain term sentence)
+                    let text = normalize_whitespace(&elem_text(sibling));
+                    if !text.is_empty() {
+                        results.push(text);
+                    }
+                }
+            }
+            results
+        })
+        .unwrap_or_default();
+
+    // Party: first p.elected-post that follows the "Parties and Coalitions" heading
+    let party = document
+        .select(&parties_heading_sel)
+        .find(|h| elem_text(*h).contains("Parties"))
+        .and_then(|h| {
+            h.next_siblings()
+                .filter_map(ElementRef::wrap)
+                .find(|e| e.value().name() == "p" && e.value().attr("class").unwrap_or("").contains("elected-post"))
+        })
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty());
 
@@ -833,9 +886,10 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
     Ok(MemberProfile {
         name,
         slug,
+        photo_url,
         biography,
         position_type,
-        position,
+        positions,
         party,
         committees,
         speeches_last_year,
@@ -1053,6 +1107,29 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_senate_member_list() {
+        let html = fs::read_to_string("fixtures/current/senate_13th_parliament_paginated")
+            .expect("Failed to read fixture");
+
+        let members =
+            parse_member_list(&html, House::Senate).expect("Failed to parse senate members");
+
+        assert!(!members.is_empty(), "Should parse at least one senator");
+        assert!(
+            members.iter().all(|m| m.house == House::Senate),
+            "All members should be Senate"
+        );
+
+        let speaker = members
+            .iter()
+            .find(|m| m.role.as_deref().unwrap_or("").contains("Speaker"))
+            .expect("Should find the Speaker");
+        assert!(speaker.role.is_some(), "Speaker should have a role");
+
+        println!("Parsed {} senators", members.len());
+    }
+
+    #[test]
     fn test_parse_member_profile() {
         let html = fs::read_to_string(
             "fixtures/current/Boss_Gladys_Jepkosgei_with_paginated_contributions",
@@ -1065,7 +1142,7 @@ mod tests {
         assert_eq!(profile.name, "Boss Gladys Jepkosgei");
         assert_eq!(profile.slug, "boss-gladys-jepkosgei");
         assert!(profile.biography.is_some(), "Should have biography");
-        assert!(profile.position.is_some(), "Should have position");
+        assert!(!profile.positions.is_empty(), "Should have positions");
         assert!(profile.party.is_some(), "Should have party");
         assert!(!profile.committees.is_empty(), "Should have committees");
         assert_eq!(profile.speeches_last_year, Some(514));
