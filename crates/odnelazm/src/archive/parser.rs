@@ -465,7 +465,6 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::House;
     use chrono::{NaiveDate, Timelike};
     use std::fs;
 
