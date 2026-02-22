@@ -13,7 +13,7 @@ COPY --from=builder /app/target/release/odnelazm-mcp-web /usr/local/bin/odnelazm
 
 WORKDIR /app
 
-ARG HOST="127.0.0.1"
+ARG HOST="0.0.0.0"
 ARG PORT="8055"
 
 ENV BIND_ADDRESS="${HOST}:${PORT}"
