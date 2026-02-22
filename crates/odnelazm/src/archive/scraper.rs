@@ -1,5 +1,5 @@
-use crate::parser::{ParseError, parse_hansard_detail, parse_hansard_list, parse_person_details};
-use crate::types::{HansardDetail, HansardListing, PersonDetails};
+use super::parser::{ParseError, parse_hansard_detail, parse_hansard_list, parse_person_details};
+use super::types::{HansardDetail, HansardListing, PersonDetails};
 
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
@@ -34,7 +34,7 @@ impl WebScraper {
 
         Ok(Self {
             client,
-            base_url: crate::BASE_URL.to_string(),
+            base_url: super::BASE_URL.to_string(),
         })
     }
 
