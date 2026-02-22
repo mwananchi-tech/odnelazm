@@ -161,6 +161,7 @@ impl Display for ParliamentaryActivity {
     }
 }
 
+// TODO: Verify validity of counts to actual length of parsed data
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemberProfile {
     pub name: String,
