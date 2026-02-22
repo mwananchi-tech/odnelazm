@@ -7,6 +7,8 @@ use super::types::{
     Bill, HansardListing, HansardSitting, House, Member, MemberProfile, ParliamentaryActivity,
 };
 
+use futures::stream::FuturesUnordered;
+use futures::{StreamExt, future};
 use reqwest::Client;
 use std::time::Duration;
 
@@ -100,6 +102,8 @@ impl WebScraper {
     pub async fn fetch_member_profile(
         &self,
         url_or_slug: &str,
+        fetch_all_activity: bool,
+        fetch_all_bills: bool,
     ) -> Result<MemberProfile, ScraperError> {
         let url = if url_or_slug.starts_with("http") {
             url_or_slug.to_string()
@@ -108,7 +112,58 @@ impl WebScraper {
         };
         log::info!("Fetching member profile: {}", url);
         let html = self.get_html(&url).await?;
-        Ok(parse_member_profile(&html, &url)?)
+        let mut profile = parse_member_profile(&html, &url)?;
+
+        let (extra_activity, extra_bills) = future::join(
+            async {
+                if fetch_all_activity && profile.activity_pages > 1 {
+                    log::info!(
+                        "Fetching {} remaining activity page(s)...",
+                        profile.activity_pages - 1
+                    );
+                    let mut futs: FuturesUnordered<_> = (2..=profile.activity_pages)
+                        .map(|page| self.fetch_member_activity(&url, page))
+                        .collect();
+                    let mut all = Vec::new();
+                    while let Some(result) = futs.next().await {
+                        match result {
+                            Ok(items) => all.extend(items),
+                            Err(e) => log::warn!("Failed to fetch activity page: {}", e),
+                        }
+                    }
+                    all
+                } else {
+                    Vec::new()
+                }
+            },
+            async {
+                if fetch_all_bills && profile.bills_pages > 1 {
+                    log::info!(
+                        "Fetching {} remaining bills page(s)...",
+                        profile.bills_pages - 1
+                    );
+                    let mut futs: FuturesUnordered<_> = (2..=profile.bills_pages)
+                        .map(|page| self.fetch_member_bills(&url, page))
+                        .collect();
+                    let mut all = Vec::new();
+                    while let Some(result) = futs.next().await {
+                        match result {
+                            Ok(items) => all.extend(items),
+                            Err(e) => log::warn!("Failed to fetch bills page: {}", e),
+                        }
+                    }
+                    all
+                } else {
+                    Vec::new()
+                }
+            },
+        )
+        .await;
+
+        profile.activity.extend(extra_activity);
+        profile.bills.extend(extra_bills);
+
+        Ok(profile)
     }
 
     pub async fn fetch_member_activity(
