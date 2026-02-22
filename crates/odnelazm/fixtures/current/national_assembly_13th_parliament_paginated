@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<!-- saved from url=(0081)https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&page=1 -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <title>
+      
+        
+          
+        
+      
+      
+        
+        
+      
+    </title>
+    
+    <meta name="keywords" content="
+                     
+                   ">
+    
+<!-- Document Settings and Metadata. -->
+
+<meta name="description" content="">
+<meta name="author" content="">
+<meta name="designer" content="">
+<meta name="rating" content="">
+<meta name="keywords" content="">
+<!-- Icons. -->
+<link rel="apple-touch-icon" sizes="57x57" href="https://mzalendo.com/static/img/favicons/apple-icon-57x57.8ec0b9b81584.png">
+<link rel="apple-touch-icon" sizes="60x60" href="https://mzalendo.com/static/img/favicons/apple-icon-60x60.5c790d730783.png">
+<link rel="apple-touch-icon" sizes="72x72" href="https://mzalendo.com/static/img/favicons/apple-icon-72x72.cb2ba8ac0ed5.png">
+<link rel="apple-touch-icon" sizes="76x76" href="https://mzalendo.com/static/img/favicons/apple-icon-76x76.edcd5a706dfb.png">
+<link rel="apple-touch-icon" sizes="114x114" href="https://mzalendo.com/static/img/favicons/apple-icon-114x114.17d31315a879.png">
+<link rel="apple-touch-icon" sizes="120x120" href="https://mzalendo.com/static/img/favicons/apple-icon-120x120.183a7e8c0725.png">
+<link rel="apple-touch-icon" sizes="144x144" href="https://mzalendo.com/static/img/favicons/apple-icon-144x144.30cc7c3fa71c.png">
+<link rel="apple-touch-icon" sizes="152x152" href="https://mzalendo.com/static/img/favicons/apple-icon-152x152.61030286b04c.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://mzalendo.com/static/img/favicons/apple-icon-180x180.3fe83c0c4875.png">
+<link rel="icon" type="image/png" sizes="36x36" href="https://mzalendo.com/static/img/favicons/android-icon-36x36.262b23d448b5.png">
+<link rel="icon" type="image/png" sizes="48x48" href="https://mzalendo.com/static/img/favicons/android-icon-48x48.418c939b867c.png">
+<link rel="icon" type="image/png" sizes="72x72" href="https://mzalendo.com/static/img/favicons/android-icon-72x72.cb2ba8ac0ed5.png">
+<link rel="icon" type="image/png" sizes="96x96" href="https://mzalendo.com/static/img/favicons/android-icon-96x96.c88b9efdd6dd.png">
+<link rel="icon" type="image/png" sizes="144x144" href="https://mzalendo.com/static/img/favicons/android-icon-144x144.30cc7c3fa71c.png">
+<link rel="icon" type="image/png" sizes="192x192" href="https://mzalendo.com/static/img/favicons/android-icon-192x192.c7d283fe2ddc.png">
+<link rel="manifest" href="https://mzalendo.com/static/img/favicons/manifest.b58fcfa7628c.json">
+<meta name="msapplication-TileColor" content="#ffffff">
+<meta name="msapplication-TileImage" content="/static/img/favicons/ms-icon-144x144.30cc7c3fa71c.png%">
+<meta name="theme-color" content="#ffffff">
+
+    
+    
+    <!-- Global stylesheets -->
+    <link rel="stylesheet" type="text/css" href="./national_assembly_13th_parliament_paginated_files/core.f5a7613b113f.css">
+    <link rel="stylesheet" href="./national_assembly_13th_parliament_paginated_files/all.min.css">
+    
+  <link rel="stylesheet" href="./national_assembly_13th_parliament_paginated_files/parliament.26aeb848a93c.css">
+
+    
+    
+  <style id="speechify-theme">:root { --speechify-bg-prim-w-b: #000000;
+--speechify-bg-prim-w-110: #111112;
+--speechify-bg-prim-w-100: #1e1e1f;
+--speechify-bg-prim-w-90: #252527;
+--speechify-bg-prim-w-80: #2c2d2e;
+--speechify-bg-prim-w-70: #343436;
+--speechify-bg-prim-inv-b-w: #ffffff;
+--speechify-bg-prim-cta: #4759f7;
+--speechify-bg-sec-0-110: #111112;
+--speechify-bg-sec-0-100: #1e1e1f;
+--speechify-bg-sec-0-90: #252527;
+--speechify-bg-sec-0-80: #2c2d2f;
+--speechify-bg-sec-0-70: #343436;
+--speechify-bg-sec-inv-100-0: #f5f5fa;
+--speechify-bg-sec-cta: #5b69e5;
+--speechify-bg-tert-10-90: #252527;
+--speechify-bg-tert-10-80: #2c2d2e;
+--speechify-bg-tert-10-70: #343436;
+--speechify-bg-tert-20-60: #3c3c3e;
+--speechify-bg-tert-inv-60-20: #dcdde4;
+--speechify-bg-tert-inv-80-10: #e9eaf0;
+--speechify-bg-accent: #3c3c3e;
+--speechify-bg-blue: #262940;
+--speechify-bg-alert: #3d2c13;
+--speechify-bg-success: #0b2e18;
+--speechify-bg-crit: #3d1513;
+--speechify-bg-dimmer: rgba(0, 0, 0, 0.4);
+--speechify-sf-prim-cta: #4759f7;
+--speechify-sf-prim-cta-hov: #4354e2;
+--speechify-sf-prim-cta-pres: #3c4ac4;
+--speechify-sf-prim-w-b: #000000;
+--speechify-sf-prim-hov-w-b: #111112;
+--speechify-sf-prim-pres-w-b: #252627;
+--speechify-sf-prim-w-110: #111112;
+--speechify-sf-prim-hov-w-110: #1e1e1f;
+--speechify-sf-prim-pres-w-110: #2d2d2f;
+--speechify-sf-prim-w-100: #1e1e1f;
+--speechify-sf-prim-hov-w-100: #252627;
+--speechify-sf-prim-pres-w-100: #343537;
+--speechify-sf-prim-w-90: #252627;
+--speechify-sf-prim-hov-w-90: #2d2d2f;
+--speechify-sf-prim-pres-w-90: #3c3c3e;
+--speechify-sf-prim-w-80: #2d2d2f;
+--speechify-sf-prim-hov-w-80: #343537;
+--speechify-sf-prim-pres-w-80: #3c3c3e;
+--speechify-sf-sec-0-110: #111112;
+--speechify-sf-sec-hov-0-110: #1d1d1f;
+--speechify-sf-sec-pres-0-110: #343436;
+--speechify-sf-sec-0-100: #1d1d1f;
+--speechify-sf-sec-hov-0-100: #252527;
+--speechify-sf-sec-pres-0-100: #343436;
+--speechify-sf-sec-0-90: #252527;
+--speechify-sf-sec-hov-0-90: #343436;
+--speechify-sf-sec-pres-0-90: #3c3c3e;
+--speechify-sf-sec-0-80: #2d2d2f;
+--speechify-sf-sec-hov-0-80: #343537;
+--speechify-sf-sec-pres-0-80: #3c3c3e;
+--speechify-sf-act-electric-blue: #8894fe;
+--speechify-sf-act-blue: #262940;
+--speechify-sf-act-blue-80: #2d2d2f;
+--speechify-sf-act-blue-70: #343436;
+--speechify-sf-act-blue-60: #3c3c3e;
+--speechify-sf-crit: #eb3830;
+--speechify-sf-crit-hov: #d4362f;
+--speechify-sf-crit-pres: #bc332d;
+--speechify-sf-prim-cta-electric-w: #FFFFFF;
+--speechify-sf-prim-cta-hov-electric-w: #F5F5FA;
+--speechify-sf-prim-cta-pres-electric-w: #E9EAF0;
+--speechify-brdr-prim-10-100: #1e1e1f;
+--speechify-brdr-prim-10-80: #2d2d2f;
+--speechify-brdr-prim-inv-80-10: #e9eaf0;
+--speechify-brdr-prim-hov: #343436;
+--speechify-brdr-prim-foc: #ffffff;
+--speechify-brdr-prim-cta: #5b69e5;
+--speechify-brdr-sec-20-60: #3c3c3e;
+--speechify-brdr-sec-cta: #5c6ae5;
+--speechify-brdr-tert-40-50: #9899a6;
+--speechify-brdr-quat-30-70: #343537;
+--speechify-brdr-blue: #8894fe;
+--speechify-brdr-crit: #eb3830;
+--speechify-icn-txt-white: #ffffff;
+--speechify-icn-txt-black: #000000;
+--speechify-icn-txt-prim: #ffffff;
+--speechify-icn-txt-prim-inv: #000000;
+--speechify-icn-txt-sec: #9899a6;
+--speechify-icn-txt-tert: #747580;
+--speechify-icn-txt-quat: #3c3c3e;
+--speechify-icn-txt-prim-electric: #4759F7;
+--speechify-icn-txt-accent: #ffffff;
+--speechify-icn-txt-blue: #8894fe;
+--speechify-icn-txt-success: #23ae75;
+--speechify-icn-txt-alert: #e68600;
+--speechify-icn-txt-crit: #eb3830;
+--speechify-hglt-prim: #5665f0;
+--speechify-hglt-sec: #444766;
+--speechify-hglt-hov-prim: #e68600;
+--speechify-hglt-hov-sec: #2c2d2ebf;
+--speechify-hglt-search: #9c9f00;
+--speechify-hglt-search-foc: #cc6417;
+--speechify-logo-speechify-logo: #ffffff;
+--speechify-logo-speechify-logo-txt: #ffffff;
+--speechify-player-track: #343537;
+--speechify-disabled-light: #3c3c3e;
+--speechify-electric-30: #4759F7;
+--speechify-electric-40: #2F43FA; }</style></head>
+  <body class="site 
+  page-national-assembly
+" data-new-gr-c-s-check-loaded="14.1274.0" data-gr-ext-installed="">
+    
+    <!-- Header Content -->
+    
+<header class="site-header">
+  <div class="site-header__row container">
+    <div class="site-header__logo">
+      <a href="https://mzalendo.com/">
+        <!-- SVG logo -->
+        <img src="./national_assembly_13th_parliament_paginated_files/mzalendo@20.e953f3d3703d.png" alt="Mzalendo Logo" width="" height="">
+      </a>
+    </div>
+    <nav class="main-nav" id="main-navigation">
+      <ul class="main-nav__list">
+        <li class="main-nav__list-item">
+          <a href="https://mzalendo.com/about/" class="main-nav__link">About</a>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="https://mzalendo.com/our-work/" class="main-nav__link">Our Work</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://cspen.or.ke/about/">CSPEN</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="https://mzalendo.com/mps-performance/" class="main-nav__link">MPs Performance</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://mzalendo.com/mps-performance/national-assembly/">The National Assembly</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/mps-performance/senate/">The Senate</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/mps-performance/county-assemblies/">County Assemblies</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="https://mzalendo.com/democracy-tools/" class="main-nav__link">Democracy Tools</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://dokeza.mzalendo.com/">Dokeza</a>
+            </li>
+            <li>
+              <a href="https://info.mzalendo.com/hansard/" target="_blank">Archival Hansard</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/democracy-tools/hansard/">Hansard</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/democracy-tools/bonga/">Bonga na Mzalendo</a>
+            </li>
+            <li>
+              <a href="https://new.kenyalaw.org/akn/ke/act/2010/constitution">Constitution 2010</a>
+            </li>
+            <li>
+              <a href="https://tracker.mzalendo.com/">Promise Tracker</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/democracy-tools/county-assembly-resources/">County Assembly Resources</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="https://mzalendo.com/ai-tools/" class="main-nav__link">AI Tools</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://mzalendo.com/ai-tools/document-explorer/">Document Explorer</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/ai-tools/analytics/">Analytics</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/ai-tools/mzalendo-chatbot/">Mzalendo Chatbot</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="https://mzalendo.com/research-and-knowledge/" class="main-nav__link">Research &amp; Knowledge</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/scorecard/">Scorecard</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/voting-patterns/">Voting Patterns</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/publications/">Publications</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/shujaaz/">Shujaaz</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/politicians/">Past &amp; Present Politicians</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="https://mzalendo.com/media-centre/" class="main-nav__link">Media Centre</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://mzalendo.com/media-centre/news-events/">News &amp; Events</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/blogs-opinions/">Blogs &amp; Opinions</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/opportunities/">Opportunities</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/mzalendo-chats/">Mzalendo Chats</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/newsletters/">Newsletters</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item">
+          <a href="https://mzalendo.com/global-search/" class="main-nav__link">Search</a>
+        </li>
+        <li class="main-nav__list-item">
+          <a href="https://mzalendo.com/contact/" class="main-nav__link">Contact</a>
+        </li>
+      </ul>
+    </nav>
+    <form class="desktop-search-form" action="https://mzalendo.com/global-search/" method="get">
+      <div class="header-actions header-actions--top">
+        <div class="search-area" id="desktop-search-area">
+          <input type="search" name="q" class="search-input" id="desktop-search-input" placeholder="Search...">
+          <i class="fas fa-search search-icon" id="search-icon-desktop" aria-label="Open search"></i>
+        </div>
+        <i class="fas fa-bars hamburger-icon" id="hamburger-menu-icon" aria-label="Open menu"></i>
+      </div>
+    </form>
+  </div>
+  <!-- Mobile menu overlay (hidden by default, shown when hamburger is clicked) -->
+  <div class="mobile-menu" id="mobile-nav-menu">
+    <i class="fas fa-times close-icon" id="close-mobile-menu" aria-label="Close menu"></i>
+    <nav class="mobile-nav" id="mobile-navigation">
+      <ul class="mobile-nav__list">
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle About submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="https://mzalendo.com/about/" class="mobile-nav__link">About</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://mzalendo.com/about/opportunities/">Opportunities</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Our Work submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="https://mzalendo.com/our-work/" class="mobile-nav__link">Our Work</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://mzalendo.com/our-work/cspen/">CSPEN</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Eye on Parliament submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="https://mzalendo.com/mps-performance/" class="mobile-nav__link">MPs Performance</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://mzalendo.com/mps-performance/national-assembly/">The National Assembly</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/mps-performance/senate/">The Senate</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/mps-performance/county-assemblies/">County Assemblies</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Democracy Tools submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="https://mzalendo.com/democracy-tools/" class="mobile-nav__link">Democracy Tools</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://dokeza.mzalendo.com/">Dokeza</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/democracy-tools/hansard/">Hansard</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/democracy-tools/bonga/">Bonga na Mzalendo</a>
+            </li>
+            <li>
+              <a href="https://new.kenyalaw.org/akn/ke/act/2010/constitution">Constitution 2010</a>
+            </li>
+            <li>
+              <a href="https://tracker.mzalendo.com/">Promise Tracker</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/democracy-tools/county-assembly-resources/">County Assembly Resources</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Research &amp; Knowledge submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="https://mzalendo.com/research-and-knowledge/" class="mobile-nav__link">Research &amp; Knowledge</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/scorecard/">Scorecard</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/mps-contributions/">MPs Contributions</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/voting-patterns/">Voting Patterns</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/publications/">Publications</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/shujaaz/">Shujaaz</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/research-and-knowledge/politicians/">Past &amp; Present Politicians</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Media Centre submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="https://mzalendo.com/media-centre/" class="mobile-nav__link">Media Centre</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://mzalendo.com/media-centre/news-events/">News &amp; Events</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/blogs-opinions/">Blogs &amp; Opinions</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/mzalendo-chats/">Mzalendo Chats</a>
+            </li>
+            <li>
+              <a href="https://mzalendo.com/media-centre/newsletters/">Newsletters</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item">
+          <a href="https://mzalendo.com/global-search/" class="mobile-nav__link">Search</a>
+        </li>
+        <li class="mobile-nav__list-item">
+          <a href="https://mzalendo.com/contact/" class="mobile-nav__link">Contact</a>
+        </li>
+      </ul>
+    </nav>
+    <form class="mobile-search-form" action="https://mzalendo.com/global-search/" method="get">
+      <input type="search" name="q" placeholder="Search the site..." aria-label="Search through site content">
+      <button type="submit" class="search-icon" aria-label="Search">
+        <i class="fas fa-search"></i>
+      </button>
+    </form>
+  </div>
+</header>
+
+    <!-- END Header Content -->
+    <!-- Main Content -->
+    <main class="site-content">
+      <div class="container">
+        
+        <h1 class="page-heading container">
+          
+  Members of the National Assembly
+
+        </h1>
+      </div>
+      
+  <div class="house-container container">
+    <!-- Section: National Assembly House Header -->
+    <section class="house-header">
+      <div class="house-header--heading">Responsibilities as a member of the National Assembly</div>
+      <div class="house-header--content">
+        <p class="house-header--content-text">
+          <strong>Representation:</strong> Acts on your behalf on issues of concern to you &amp; the nation.
+        </p>
+        <p class="house-header--content-text">
+          <strong>Oversight:</strong> Controls budget, oversees the presidency, ministries and parastatals plus appointments.
+        </p>
+        <p class="house-header--content-text">
+          <strong>Legislation:</strong> Develops or contributes to law making.
+        </p>
+      </div>
+    </section>
+    <!-- END Section: National Assembly Header -->
+    <!-- Section: National Assembly Position Holders -->
+    <section class="na-position-holders">
+      <div class="position-holders--navbar">
+        <div class="position-holders--navbar-search">
+          <form action="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=1" method="get" class="navbar-search-form">
+            <input type="text" name="search" value="" placeholder="Search for a member..." aria-label="Search for a member">
+            <button type="submit">Search</button>
+          </form>
+        </div>
+        <nav class="position-holders--navbar-links" tabindex="0">
+          <span class="fa fa-arrow-left position-holders--navbar-scroll-icon left" aria-label="Scroll left" tabindex="0" style="visibility: hidden;"></span>
+          <ul>
+            
+              <li>
+                <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/" class=" selected ">13th Parliament</a>
+              </li>
+            
+              <li>
+                <a href="https://mzalendo.com/mps-performance/national-assembly/12th-parliament/" class="">12th Parliament</a>
+              </li>
+            
+              <li>
+                <a href="https://mzalendo.com/mps-performance/national-assembly/11th-parliament/" class="">11th Parliament</a>
+              </li>
+            
+          </ul>
+          <span class="fa fa-arrow-right position-holders--navbar-scroll-icon right" aria-label="Scroll right" tabindex="0" style="visibility: hidden;"></span>
+        </nav>
+        <div class="navbar-border-overlay"></div>
+      </div>
+      
+      
+<!-- Add National Assembly Leaders -->
+
+  <h2 class="leadership-heading">National Assembly Leadership</h2>
+  <div class="leadership-grid">
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/wetangula-moses-masika/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Wetangula_Moses_Masika.min-200x240.jpg" alt="Wetangula Moses Masika" width="" height="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Wetangula Moses Masika</div>
+          <div class="members-list--representation">
+            <p class="leader-role">
+              Speaker
+              
+            </p>
+          </div>
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Boss_Gladys_Jepkosgei.min-200x240.jpg" alt="Boss Gladys Jepkosgei" width="" height="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Boss Gladys Jepkosgei</div>
+          <div class="members-list--representation">
+            <p class="leader-role">
+              Deputy Speaker
+              
+                / Woman Representative for
+                <strong>Uasin Gishu</strong>
+              
+            </p>
+          </div>
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/anthony-kimani-ichungwah/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Anthony_Kimani_Ichungwah.min-200x240.jpg" alt="Anthony Kimani Ichung&#39;wah" width="" height="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Anthony Kimani Ichung'wah</div>
+          <div class="members-list--representation">
+            <p class="leader-role">
+              Majority Leader
+              
+                / MNA for
+                <strong>Kikuyu</strong> constituency
+              
+            </p>
+          </div>
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/nuh-junet/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Junet_Sheikh_Nuh_Mohamed.min-200x240.jpg" alt="Junet Sheikh Nuh Mohamed" width="" height="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Junet Sheikh Nuh Mohamed</div>
+          <div class="members-list--representation">
+            <p class="leader-role">
+              Minority Leader
+              
+                / MNA for
+                <strong>Suna East</strong> constituency
+              
+            </p>
+          </div>
+        </div>
+      </a>
+    
+  </div>
+
+<!-- END National Assembly Leaders -->
+<!-- Members -->
+<h2 class="leadership-heading">National Assembly Members</h2>
+<div class="members-list">
+  
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abdi-ali/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abdi_Ali.min-200x240.jpg" alt="Abdi Ali" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdi Ali</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Ijara</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/khamis-chome/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Khamis_Chome.min-200x240.jpg" alt="Abdi Khamis Chome" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdi Khamis Chome</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Voi</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abdi-omar-shurie/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abdi_Omar_Shurie.min-200x240.jpg" alt="Abdi Omar Shurie" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdi Omar Shurie</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Balambala</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abdikadir-hussein/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abdikadir_Hussein.min-200x240.jpg" alt="Abdikadir Hussein" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdikadir Hussein</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Lagdera</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/hussein-weytan/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Hussein_Weytan_Abdirahman.min-200x240.jpg" alt="Abdirahman Hussein Weytan Mohamed" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdirahman Hussein Weytan Mohamed</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Mandera East</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abdirahman-mohamed-abdille/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abdirahman_Mohamed_Abdille.min-200x240.jpg" alt="Abdirahman Mohamed Abdi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdirahman Mohamed Abdi</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Lafey</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abdul-rahim-dawood/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abdul_Rahim_Dawood.min-200x240.jpg" alt="Abdul Rahim Dawood" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abdul Rahim Dawood</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>North Imenti</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abubakar-talib-ahmed/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abubakar_Talib_Ahmed.min-200x240.jpg" alt="Abubakar Talib Ahmed" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abubakar Talib Ahmed</div>
+          
+            <div class="members-list--representation">
+              <strong>Nominated member</strong>
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/abuor-paul/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Abuor_Paul.min-200x240.jpg" alt="Abuor Paul" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Abuor Paul</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Rongo</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/adagala-beatrice-kahai/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Adagala_Beatrice_Kahai.min-200x240.jpg" alt="Adagala Beatrice Kahai" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Adagala Beatrice Kahai</div>
+          
+            <div class="members-list--representation">
+              Woman Representative for
+              <strong>Vihiga</strong>
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/adan-haji-yussuf/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Adan_Haji_Yussuf.min-200x240.jpg" alt="Adan Haji Yussuf" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Adan Haji Yussuf</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Mandera West</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/adhe-wario-guyo/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Adhe_Wario_Guyo.min-200x240.jpg" alt="Adhe Ali Wario Guyo" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Adhe Ali Wario Guyo</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>North Horr</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/adow-aden-mohammed/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Adow_Aden_Mohammed.min-200x240.jpg" alt="Adow Aden Mohammed" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Adow Aden Mohammed</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Wajir South</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/agnes-mantaine-pareyio/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Agnes_Mantaine_Pareyio.min-200x240.jpg" alt="Agnes Mantaine Pareyio" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Agnes Mantaine Pareyio</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Narok North</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/ahmed-maalim-hassan/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Ahmed_Hassan_Maalim.min-200x240.jpg" alt="Ahmed Maalim Hassan Alio" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Ahmed Maalim Hassan Alio</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Banissa</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/ahmed-shakeel-ahmed-shabbir/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Ahmed_Shakeel_Ahmed_Shabbir.min-200x240.jpg" alt="Ahmed Shakeel Ahmed Shabbir" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Ahmed Shakeel Ahmed Shabbir</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Kisumu East</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/alfah-miruka-ondieki/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Alfah_Miruka_Ondieki.min-200x240.jpg" alt="Alfah Miruka Ondieki" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Alfah Miruka Ondieki</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Bomachoge Chache</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/ali-abdisirat-khalif/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Ali_Abdisirat_Khalif.min-200x240.jpg" alt="Ali Abdisirat Khalif" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Ali Abdisirat Khalif</div>
+          
+            <div class="members-list--representation">
+              <strong>Nominated member</strong>
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/ali-wario/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Ali_Wario.min-200x240.jpg" alt="Ali Wario" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Ali Wario</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Garsen</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/amina-dika-abdullahi/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Amina_Dika_Abdullahi.min-200x240.jpg" alt="Amina Dika Abdullahi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Amina Dika Abdullahi</div>
+          
+            <div class="members-list--representation">
+              Woman Representative for
+              <strong>Tana River</strong>
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/andrew-adipo-okuome/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Andrew_Adipo_Okuome.min-200x240.jpg" alt="Andrew Adipo Okuome" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Andrew Adipo Okuome</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Karachuonyo</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/anthony-kenga/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Anthony_Kenga.min-200x240.jpg" alt="Anthony Kenga Mupe" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Anthony Kenga Mupe</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Rabai</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/anthony-njoroge-wainaina/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Anthony_Njoroge_Wainaina.min-200x240.jpg" alt="Anthony Njoroge Wainaina" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Anthony Njoroge Wainaina</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Kieni</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/anthony-tom-oluoch/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Anthony_Tom_Oluoch.min-200x240.jpg" alt="Anthony Tom Oluoch" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Anthony Tom Oluoch</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Mathare</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/anthony-kibagendi/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Anthony_Kibagendi.min-200x240.jpg" alt="Antoney Kibagendi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Antoney Kibagendi</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Kitutu Chache South</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/ariko-john-namoit/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Ariko_John_Namoit.min-200x240.jpg" alt="Ariko John Namoit" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Ariko John Namoit</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Turkana South</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/atandi-samuel-onunga/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Atandi_Samuel_Onunga.min-200x240.jpg" alt="Atandi Samuel Onunga" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Atandi Samuel Onunga</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Alego Usonga</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/babu-owino-paul-ongili/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Babu_Owino_Paul_Ongili.min-200x240.jpg" alt="Babu Owino Paul Ongili" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Babu Owino Paul Ongili</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Embakasi East</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/bady-bady-twalib/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Bady_Bady_Twalib.min-200x240.jpg" alt="Bady Bady Twalib" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Bady Bady Twalib</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Jomvu</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/barongo-nolfason-obadiah/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Barongo_Nolfason_Obadiah.min-200x240.jpg" alt="Barongo Nolfason Obadiah" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Barongo Nolfason Obadiah</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Bomachoge Borabu</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/bartoo-phyllis-jepkemoi/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Bartoo_Phyllis_Jepkemoi.min-200x240.jpg" alt="Bartoo Phyllis Jepkemoi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Bartoo Phyllis Jepkemoi</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Moiben</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/basil-robert-ngui/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Basil_Robert_Ngui.min-200x240.jpg" alt="Basil Robert Ngui" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Basil Robert Ngui</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Yatta</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/baya-owen-yaa/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Baya_Owen_Yaa.min-200x240.jpg" alt="Baya Owen Yaa" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Baya Owen Yaa</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Kilifi North</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/benjamin-kipkirui-langat/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Benjamin_Kipkirui_Langat.min-200x240.jpg" alt="Benjamin Kipkirui Langat" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Benjamin Kipkirui Langat</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Ainamoi</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/bernard-kitur-kibor/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Bernard_Kitur_Kibor.min-200x240.jpg" alt="Bernard Kitur Kibor" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Bernard Kitur Kibor</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Nandi Hills</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/bidu-mohamed-tubi/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Bidu_Mohamed_Tubi.min-200x240.jpg" alt="Bidu Mohamed Tubi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Bidu Mohamed Tubi</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Isiolo South</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/biego-paul-kibichiy/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Biego_Paul_Kibichiy.min-200x240.jpg" alt="Biego Paul Kibichiy" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Biego Paul Kibichiy</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Chesumei</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/david-kangongo-bowen/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Bowen_David_Kangongo.min-200x240.jpg" alt="Bowen David Kangongo" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Bowen David Kangongo</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Marakwet East</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boyd-were-ongondo/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Boyd_Were_Ongondo.min-200x240.jpg" alt="Boyd Were Ongondo" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Boyd Were Ongondo</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Kasipul</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/buyu-rozaah-akinyi/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Buyu_Rozaah_Akinyi.min-200x240.jpg" alt="Buyu Rozaah Akinyi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Buyu Rozaah Akinyi</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Kisumu West</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/bwire-john-okano/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Bwire_John_Okano.min-200x240.jpg" alt="Bwire John Okano" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Bwire John Okano</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Taveta</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/caleb-amisi-luyai/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Caleb_Amisi_Luyai.min-200x240.jpg" alt="Caleb Amisi Luyai" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Caleb Amisi Luyai</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Saboti</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/caleb-mule-mutiso/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Caleb_Mule_Mutiso.min-200x240.jpg" alt="Caleb Mule Mutiso" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Caleb Mule Mutiso</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Machakos Town</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/caroli-omondi/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Caroli_Omondi.min-200x240.jpg" alt="Caroli Omondi" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Caroli Omondi</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Suba South</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/cecilia-asinyen-ngitit/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Cecilia_Asinyen_Ngitit.min-200x240.jpg" alt="Cecilia Asinyen Ng&#39;itit" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Cecilia Asinyen Ng'itit</div>
+          
+            <div class="members-list--representation">
+              Woman Representative for
+              <strong>Turkana</strong>
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/charity-kathambi-chepkwony/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Charity_Kathambi_Chepkwony.min-200x240.jpg" alt="Charity Kathambi Chepkwony" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Charity Kathambi Chepkwony</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Njoro</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/charles-gumini-gimose/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Charles_Gumini_Gimose.min-200x240.jpg" alt="Charles Gumini Gimose" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Charles Gumini Gimose</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Hamisi</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+      <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/kamuren-charles/" class="members-list--item">
+        
+          
+          <img class="members-list--image" src="./national_assembly_13th_parliament_paginated_files/Charles_Kamuren.min-200x240.jpg" alt="Charles Kamuren" height="" width="">
+        
+        <div class="members-list--info">
+          <div class="members-list--name">Charles Kamuren</div>
+          
+            <div class="members-list--representation">
+              MNA for <strong>Baringo South</strong>
+              constituency
+            </div>
+          
+        </div>
+      </a>
+    
+  
+</div>
+<!-- END Members -->
+
+    </section>
+  </div>
+
+      
+  <div class="container">
+  <div class="pagination-container">
+    
+      <ul class="pagination">
+      <li>
+        <a class="page_label" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?page=1" "="">
+        <svg class="enabled" viewBox="0 0 32 32">
+          <path d="M9.073 20.536v4.02c0 2.208-1.793 4-4 4-2.208 0-4-1.792-4-4V7.471c0-2.208 1.792-4 4-4 2.207 0 4 1.792 4 4v3.993l15.183-7.592a3.96 3.96 0 0 1 1.775-.419C28.208 3.453 30 5.245 30 7.422v17.032c-.001 2.219-1.827 4.045-4.046 4.045a4.04 4.04 0 0 1-1.809-.427z"></path>
+        </svg>
+      </a>
+      </li>
+      
+      <li>
+        <svg class="disabled" viewBox="0 0 32 32">
+          <path fill="none" d="M0 0h32v32H0z"></path>
+          <path id="left_arrow" d="M5.276 18.638a2.95 2.95 0 0 1 0-5.276l18.98-9.49A3.969 3.969 0 0 1 30 7.422v17.032a4.046 4.046 0 0 1-5.855 3.618l-18.87-9.434z" fill-rule="nonzero"></path>
+        </svg>
+      </li>
+      
+      
+        
+        <li class="active active_number_box"><span>1</span></li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=2">2</a>
+        </li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=3">3</a>
+        </li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=4">4</a>
+        </li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=5">5</a>
+        </li>
+        
+        
+        
+        
+        
+        
+        
+        
+
+    
+        <li class="active_ellipses">
+          <a href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=6">…</a>
+        </li>
+      
+
+      
+      <li>
+        <a class="page_label" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?q=&amp;page=2">
+          <svg class="enabled" viewBox="0 0 32 32">
+            <path fill="none" d="M0 0h32v32H0z"></path>
+            <path id="right_arrow" d="M26.724 13.362a2.95 2.95 0 0 1 0 5.276l-18.98 9.49A3.969 3.969 0 0 1 2 24.578V7.546a4.046 4.046 0 0 1 5.855-3.619l18.87 9.435z" fill-rule="nonzero"></path>
+          </svg>
+        </a>
+      </li>
+      
+      <li>
+        <a class="page_label" href="https://mzalendo.com/mps-performance/national-assembly/13th-parliament/?page=8">
+        <svg class="enabled" viewBox="0 0 32 32">
+          <path d="M22 20.536v4.02c0 2.208 1.793 4 4 4 2.208 0 4-1.792 4-4V7.471c0-2.208-1.792-4-4-4-2.207 0-4 1.792-4 4v3.993L6.817 3.872a3.96 3.96 0 0 0-1.775-.419c-2.177 0-3.97 1.792-3.97 3.969v17.032c.002 2.219 1.828 4.045 4.047 4.045.628 0 1.247-.146 1.809-.427z"></path>
+        </svg>
+      </a>
+      </li>
+      </ul>
+    
+  </div>
+</div>
+
+
+    </main>
+    <!-- END Main Content -->
+    <!-- Footer Content -->
+    <footer id="mzalendo_footer" class="site-footer">
+  <div class="newsletter">
+    <div class="container newsletter-grid">
+      <div class="newsletter-cta">
+        <h3>Subscribe to Our Newsletter</h3>
+        <p>
+          Or see our previous issues <a class="newsletter-link" href="https://mzalendo.com/media-centre/newsletters/">here</a>
+        </p>
+      </div>
+      <form class="newsletter-form" action="https://mzalendo.com/newsletter-subscribe/subscribe/" method="post">
+        <input type="hidden" name="csrfmiddlewaretoken" value="dkmDFUlEVnCElVBSojZzuzMiJasYcRC9pp7tfN50glwuJBrdW9WKk2RXI4Ezj9DE">
+        <input type="email" name="email" placeholder="Enter your email address" required="" aria-label="Email address for newsletter">
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+  </div>
+  <!-- Toast Notification -->
+  
+  <div class="footer-content">
+    <div class="container">
+      <div class="footer-logo">
+        <a href="https://mzalendo.com/">
+          <svg class="svg-logo" viewBox="0 0 836 255" xmlns="http://www.w3.org/2000/svg" xml:space="preserve" style="fill-rule: evenodd;
+                      clip-rule: evenodd;
+                      stroke-linejoin: round;
+                      stroke-miterlimit: 1.41421">
+            <title>Visit the Mzalendo Trust website</title>
+            <rect id="Landscape" x="0" y="0" width="836" height="255" style="fill: none"></rect>
+            <clippath id="_clip1">
+            <rect x="0" y="0" width="836" height="255"></rect>
+            </clippath>
+            <g clip-path="url(#_clip1)">
+            <g id="Banner">
+            <g id="background">
+            <path d="M78.91,0l-10.758,256l687.375,0l10.757,-256l-687.374,0Z" style="fill: #009f57; fill-rule: nonzero"></path>
+            <path d="M0,0l0,256l55.433,0l10.758,-256l-66.191,0Z" style="fill-rule: nonzero"></path>
+            <path d="M768.406,256l67.594,0l0,-256l-56.837,0l-10.757,256Z" style="fill: #c32810; fill-rule: nonzero"></path>
+            </g>
+            <g id="borders">
+            <path d="M77.809,0l-11.618,0l-10.758,256l12.72,0l10.757,-256l-1.101,0Z" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M768.138,0l-1.853,0l-10.758,256l12.879,0l10.757,-256l-11.025,0Z" style="fill: #fff; fill-rule: nonzero"></path>
+            </g>
+            <g id="shield">
+            <path d="M193.882,93.272c0.648,1.176 1.283,2.398 1.886,3.632c0.558,1.137 1.084,2.276 1.572,3.391c-4.379,10.392 -6.598,21.111 -6.598,31.871c0,10.759 2.219,21.48 6.598,31.869c-0.47,1.075 -0.974,2.165 -1.534,3.313c-0.602,1.234 -1.235,2.456 -1.881,3.633c-5.882,10.713 -16.034,21.542 -19.879,21.542c-3.845,0 -13.997,-10.829 -19.879,-21.542c-0.647,-1.177 -1.28,-2.399 -1.881,-3.633c-0.56,-1.148 -1.065,-2.238 -1.534,-3.313c4.379,-10.389 6.597,-21.11 6.597,-31.869c0,-10.76 -2.218,-21.479 -6.597,-31.871c0.487,-1.115 1.015,-2.254 1.572,-3.391c0.603,-1.234 1.238,-2.456 1.885,-3.632c6.022,-10.944 16.151,-21.511 19.837,-21.511c3.685,0 13.816,10.567 19.836,21.511" style="fill: #c32810; fill-rule: nonzero"></path>
+            <path d="M167.326,97.169c0,-10.855 1.603,-20.15 3.965,-24.428c0.607,-0.412 1.193,-0.741 1.687,-0.94l0,51.918c-3.214,-2.242 -5.652,-13.273 -5.652,-26.55" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M180.766,97.169c0,-10.855 -1.603,-20.15 -3.965,-24.428c-0.607,-0.412 -1.193,-0.741 -1.687,-0.94l0,51.918c3.214,-2.242 5.652,-13.273 5.652,-26.55" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M180.766,167.11c0,10.855 -1.603,20.151 -3.965,24.428c-0.607,0.412 -1.193,0.742 -1.687,0.94l0,-51.918c3.214,2.243 5.652,13.273 5.652,26.55" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M167.326,167.11c0,10.855 1.603,20.151 3.965,24.428c0.607,0.412 1.193,0.742 1.687,0.94l0,-51.918c-3.214,2.243 -5.652,13.273 -5.652,26.55" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M179.273,132.141c0,-4.261 -2.341,-7.714 -5.227,-7.714c-2.887,0 -5.226,3.453 -5.226,7.714c0,4.259 2.339,7.712 5.226,7.712c2.886,0 5.227,-3.453 5.227,-7.712" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M193.882,93.241c0.648,1.176 1.283,2.398 1.886,3.632c0.558,1.137 1.084,2.275 1.572,3.391c-4.379,10.392 -6.598,21.111 -6.598,31.871c0,10.759 2.219,21.48 6.598,31.869c-0.47,1.076 -0.974,2.165 -1.534,3.313c-0.602,1.235 -1.235,2.456 -1.881,3.633c-5.882,10.713 -16.034,21.573 -19.879,21.573c-3.845,0 -13.997,-10.86 -19.879,-21.573c-0.647,-1.177 -1.28,-2.398 -1.881,-3.633c-0.56,-1.148 -1.065,-2.237 -1.534,-3.313c4.379,-10.389 6.597,-21.11 6.597,-31.869c0,-10.76 -2.218,-21.479 -6.597,-31.871c0.487,-1.116 1.015,-2.254 1.572,-3.391c0.603,-1.234 1.238,-2.456 1.885,-3.632c6.022,-10.944 16.151,-21.48 19.837,-21.48c3.685,0 13.816,10.536 19.836,21.48m-19.837,101.846c4.515,0 14.004,-8.441 21.693,-22.116l13.736,23.762l3.03,-1.749l-14.835,-25.662c0.148,-0.295 0.307,-0.578 0.452,-0.874c0.666,-1.366 1.256,-2.652 1.804,-3.931l0.219,-0.507l-0.151,-0.353c4.296,-10.282 6.49,-20.881 6.49,-31.522c0,-10.64 -2.194,-21.242 -6.49,-31.525l0.151,-0.352l-0.219,-0.508c-0.564,-1.314 -1.183,-2.664 -1.844,-4.01c-0.123,-0.252 -0.259,-0.49 -0.384,-0.742l2.372,-4.112c2.113,-0.08 4.537,-1.739 5.556,-3.503c1.328,-2.301 12.921,-26.687 10.619,-28.016c-2.3,-1.328 -17.622,20.904 -18.95,23.206c-1.02,1.765 -1.244,4.693 -0.255,6.562l-1.273,2.208c-7.693,-13.702 -17.205,-22.162 -21.721,-22.162l0.002,0c-4.516,0 -14.029,8.46 -21.72,22.162l-1.274,-2.208c0.988,-1.869 0.765,-4.797 -0.255,-6.562c-1.328,-2.302 -16.651,-24.534 -18.951,-23.206c-2.301,1.329 9.292,25.715 10.619,28.016c1.02,1.764 3.445,3.423 5.557,3.503l2.371,4.112c-0.124,0.252 -0.26,0.49 -0.383,0.742c-0.66,1.346 -1.281,2.696 -1.844,4.01l-0.219,0.508l0.151,0.352c-4.297,10.283 -6.491,20.885 -6.491,31.525c0,10.641 2.194,21.24 6.491,31.522l-0.151,0.353l0.218,0.507c0.549,1.279 1.139,2.565 1.804,3.931c0.145,0.296 0.306,0.579 0.452,0.874l-14.834,25.662l3.03,1.749l13.736,-23.762c7.689,13.675 17.178,22.116 21.693,22.116l-0.002,0Z" style="fill-rule: nonzero"></path>
+            </g>
+            <g id="typeface">
+            <path d="M323.865,157.125l-8.23,0c-2.14,0 -2.636,-1.069 -2.715,-3.373l-0.905,-28.229l-0.164,0l-12.429,29.792c-0.658,1.645 -1.729,1.81 -2.798,1.81l-3.046,0c-1.566,0 -2.469,-0.246 -3.29,-1.891l-14.24,-29.711l-0.166,0l-0.495,29.051c0,2.305 -1.069,2.551 -2.795,2.551l-6.75,0c-1.894,0 -2.798,-0.658 -2.798,-2.386l0,-0.25l2.222,-51.847c0.084,-1.978 0.986,-2.634 2.551,-2.634l5.927,0c1.894,0 2.631,0.656 3.373,2.221l18.189,37.202l0.162,0l16.464,-37.202c0.659,-1.399 1.563,-2.221 3.375,-2.221l5.76,0c1.646,0 2.224,0.576 2.306,2.058l2.714,52.508l0,0.249c0,1.564 -0.739,2.302 -2.222,2.302" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M378.032,157.125l-41.809,0c-1.234,0 -1.893,-0.987 -1.893,-2.138l0,-3.129c0,-1.152 0.163,-1.976 0.903,-3.044l25.68,-38.108l-0.084,-0.083l-22.879,0c-1.48,0 -2.386,-0.654 -2.386,-2.386l0,-6.256c0,-1.232 0.741,-1.973 1.975,-1.973l38.845,0c1.73,0 2.309,0.988 2.309,2.221l0,2.469c0,1.481 -0.165,2.88 -1.153,4.282l-25.352,37.448l0.082,0.081l25.682,0c1.396,0 2.221,0.742 2.221,2.385l0,5.845c0,1.399 -0.739,2.386 -2.141,2.386" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M411.375,119.183c-0.58,-1.81 -1.072,-3.373 -1.485,-4.771l-0.163,0c-0.413,1.479 -0.909,3.125 -1.482,4.855l-5.186,16.132l13.499,0l-5.183,-16.216Zm24.444,37.943l-9.22,0c-1.977,0 -2.717,-0.904 -3.209,-2.302l-3.293,-9.548l-2.962,0l-14.485,0l-2.882,0l-3.291,9.875c-0.332,1.071 -0.99,1.975 -2.472,1.975l-9.382,0c-0.906,0 -1.316,-0.575 -1.316,-1.315c0,-0.332 0,-0.66 0.164,-0.987l19.588,-52.757c0.492,-1.236 1.237,-2.059 2.801,-2.059l8.474,0c1.648,0 2.555,0.741 2.965,1.809l19.999,52.43c0.164,0.493 0.246,0.904 0.246,1.232c0,0.989 -0.573,1.647 -1.725,1.647" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M477.717,157.125l-31.275,0c-1.729,0 -2.633,-0.41 -2.633,-2.636l0,-52.18c0,-1.479 0.74,-2.301 2.301,-2.301l8.317,0c1.812,0 2.467,0.576 2.467,2.468l0,43.621l20.989,0c1.564,0 2.306,0.905 2.306,2.387l0,6.255c0,1.811 -1.074,2.386 -2.472,2.386" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M521.592,157.125l-31.935,0c-1.894,0 -2.715,-0.492 -2.715,-2.551l0,-52.265c0,-1.396 0.74,-2.301 2.137,-2.301l32.758,0c1.316,0 2.061,0.656 2.061,1.479l0,0.414l-0.745,6.666c-0.163,1.728 -1.232,2.056 -3.206,2.056l-19.92,0l0,12.264l18.682,0c1.813,0 2.473,0.907 2.473,2.223l0,6.008c0,1.646 -0.825,2.385 -2.389,2.385l-18.766,0l0,13.006l21.484,0c1.479,0 2.387,0.658 2.387,2.221l0,6.093c0,1.564 -0.745,2.302 -2.306,2.302" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M581.267,157.125l-6.997,0c-1.479,0 -2.714,-0.575 -3.621,-1.81l-24.526,-32.672l-0.164,0l0,32.015c0,1.809 -0.821,2.467 -2.468,2.467l-7.656,0c-1.894,0 -2.715,-0.41 -2.715,-2.386l0,-52.18c0,-2.141 0.985,-2.551 2.715,-2.551l6.913,0c1.646,0 2.469,0.49 3.375,1.728l24.526,32.921l0.167,0l0,-32.262c0,-1.811 0.905,-2.387 2.548,-2.387l7.987,0c2.141,0 2.301,1.151 2.301,2.551l0,52.015c0,2.141 -0.9,2.551 -2.385,2.551" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M612.881,111.282l-4.608,0l0,34.731l5.843,0c8.23,0 16.46,-3.538 16.46,-17.365c0,-12.261 -6.091,-17.366 -17.695,-17.366m1.729,45.843l-16.79,0c-1.645,0 -2.633,-0.41 -2.633,-2.551l0,-51.932c0,-1.812 0.492,-2.634 2.714,-2.634l13.005,0c20.413,0 33.66,6.83 33.66,28.725c0,19.751 -13.247,28.392 -29.956,28.392" style="fill: #fff; fill-rule: nonzero"></path>
+            <path d="M677.001,109.886c-7.156,0 -12.013,6.337 -12.013,18.517c0,13.004 4.442,18.68 12.263,18.68c7.242,0 11.932,-5.841 11.932,-18.598c0,-13.25 -4.361,-18.599 -12.182,-18.599m-0.16,48.31c-16.547,0 -25.844,-11.767 -25.844,-29.462c0,-17.615 9.957,-29.961 26.339,-29.961c17.2,0 25.84,12.757 25.84,29.465c0,18.518 -10.865,29.958 -26.335,29.958" style="fill: #fff; fill-rule: nonzero"></path>
+            </g>
+            </g>
+            </g>
+          </svg>
+        </a>
+      </div>
+      <div class="footer-links">
+        <h4>Key Pages</h4>
+        <ul>
+          <li>
+            <a href="https://mzalendo.com/mps-performance">MPs Performance</a>
+          </li>
+          <li>
+            <a href="https://mzalendo.com/research-and-knowledge/voting-patterns">Voting Patterns</a>
+          </li>
+          <li>
+            <a href="https://mzalendo.com/democracy-tools/hansard">Hansard</a>
+          </li>
+          <li>
+            <a href="https://mzalendo.com/research-and-knowledge/scorecard">Annual Paliamentary Scorecard</a>
+          </li>
+          <li>
+            <a href="https://mzalendo.com/research-and-knowledge">Research &amp; Knowledge Management</a>
+          </li>
+        </ul>
+      </div>
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <p>PO Box 21765 - 00505 Nairobi,</p>
+        <p>
+          Phone: <a href="tel:+254726464063">+254 (0)726 464 063</a>
+        </p>
+        <p>
+          Email: <a href="mailto:info@mzalendo.com">info@mzalendo.com</a>
+        </p>
+      </div>
+      <div class="footer-social">
+        <h4>Socials</h4>
+        <ul>
+          <li>
+            <a href="https://x.com/MzalendoWatch" target="_blank" aria-label="X-Twitter">
+              <i class="fa-brands fa-x-twitter"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.facebook.com/MzalendoWatch" target="_blank" aria-label="Facebook">
+              <i class="fa-brands fa-facebook"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.linkedin.com/company/mzalendo-trust/" target="_blank" aria-label="LinkedIn">
+              <i class="fa-brands fa-linkedin"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.youtube.com/user/MzalendoKenya" target="_blank" aria-label="YouTube">
+              <i class="fa-brands fa-youtube"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://open.spotify.com/show/1wSEzh5GVRNwVtzeN1fme1" target="_blank" aria-label="Spotify">
+              <i class="fa-brands fa-spotify"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.instagram.com/mzalendowatch" target="_blank" aria-label="Instagram">
+              <i class="fab fa-instagram"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.tiktok.com/@mzalendowatch" target="_blank" aria-label="TikTok">
+              <i class="fab fa-tiktok"></i>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container">
+      <div class="footer-bottom-links">
+        <a href="https://mzalendo.com/privacy-policy/">Privacy Policy</a>
+        <a href="https://mzalendo.com/data-policy/">Data Policy</a>
+        <a href="https://mzalendo.com/terms-of-service/">Terms of Service</a>
+      </div>
+      <div class="copyright">
+        © <span id="current-year">2026</span> Mzalendo Trust.
+        All Rights Reserved. Developed by
+        <a href="https://ra.co.ke/">Red Afro</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+    <!-- Footer Content -->
+    <!-- Global javascript -->
+    <script type="text/javascript" src="./national_assembly_13th_parliament_paginated_files/core.2f1cbe5598bb.js"></script>
+    <script type="text/javascript" src="./national_assembly_13th_parliament_paginated_files/mobile-nav.093ecc04731f.js"></script>
+    
+      <script defer="" src="./national_assembly_13th_parliament_paginated_files/script.js" data-website-id="c29b6c19-8121-4464-a5e7-a64b2d5c9a0a"></script>
+    
+    
+      <!-- Global site tag (gtag.js) - Google Analytics -->
+      <script async="" src="./national_assembly_13th_parliament_paginated_files/js"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments)};
+        gtag('js', new Date());
+
+        gtag('config', 'G-DTKJK4SXZ4');
+      </script>
+    
+    
+  <script type="text/javascript" src="./national_assembly_13th_parliament_paginated_files/parliament.a78ff925a919.js"></script>
+
+  
+
+<div id="speechify-global-notifications"><template shadowrootmode="open"><div id="speechify-global-notifications-root" style="position: fixed; top: 0px; left: 0px; height: 100vh; z-index: 2147483644; width: 0vw;"></div></template></div><div id="speechify-screenshot-mode" style="position: fixed; top: 0px; right: 0px; width: 100%; min-height: 100%; z-index: 2147483640; display: none !important;"><template shadowrootmode="open"><div id="speechify-screenshot-mode-root" style="width: 100%; height: 100%; position: relative;"></div></template></div><div id="speechify-scroll-to-highlight" style="position: absolute; bottom: 0px; right: 0px;"><template shadowrootmode="open"><div id="speechify-scroll-to-highlight-root" style="position: fixed; z-index: 2147483646; top: 0px; left: 50%; transform: translateX(-50%); height: fit-content; font-size: initial;"></div></template></div><div id="speechify-settings-modal" style="position: absolute; bottom: 0px; right: 0px;"><template shadowrootmode="open"><div id="speechify-settings-modal-root" style="position: fixed; z-index: 2147483646; top: 0px; left: 0px; height: fit-content; font-size: initial;"></div></template></div><div id="speechify-mic-button" style="z-index: 2147483644; position: absolute; top: 0px; left: 0px; height: 0px; width: 0px;"><template shadowrootmode="open"><style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+  </style></template></div><div id="speechify-hover-player-shadow-root"><template shadowrootmode="open"><div id="speechify-hover-player-container"></div></template></div></body><grammarly-desktop-integration data-grammarly-shadow-root="true"><template shadowrootmode="open"><style>
+      div.grammarly-desktop-integration {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+        -moz-user-select: none;
+        -webkit-user-select: none;
+        -ms-user-select:none;
+        user-select:none;
+      }
+
+      div.grammarly-desktop-integration:before {
+        content: attr(data-content);
+      }
+    </style><div aria-label="grammarly-integration" role="group" tabindex="-1" class="grammarly-desktop-integration" data-content="{&quot;mode&quot;:&quot;full&quot;,&quot;isActive&quot;:true,&quot;isUserDisabled&quot;:false}"></div></template></grammarly-desktop-integration></html>
