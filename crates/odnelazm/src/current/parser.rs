@@ -700,10 +700,8 @@ fn flush_pending_speaker(
 
 pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseError> {
     let document = Html::parse_document(html);
-    let item_sel =
-        Selector::parse("a.members-list--item, a.senators-list--item").unwrap();
-    let name_sel =
-        Selector::parse("div.members-list--name, div.senators-list--name").unwrap();
+    let item_sel = Selector::parse("a.members-list--item, a.senators-list--item").unwrap();
+    let name_sel = Selector::parse("div.members-list--name, div.senators-list--name").unwrap();
     let leader_role_sel = Selector::parse("p.leader-role").unwrap();
     let repr_sel =
         Selector::parse("div.members-list--representation, div.senators-list--representation")
@@ -835,9 +833,13 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
         .select(&parties_heading_sel)
         .find(|h| elem_text(*h).contains("Parties"))
         .and_then(|h| {
-            h.next_siblings()
-                .filter_map(ElementRef::wrap)
-                .find(|e| e.value().name() == "p" && e.value().attr("class").unwrap_or("").contains("elected-post"))
+            h.next_siblings().filter_map(ElementRef::wrap).find(|e| {
+                e.value().name() == "p"
+                    && e.value()
+                        .attr("class")
+                        .unwrap_or("")
+                        .contains("elected-post")
+            })
         })
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty());

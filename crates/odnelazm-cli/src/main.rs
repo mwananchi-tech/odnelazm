@@ -373,7 +373,10 @@ async fn run_current(command: CurrentCommands) {
             }
         }
 
-        CurrentCommands::Sitting { url_or_slug, format } => {
+        CurrentCommands::Sitting {
+            url_or_slug,
+            format,
+        } => {
             let sitting = scraper
                 .fetch_hansard_sitting(&url_or_slug)
                 .await

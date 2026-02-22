@@ -1,5 +1,5 @@
-use super::parser::{ParseError, parse_hansard_sitting, parse_hansard_list, parse_person_details};
-use super::types::{HansardSitting, HansardListing, PersonDetails};
+use super::parser::{ParseError, parse_hansard_list, parse_hansard_sitting, parse_person_details};
+use super::types::{HansardListing, HansardSitting, PersonDetails};
 
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;

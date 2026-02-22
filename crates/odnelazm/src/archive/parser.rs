@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use super::types::{
-    Contribution, HansardSitting, HansardListing, HansardSection, House, PersonDetails,
+    Contribution, HansardListing, HansardSection, HansardSitting, House, PersonDetails,
 };
 
 use chrono::{NaiveDate, NaiveTime};
