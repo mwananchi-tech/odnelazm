@@ -17,8 +17,8 @@ pub enum ParseError {
     DateParse(String),
     #[error("Failed to parse time: {0}")]
     TimeParse(String),
-    #[error("Invalid house type, accepted values are 'senate' and 'national_assembly': {0}")]
-    InvalidHouse(String),
+    #[error(transparent)]
+    InvalidHouse(#[from] crate::types::HouseParseError),
     #[error("Missing required field: {0}")]
     MissingField(String),
 }
@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_parse_hansard_list_from_sample() {
-        let html = fs::read_to_string("fixtures/root-page/Hansard __ Mzalendo")
+        let html = fs::read_to_string("fixtures/archive/root-page/Hansard __ Mzalendo")
             .expect("Failed to read sample HTML file");
 
         let listings = parse_hansard_list(&html).expect("Failed to parse hansard list");
@@ -560,8 +560,8 @@ mod tests {
 
     #[test]
     fn test_parse_hansard_detail_2020() {
-        let html =
-            fs::read_to_string("fixtures/hansard_detail_2020").expect("Failed to read sample file");
+        let html = fs::read_to_string("fixtures/archive/hansard_detail_2020")
+            .expect("Failed to read sample file");
         let url = "https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00";
 
         let detail = parse_hansard_detail(&html, url).expect("Failed to parse hansard detail");
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_parse_person_details_farhiya() {
-        let html = fs::read_to_string("fixtures/persons/person_farhiya")
+        let html = fs::read_to_string("fixtures/archive/persons/person_farhiya")
             .expect("Failed to read sample file");
         let url = "/person/farhiya-ali-haji/";
 
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     fn test_parse_person_details_samson() {
-        let html = fs::read_to_string("fixtures/persons/person_samson")
+        let html = fs::read_to_string("fixtures/archive/persons/person_samson")
             .expect("Failed to read sample file");
         let url = "/person/cherarkey-k-samson/";
 

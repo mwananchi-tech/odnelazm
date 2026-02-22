@@ -42,16 +42,7 @@ impl WebScraper {
         log::info!("Fetching hansard listings...");
 
         let url = format!("{}/hansard/", self.base_url);
-        let html = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .inspect_err(|e| log::error!("HTTP error: {e:?}"))?
-            .error_for_status()?
-            .text()
-            .await
-            .inspect_err(|e| log::error!("Decode error: {e:?}"))?;
+        let html = self.get_html(&url).await?;
 
         let listings = parse_hansard_list(&html)?;
         Ok(listings)
@@ -70,16 +61,7 @@ impl WebScraper {
 
         log::info!("Fetching hansard details...");
 
-        let html = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .inspect_err(|e| log::error!("HTTP error: {e:?}"))?
-            .error_for_status()?
-            .text()
-            .await
-            .inspect_err(|e| log::error!("Decode error: {e:?}"))?;
+        let html = self.get_html(&url).await?;
 
         let mut sitting = parse_hansard_detail(&html, &url)?;
 
@@ -142,16 +124,7 @@ impl WebScraper {
             format!("{}{}", self.base_url, url_or_slug)
         };
 
-        let html = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .inspect_err(|e| log::error!("HTTP error: {e:?}"))?
-            .error_for_status()?
-            .text()
-            .await
-            .inspect_err(|e| log::error!("Decode error: {e:?}"))?;
+        let html = self.get_html(&url).await?;
 
         if html.trim().is_empty() {
             return Err(ScraperError::ParseError(ParseError::MissingField(format!(
@@ -162,5 +135,18 @@ impl WebScraper {
 
         let details = parse_person_details(&html, &url)?;
         Ok(details)
+    }
+
+    async fn get_html(&self, url: &str) -> Result<String, ScraperError> {
+        Ok(self
+            .client
+            .get(url)
+            .send()
+            .await
+            .inspect_err(|e| log::error!("HTTP error: {e:?}"))?
+            .error_for_status()?
+            .text()
+            .await
+            .inspect_err(|e| log::error!("Decode error: {e:?}"))?)
     }
 }

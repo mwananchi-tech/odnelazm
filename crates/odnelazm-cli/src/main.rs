@@ -6,7 +6,6 @@ use clap::{Parser, Subcommand, ValueEnum};
 use log::LevelFilter;
 use odnelazm::archive::{
     WebScraper,
-    types::House,
     utils::{ListingFilter, ListingStats},
 };
 
@@ -102,10 +101,10 @@ enum Commands {
 
         #[arg(
             long,
-            value_parser = |s: &str| House::from_str(s).map_err(|e| e.to_string()),
+            value_parser = |s: &str| odnelazm::House::from_str(s).map_err(|e| e.to_string()),
             help = "Filter by house"
         )]
-        house: Option<House>,
+        house: Option<odnelazm::House>,
     },
     /// Fetch the full transcript of a sitting including sections, contributions and procedural notes
     Detail {
