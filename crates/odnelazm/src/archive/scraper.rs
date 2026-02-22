@@ -1,5 +1,5 @@
-use super::parser::{ParseError, parse_hansard_detail, parse_hansard_list, parse_person_details};
-use super::types::{HansardDetail, HansardListing, PersonDetails};
+use super::parser::{ParseError, parse_hansard_list, parse_hansard_sitting, parse_person_details};
+use super::types::{HansardListing, HansardSitting, PersonDetails};
 
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
@@ -48,11 +48,11 @@ impl WebScraper {
         Ok(listings)
     }
 
-    pub async fn fetch_hansard_detail(
+    pub async fn fetch_hansard_sitting(
         &self,
         url_or_slug: &str,
         nest_speaker_fetch: bool,
-    ) -> Result<HansardDetail, ScraperError> {
+    ) -> Result<HansardSitting, ScraperError> {
         let url = if url_or_slug.starts_with("http") {
             url_or_slug.to_string()
         } else {
@@ -63,7 +63,7 @@ impl WebScraper {
 
         let html = self.get_html(&url).await?;
 
-        let mut sitting = parse_hansard_detail(&html, &url)?;
+        let mut sitting = parse_hansard_sitting(&html, &url)?;
 
         if nest_speaker_fetch {
             let speaker_urls: HashSet<String> = sitting

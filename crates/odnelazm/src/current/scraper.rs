@@ -51,7 +51,7 @@ impl WebScraper {
         house: Option<House>,
     ) -> Result<Vec<HansardListing>, ScraperError> {
         let url = format!("{}/democracy-tools/hansard/?page={}", self.base_url, page);
-        log::info!("Fetching hansard list page {}...", page);
+        log::debug!("Fetching hansard list page {}...", page);
         let html = self.get_html(&url).await?;
         self.check_page(page, &html)?;
         Ok(parse_hansard_list(&html, house)?)
@@ -84,6 +84,7 @@ impl WebScraper {
             }
         }
 
+        listings.sort_by(|a, b| b.date.cmp(&a.date));
         Ok(listings)
     }
 
@@ -94,11 +95,7 @@ impl WebScraper {
         let url = if url_or_slug.starts_with("http") {
             url_or_slug.to_string()
         } else {
-            format!(
-                "{}/democracy-tools/hansard/{}/",
-                self.base_url,
-                url_or_slug.trim_matches('/')
-            )
+            format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         log::info!("Fetching hansard sitting: {}", url);
         let html = self.get_html(&url).await?;
@@ -127,6 +124,43 @@ impl WebScraper {
         let html = self.get_html(&url).await?;
         self.check_page(page, &html)?;
         Ok(parse_member_list(&html, house)?)
+    }
+
+    pub async fn fetch_all_members(
+        &self,
+        house: House,
+        parliament: &str,
+    ) -> Result<Vec<Member>, ScraperError> {
+        let first_url = format!(
+            "{}/mps-performance/{}/{}/?q=&page=1",
+            self.base_url,
+            house.slug(),
+            parliament
+        );
+        let first_html = self.get_html(&first_url).await?;
+        let total_pages = parse_page_info(&first_html)
+            .map(|(_, total)| total)
+            .unwrap_or(1);
+        let mut members = parse_member_list(&first_html, house)?;
+
+        if total_pages > 1 {
+            log::info!(
+                "Fetching {} remaining {} member page(s)...",
+                total_pages - 1,
+                house.slug()
+            );
+            let mut futs: FuturesUnordered<_> = (2..=total_pages)
+                .map(|page| self.fetch_members(house, parliament, page))
+                .collect();
+            while let Some(result) = futs.next().await {
+                match result {
+                    Ok(page_members) => members.extend(page_members),
+                    Err(e) => log::warn!("Failed to fetch members page: {}", e),
+                }
+            }
+        }
+
+        Ok(members)
     }
 
     pub async fn fetch_member_profile(
@@ -207,7 +241,7 @@ impl WebScraper {
             format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         let url = format!("{}/?contributions_page={}", base, contributions_page);
-        log::info!(
+        log::debug!(
             "Fetching member activity page {}: {}",
             contributions_page,
             url
@@ -235,7 +269,7 @@ impl WebScraper {
             format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         let url = format!("{}/?bills_page={}", base, bills_page);
-        log::info!("Fetching member bills page {}: {}", bills_page, url);
+        log::debug!("Fetching member bills page {}: {}", bills_page, url);
         let html = self.get_html(&url).await?;
         if let Some((current, last)) = parse_bills_page_info(&html)
             && current != bills_page

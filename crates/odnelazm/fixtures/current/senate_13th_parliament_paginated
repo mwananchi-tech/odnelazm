@@ -1,0 +1,1292 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>
+      
+        
+          
+        
+      
+      
+        
+        
+      
+    </title>
+    
+    <meta name="keywords"
+          content="
+                     
+                   ">
+    
+<!-- Document Settings and Metadata. -->
+<meta charset="UTF-8">
+<meta name="description" content="">
+<meta name="author" content="">
+<meta name="designer" content="" />
+<meta name="rating" content="" />
+<meta name="keywords" content="" />
+<!-- Icons. -->
+<link rel="apple-touch-icon"
+      sizes="57x57"
+      href="/static/img/favicons/apple-icon-57x57.8ec0b9b81584.png">
+<link rel="apple-touch-icon"
+      sizes="60x60"
+      href="/static/img/favicons/apple-icon-60x60.5c790d730783.png">
+<link rel="apple-touch-icon"
+      sizes="72x72"
+      href="/static/img/favicons/apple-icon-72x72.cb2ba8ac0ed5.png">
+<link rel="apple-touch-icon"
+      sizes="76x76"
+      href="/static/img/favicons/apple-icon-76x76.edcd5a706dfb.png">
+<link rel="apple-touch-icon"
+      sizes="114x114"
+      href="/static/img/favicons/apple-icon-114x114.17d31315a879.png">
+<link rel="apple-touch-icon"
+      sizes="120x120"
+      href="/static/img/favicons/apple-icon-120x120.183a7e8c0725.png">
+<link rel="apple-touch-icon"
+      sizes="144x144"
+      href="/static/img/favicons/apple-icon-144x144.30cc7c3fa71c.png">
+<link rel="apple-touch-icon"
+      sizes="152x152"
+      href="/static/img/favicons/apple-icon-152x152.61030286b04c.png">
+<link rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/img/favicons/apple-icon-180x180.3fe83c0c4875.png">
+<link rel="icon"
+      type="image/png"
+      sizes="36x36"
+      href="/static/img/favicons/android-icon-36x36.262b23d448b5.png">
+<link rel="icon"
+      type="image/png"
+      sizes="48x48"
+      href="/static/img/favicons/android-icon-48x48.418c939b867c.png">
+<link rel="icon"
+      type="image/png"
+      sizes="72x72"
+      href="/static/img/favicons/android-icon-72x72.cb2ba8ac0ed5.png">
+<link rel="icon"
+      type="image/png"
+      sizes="96x96"
+      href="/static/img/favicons/android-icon-96x96.c88b9efdd6dd.png">
+<link rel="icon"
+      type="image/png"
+      sizes="144x144"
+      href="/static/img/favicons/android-icon-144x144.30cc7c3fa71c.png">
+<link rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/static/img/favicons/android-icon-192x192.c7d283fe2ddc.png">
+<link rel="manifest" href="/static/img/favicons/manifest.b58fcfa7628c.json">
+<meta name="msapplication-TileColor" content="#ffffff">
+<meta name="msapplication-TileImage"
+      content="/static/img/favicons/ms-icon-144x144.30cc7c3fa71c.png%">
+<meta name="theme-color" content="#ffffff">
+
+    
+    
+    <!-- Global stylesheets -->
+    <link rel="stylesheet" type="text/css" href="/static/css/core.f5a7613b113f.css">
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    
+  <link rel="stylesheet" href="/static/parliament/css/parliament.26aeb848a93c.css">
+
+    
+    
+  </head>
+  <body class="site 
+  page-senate
+">
+    
+    <!-- Header Content -->
+    
+<header class="site-header">
+  <div class="site-header__row container">
+    <div class="site-header__logo">
+      <a href="/">
+        <!-- SVG logo -->
+        <img src="/static/img/mzalendo@20.e953f3d3703d.png"
+             alt="Mzalendo Logo"
+             width=""
+             height="" />
+      </a>
+    </div>
+    <nav class="main-nav" id="main-navigation">
+      <ul class="main-nav__list">
+        <li class="main-nav__list-item">
+          <a href="/about/" class="main-nav__link">About</a>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="/our-work/" class="main-nav__link">Our Work</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="//cspen.or.ke/about/">CSPEN</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="/mps-performance/" class="main-nav__link">MPs Performance</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="/mps-performance/national-assembly/">The National Assembly</a>
+            </li>
+            <li>
+              <a href="/mps-performance/senate/">The Senate</a>
+            </li>
+            <li>
+              <a href="/mps-performance/county-assemblies/">County Assemblies</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="/democracy-tools/" class="main-nav__link">Democracy Tools</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="https://dokeza.mzalendo.com">Dokeza</a>
+            </li>
+            <li>
+              <a href="https://info.mzalendo.com/hansard/" target="_blank">Archival Hansard</a>
+            </li>
+            <li>
+              <a href="/democracy-tools/hansard/">Hansard</a>
+            </li>
+            <li>
+              <a href="/democracy-tools/bonga/">Bonga na Mzalendo</a>
+            </li>
+            <li>
+              <a href="https://new.kenyalaw.org/akn/ke/act/2010/constitution">Constitution 2010</a>
+            </li>
+            <li>
+              <a href="https://tracker.mzalendo.com">Promise Tracker</a>
+            </li>
+            <li>
+              <a href="/democracy-tools/county-assembly-resources/">County Assembly Resources</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="/ai-tools/" class="main-nav__link">AI Tools</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="/ai-tools/document-explorer/">Document Explorer</a>
+            </li>
+            <li>
+              <a href="/ai-tools/analytics/">Analytics</a>
+            </li>
+            <li>
+              <a href="/ai-tools/mzalendo-chatbot/">Mzalendo Chatbot</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="/research-and-knowledge/" class="main-nav__link">Research &amp; Knowledge</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="/research-and-knowledge/scorecard/">Scorecard</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/voting-patterns/">Voting Patterns</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/publications/">Publications</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/shujaaz/">Shujaaz</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/politicians/">Past &amp; Present Politicians</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item has-desktop-submenu">
+          <a href="/media-centre/" class="main-nav__link">Media Centre</a>
+          <ul class="main-nav__list-submenu">
+            <li>
+              <a href="/media-centre/news-events/">News &amp; Events</a>
+            </li>
+            <li>
+              <a href="/media-centre/blogs-opinions/">Blogs &amp; Opinions</a>
+            </li>
+            <li>
+              <a href="/media-centre/opportunities/">Opportunities</a>
+            </li>
+            <li>
+              <a href="/media-centre/mzalendo-chats/">Mzalendo Chats</a>
+            </li>
+            <li>
+              <a href="/media-centre/newsletters/">Newsletters</a>
+            </li>
+          </ul>
+        </li>
+        <li class="main-nav__list-item">
+          <a href="/global-search/" class="main-nav__link">Search</a>
+        </li>
+        <li class="main-nav__list-item">
+          <a href="/contact/" class="main-nav__link">Contact</a>
+        </li>
+      </ul>
+    </nav>
+    <form class="desktop-search-form" action="/global-search/" method="get">
+      <div class="header-actions header-actions--top">
+        <div class="search-area" id="desktop-search-area">
+          <input type="search"
+                 name="q"
+                 class="search-input"
+                 id="desktop-search-input"
+                 placeholder="Search..." />
+          <i class="fas fa-search search-icon"
+             id="search-icon-desktop"
+             aria-label="Open search"></i>
+        </div>
+        <i class="fas fa-bars hamburger-icon"
+           id="hamburger-menu-icon"
+           aria-label="Open menu"></i>
+      </div>
+    </form>
+  </div>
+  <!-- Mobile menu overlay (hidden by default, shown when hamburger is clicked) -->
+  <div class="mobile-menu" id="mobile-nav-menu">
+    <i class="fas fa-times close-icon"
+       id="close-mobile-menu"
+       aria-label="Close menu"></i>
+    <nav class="mobile-nav" id="mobile-navigation">
+      <ul class="mobile-nav__list">
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle About submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="/about/" class="mobile-nav__link">About</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="/about/opportunities/">Opportunities</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Our Work submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="/our-work/" class="mobile-nav__link">Our Work</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="/our-work/cspen/">CSPEN</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle"
+                  aria-label="Toggle Eye on Parliament submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="/mps-performance/" class="mobile-nav__link">MPs Performance</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="/mps-performance/national-assembly/">The National Assembly</a>
+            </li>
+            <li>
+              <a href="/mps-performance/senate/">The Senate</a>
+            </li>
+            <li>
+              <a href="/mps-performance/county-assemblies/">County Assemblies</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle"
+                  aria-label="Toggle Democracy Tools submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="/democracy-tools/" class="mobile-nav__link">Democracy Tools</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="https://dokeza.mzalendo.com">Dokeza</a>
+            </li>
+            <li>
+              <a href="/democracy-tools/hansard/">Hansard</a>
+            </li>
+            <li>
+              <a href="/democracy-tools/bonga/">Bonga na Mzalendo</a>
+            </li>
+            <li>
+              <a href="https://new.kenyalaw.org/akn/ke/act/2010/constitution">Constitution 2010</a>
+            </li>
+            <li>
+              <a href="https://tracker.mzalendo.com">Promise Tracker</a>
+            </li>
+            <li>
+              <a href="/democracy-tools/county-assembly-resources/">County Assembly Resources</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle"
+                  aria-label="Toggle Research &amp; Knowledge submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="/research-and-knowledge/" class="mobile-nav__link">Research &amp; Knowledge</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="/research-and-knowledge/scorecard/">Scorecard</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/mps-contributions/">MPs Contributions</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/voting-patterns/">Voting Patterns</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/publications/">Publications</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/shujaaz/">Shujaaz</a>
+            </li>
+            <li>
+              <a href="/research-and-knowledge/politicians/">Past &amp; Present Politicians</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item has-submenu">
+          <button class="mobile-nav__toggle" aria-label="Toggle Media Centre submenu">
+            <span class="submenu-icon">+</span>
+          </button>
+          <a href="/media-centre/" class="mobile-nav__link">Media Centre</a>
+          <ul class="mobile-nav__submenu">
+            <li>
+              <a href="/media-centre/news-events/">News &amp; Events</a>
+            </li>
+            <li>
+              <a href="/media-centre/blogs-opinions/">Blogs &amp; Opinions</a>
+            </li>
+            <li>
+              <a href="/media-centre/mzalendo-chats/">Mzalendo Chats</a>
+            </li>
+            <li>
+              <a href="/media-centre/newsletters/">Newsletters</a>
+            </li>
+          </ul>
+        </li>
+        <li class="mobile-nav__list-item">
+          <a href="/global-search/" class="mobile-nav__link">Search</a>
+        </li>
+        <li class="mobile-nav__list-item">
+          <a href="/contact/" class="mobile-nav__link">Contact</a>
+        </li>
+      </ul>
+    </nav>
+    <form class="mobile-search-form" action="/global-search/" method="get">
+      <input type="search"
+             name="q"
+             placeholder="Search the site..."
+             aria-label="Search through site content" />
+      <button type="submit" class="search-icon" aria-label="Search">
+        <i class="fas fa-search"></i>
+      </button>
+    </form>
+  </div>
+</header>
+
+    <!-- END Header Content -->
+    <!-- Main Content -->
+    <main class="site-content">
+      <div class="container">
+        
+        <h1 class="page-heading container">
+          
+  Members of the Senate
+
+        </h1>
+      </div>
+      
+  <div class="house-container container">
+    <!-- Section: Senate House Header -->
+    <section class="house-header">
+      <div class="house-header--heading">Responsibilities as a member of the senate</div>
+      <div class="house-header--content">
+        <p class="house-header--content-text">
+          <strong>Representation:</strong> Acts on your behalf on issues of concern to you &amp; the nation.
+        </p>
+        <p class="house-header--content-text">
+          <strong>Oversight:</strong> Controls budget, oversees the presidency, ministries and parastatals plus appointments.
+        </p>
+        <p class="house-header--content-text">
+          <strong>Legislation:</strong> Develops or contributes to law making.
+        </p>
+      </div>
+    </section>
+    <!-- END Section: Senate Header -->
+    <!-- Section: Senate Position Holders -->
+    <section class="senate-position-holders">
+      <div class="position-holders--navbar">
+        <div class="position-holders--navbar-search">
+          <form action="" method="get" class="navbar-search-form">
+            <input type="text"
+                   name="search"
+                   value=""
+                   placeholder="Search senators..."
+                   aria-label="Search senators" />
+            <button type="submit">Search</button>
+          </form>
+        </div>
+        <nav class="position-holders--navbar-links" tabindex="0">
+          <span class="fa fa-arrow-left position-holders--navbar-scroll-icon left"
+                aria-label="Scroll left"
+                tabindex="0"></span>
+          <ul>
+            
+              <li>
+                <a href="/mps-performance/senate/13th-parliament/"
+                   class="
+                            selected
+                          ">13th Parliament</a>
+              </li>
+            
+              <li>
+                <a href="/mps-performance/senate/12th-parliament/"
+                   class="">12th Parliament</a>
+              </li>
+            
+              <li>
+                <a href="/mps-performance/senate/11th-parliament/"
+                   class="">11th Parliament</a>
+              </li>
+            
+          </ul>
+          <span class="fa fa-arrow-right position-holders--navbar-scroll-icon right"
+                aria-label="Scroll right"
+                tabindex="0"></span>
+        </nav>
+        <div class="navbar-border-overlay"></div>
+      </div>
+      <!-- Leadership -->
+      
+      <!-- END Leadership -->
+      <!-- Comprehensive Filter Controls -->
+      
+      <!-- END Comprehensive Filter Controls -->
+      <!-- Include Senators Listing -->
+      
+<!-- Add Senate Leaders -->
+
+  <h2 class="leadership-heading">Senate Leadership</h2>
+  <div class="leadership-grid">
+    
+      <a href="/mps-performance/senate/13th-parliament/amason-jeffah-kingi/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Amason_Jeffah_Kingi_DdMyjtn.min-200x240.jpg"
+               alt="Amason Jeffah Kingi"
+               width=""
+               height="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Amason Jeffah Kingi</div>
+          <p class="leader-role">Speaker</p>
+          <div class="senators-list--representation">
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/murungi-kathuri/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Murungi_Kathuri_L6RS1ZN.min-200x240.jpg"
+               alt="Murungi Kathuri"
+               width=""
+               height="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Murungi Kathuri</div>
+          <p class="leader-role">Deputy Speaker</p>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <strong>Meru</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/aaron-kipkirui-cheruiyot/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Aaron_Kipkirui_Cheruiyot_cKfbB1V.min-200x240.jpg"
+               alt="Aaron Kipkirui Cheruiyot"
+               width=""
+               height="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Aaron Kipkirui Cheruiyot</div>
+          <p class="leader-role">Majority Leader</p>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <strong>Kericho</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/stewart-mwachiru-shadrack-madzayo/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Stewart_Mwachiru_Shadrack_Madzayo_t7iS72g.min-200x240.jpg"
+               alt="Stewart Mwachiru Shadrack Madzayo"
+               width=""
+               height="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Stewart Mwachiru Shadrack Madzayo</div>
+          <p class="leader-role">Minority Leader</p>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <strong>Kilifi</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+  </div>
+
+<!-- END Senate Leaders -->
+<!-- Senators -->
+<h2 class="leadership-heading">Senators</h2>
+<div class="senators-list">
+  
+    
+      <a href="/mps-performance/senate/13th-parliament/abass-sheikh-mohamed/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Abass_Sheikh_Mohamed_ifCmIfd.min-200x240.jpg"
+               alt="Abass Sheikh Mohamed"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Abass Sheikh Mohamed</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Wajir</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/abdalla-shakilla-mohamed/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Abdalla_Shakilla_Mohamed_Dlgw0Fi.min-200x240.jpg"
+               alt="Abdalla Shakilla Mohamed"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Abdalla Shakilla Mohamed</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Women affairs</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/alexander-mundigi-munyi/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Alexander_Mundigi_Munyi_iFTee3i.min-200x240.jpg"
+               alt="Alexander Mundigi Munyi"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Alexander Mundigi Munyi</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Embu</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/ali-ibrahim-roba/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Ali_Ibrahim_Roba_Khet0U5.min-200x240.jpg"
+               alt="Ali Ibrahim Roba"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Ali Ibrahim Roba</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Mandera</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/okiya-omtatah-okoiti/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Andrew_Okiya_Omtatah_Okoiti_kiQbS1c.min-200x240.jpg"
+               alt="Andrew Okiya Omtatah Okoiti"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Andrew Okiya Omtatah Okoiti</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Busia</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/beatrice-akinyi-ogolla-oyomo/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Beatrice_Akinyi_Ogolla_Oyomo_HhwUYhL.min-200x240.jpg"
+               alt="Beatrice Akinyi Ogolla Oyomo"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Beatrice Akinyi Ogolla Oyomo</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Party</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/beth-kalunda-syengo/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Beth_Kalunda_Syengo_HmOit52.min-200x240.jpg"
+               alt="Beth Kalunda Syengo"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Beth Kalunda Syengo</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Party</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/betty-batuli-montet/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Betty_Batuli_Montet_sC62l0Y.min-200x240.jpg"
+               alt="Betty Batuli Montet"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Betty Batuli Montet</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Party</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/boy-issa-juma/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Boy_Issa_Juma_PiiQwKr.min-200x240.jpg"
+               alt="Boy Issa Juma"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Boy Issa Juma</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Kwale</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/catherine-muyeka-mumma/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Catherine_Muyeka_Mumma_Yy4Sthy.min-200x240.jpg"
+               alt="Catherine Muyeka Mumma"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Catherine Muyeka Mumma</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Party</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/william-cheptumo-kipkori/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/William_Cheptumo_Kipkori_It8cuEu.min-200x240.jpg"
+               alt="Cheptumo William Kipkiror"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Cheptumo William Kipkiror</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Baringo</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/chesang-allan-kiprotich/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Chesang_Allan_Kiprotich_ahtZ9FC.min-200x240.jpg"
+               alt="Chesang Allan Kiprotich"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Chesang Allan Kiprotich</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Trans Nzoia</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/chimera-raphael-mwinzago/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Chimera_Raphael_Mwinzago_QZS9MzR.min-200x240.jpg"
+               alt="Chimera Raphael Mwinzago"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Chimera Raphael Mwinzago</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Taita Taveta</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/chute-mohamed-said/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Chute_Mohamed_Said_XO0wP1u.min-200x240.jpg"
+               alt="Chute Mohamed Said"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Chute Mohamed Said</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Marsabit</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/consolata-nabwire-wakwabubi/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Consolata_Nabwire_Wakwabubi_yx6tPiv.min-200x240.jpg"
+               alt="Consolata Nabwire Wakwabubi"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Consolata Nabwire Wakwabubi</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Women affairs</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/crystal-asige/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Crystal_Asige_lxkFCuL.min-200x240.jpg"
+               alt="Crystal Asige"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Crystal Asige</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Disability</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/david-wafula-juma/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/David_Wakoli_Wafula_HLQbokw.min-200x240.jpg"
+               alt="David Wakoli Wafula"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">David Wakoli Wafula</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Bungoma</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/dullo-fatuma-adan/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Dullo_Fatuma_Adan_KLbSI2r.min-200x240.jpg"
+               alt="Dullo Fatuma Adan"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Dullo Fatuma Adan</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Isiolo</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/enoch-kiio-wambua/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Enoch_Kiio_Wambua_yuWSmR4.min-200x240.jpg"
+               alt="Enoch Kiio Wambua"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Enoch Kiio Wambua</div>
+          <div class="senators-list--representation">
+            
+              Senator for
+              <br />
+              <strong>Kitui</strong> county
+            
+          </div>
+        </div>
+      </a>
+    
+      <a href="/mps-performance/senate/13th-parliament/esther-anyieni-okenyuri/"
+         class="senators-list--item">
+        
+          
+          <img class="senators-list--image"
+               src="/media/images-rendered/Esther_Anyieni_Okenyuri_yojc8sL.min-200x240.jpg"
+               alt="Esther Anyieni Okenyuri"
+               height=""
+               width="" />
+        
+        <div class="senators-list--info">
+          <div class="senators-list--name">Esther Anyieni Okenyuri</div>
+          <div class="senators-list--representation">
+            
+              Nominated Senator for
+              <br />
+              <strong>Party</strong> interest
+            
+          </div>
+        </div>
+      </a>
+    
+  
+</div>
+<!-- END Senators -->
+
+      <!-- END Include Senators Listing -->
+    </section>
+  </div>
+
+      
+<div class="container">
+  <div class="pagination-container">
+    
+      <ul class="pagination">
+      <li>
+        <a class="page_label" href="?page=1"">
+        <svg class="enabled" viewBox="0 0 32 32">
+          <path d="M9.073 20.536v4.02c0 2.208-1.793 4-4 4-2.208 0-4-1.792-4-4V7.471c0-2.208 1.792-4 4-4 2.207 0 4 1.792 4 4v3.993l15.183-7.592a3.96 3.96 0 0 1 1.775-.419C28.208 3.453 30 5.245 30 7.422v17.032c-.001 2.219-1.827 4.045-4.046 4.045a4.04 4.04 0 0 1-1.809-.427z"/>
+        </svg>
+      </a>
+      </li>
+      
+      <li>
+        <svg class="disabled" viewBox="0 0 32 32">
+          <path fill="none" d="M0 0h32v32H0z" />
+          <path id="left_arrow" d="M5.276 18.638a2.95 2.95 0 0 1 0-5.276l18.98-9.49A3.969 3.969 0 0 1 30 7.422v17.032a4.046 4.046 0 0 1-5.855 3.618l-18.87-9.434z" fill-rule="nonzero" />
+        </svg>
+      </li>
+      
+      
+        
+        <li class="active active_number_box"><span>1</span></li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="?q=&page=2">2</a>
+        </li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="?q=&page=3">3</a>
+        </li>
+        
+        
+        
+        <li>
+          <a class="live number_box" href="?q=&page=4">4</a>
+        </li>
+        
+        
+
+    
+
+      
+      <li>
+        <a class="page_label" href="?q=&page=2">
+          <svg class="enabled" viewBox="0 0 32 32">
+            <path fill="none" d="M0 0h32v32H0z" />
+            <path id="right_arrow" d="M26.724 13.362a2.95 2.95 0 0 1 0 5.276l-18.98 9.49A3.969 3.969 0 0 1 2 24.578V7.546a4.046 4.046 0 0 1 5.855-3.619l18.87 9.435z" fill-rule="nonzero" />
+          </svg>
+        </a>
+      </li>
+      
+      <li>
+        <a class="page_label" href="?page=4">
+        <svg class="enabled" viewBox="0 0 32 32">
+          <path d="M22 20.536v4.02c0 2.208 1.793 4 4 4 2.208 0 4-1.792 4-4V7.471c0-2.208-1.792-4-4-4-2.207 0-4 1.792-4 4v3.993L6.817 3.872a3.96 3.96 0 0 0-1.775-.419c-2.177 0-3.97 1.792-3.97 3.969v17.032c.002 2.219 1.828 4.045 4.047 4.045.628 0 1.247-.146 1.809-.427z"/>
+        </svg>
+      </a>
+      </li>
+      </ul>
+    
+  </div>
+</div>
+
+
+    </main>
+    <!-- END Main Content -->
+    <!-- Footer Content -->
+    <footer id="mzalendo_footer" class="site-footer">
+  <div class="newsletter">
+    <div class="container newsletter-grid">
+      <div class="newsletter-cta">
+        <h3>Subscribe to Our Newsletter</h3>
+        <p>
+          Or see our previous issues <a class="newsletter-link" href="/media-centre/newsletters/">here</a>
+        </p>
+      </div>
+      <form class="newsletter-form"
+            action="/newsletter-subscribe/subscribe/"
+            method="post">
+        <input type="hidden" name="csrfmiddlewaretoken" value="gCCt3J9glU5YwILYIye36YQqlGD6dZi7VZtfKwCjznHQI6Sj4WKS3eGfvRtwygU6">
+        <input type="email"
+               name="email"
+               placeholder="Enter your email address"
+               required
+               aria-label="Email address for newsletter" />
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+  </div>
+  <!-- Toast Notification -->
+  
+  <div class="footer-content">
+    <div class="container">
+      <div class="footer-logo">
+        <a href="https://mzalendo.com/">
+          <svg class="svg-logo"
+               viewBox="0 0 836 255"
+               xmlns="http://www.w3.org/2000/svg"
+               xml:space="preserve"
+               style="fill-rule: evenodd;
+                      clip-rule: evenodd;
+                      stroke-linejoin: round;
+                      stroke-miterlimit: 1.41421">
+            <title>Visit the Mzalendo Trust website</title>
+            <rect id="Landscape" x="0" y="0" width="836" height="255" style="fill: none" />
+            <clipPath id="_clip1">
+            <rect x="0" y="0" width="836" height="255" />
+            </clipPath>
+            <g clip-path="url(#_clip1)">
+            <g id="Banner">
+            <g id="background">
+            <path d="M78.91,0l-10.758,256l687.375,0l10.757,-256l-687.374,0Z" style="fill: #009f57; fill-rule: nonzero" />
+            <path d="M0,0l0,256l55.433,0l10.758,-256l-66.191,0Z" style="fill-rule: nonzero" />
+            <path d="M768.406,256l67.594,0l0,-256l-56.837,0l-10.757,256Z" style="fill: #c32810; fill-rule: nonzero" />
+            </g>
+            <g id="borders">
+            <path d="M77.809,0l-11.618,0l-10.758,256l12.72,0l10.757,-256l-1.101,0Z" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M768.138,0l-1.853,0l-10.758,256l12.879,0l10.757,-256l-11.025,0Z" style="fill: #fff; fill-rule: nonzero" />
+            </g>
+            <g id="shield">
+            <path d="M193.882,93.272c0.648,1.176 1.283,2.398 1.886,3.632c0.558,1.137 1.084,2.276 1.572,3.391c-4.379,10.392 -6.598,21.111 -6.598,31.871c0,10.759 2.219,21.48 6.598,31.869c-0.47,1.075 -0.974,2.165 -1.534,3.313c-0.602,1.234 -1.235,2.456 -1.881,3.633c-5.882,10.713 -16.034,21.542 -19.879,21.542c-3.845,0 -13.997,-10.829 -19.879,-21.542c-0.647,-1.177 -1.28,-2.399 -1.881,-3.633c-0.56,-1.148 -1.065,-2.238 -1.534,-3.313c4.379,-10.389 6.597,-21.11 6.597,-31.869c0,-10.76 -2.218,-21.479 -6.597,-31.871c0.487,-1.115 1.015,-2.254 1.572,-3.391c0.603,-1.234 1.238,-2.456 1.885,-3.632c6.022,-10.944 16.151,-21.511 19.837,-21.511c3.685,0 13.816,10.567 19.836,21.511" style="fill: #c32810; fill-rule: nonzero" />
+            <path d="M167.326,97.169c0,-10.855 1.603,-20.15 3.965,-24.428c0.607,-0.412 1.193,-0.741 1.687,-0.94l0,51.918c-3.214,-2.242 -5.652,-13.273 -5.652,-26.55" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M180.766,97.169c0,-10.855 -1.603,-20.15 -3.965,-24.428c-0.607,-0.412 -1.193,-0.741 -1.687,-0.94l0,51.918c3.214,-2.242 5.652,-13.273 5.652,-26.55" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M180.766,167.11c0,10.855 -1.603,20.151 -3.965,24.428c-0.607,0.412 -1.193,0.742 -1.687,0.94l0,-51.918c3.214,2.243 5.652,13.273 5.652,26.55" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M167.326,167.11c0,10.855 1.603,20.151 3.965,24.428c0.607,0.412 1.193,0.742 1.687,0.94l0,-51.918c-3.214,2.243 -5.652,13.273 -5.652,26.55" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M179.273,132.141c0,-4.261 -2.341,-7.714 -5.227,-7.714c-2.887,0 -5.226,3.453 -5.226,7.714c0,4.259 2.339,7.712 5.226,7.712c2.886,0 5.227,-3.453 5.227,-7.712" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M193.882,93.241c0.648,1.176 1.283,2.398 1.886,3.632c0.558,1.137 1.084,2.275 1.572,3.391c-4.379,10.392 -6.598,21.111 -6.598,31.871c0,10.759 2.219,21.48 6.598,31.869c-0.47,1.076 -0.974,2.165 -1.534,3.313c-0.602,1.235 -1.235,2.456 -1.881,3.633c-5.882,10.713 -16.034,21.573 -19.879,21.573c-3.845,0 -13.997,-10.86 -19.879,-21.573c-0.647,-1.177 -1.28,-2.398 -1.881,-3.633c-0.56,-1.148 -1.065,-2.237 -1.534,-3.313c4.379,-10.389 6.597,-21.11 6.597,-31.869c0,-10.76 -2.218,-21.479 -6.597,-31.871c0.487,-1.116 1.015,-2.254 1.572,-3.391c0.603,-1.234 1.238,-2.456 1.885,-3.632c6.022,-10.944 16.151,-21.48 19.837,-21.48c3.685,0 13.816,10.536 19.836,21.48m-19.837,101.846c4.515,0 14.004,-8.441 21.693,-22.116l13.736,23.762l3.03,-1.749l-14.835,-25.662c0.148,-0.295 0.307,-0.578 0.452,-0.874c0.666,-1.366 1.256,-2.652 1.804,-3.931l0.219,-0.507l-0.151,-0.353c4.296,-10.282 6.49,-20.881 6.49,-31.522c0,-10.64 -2.194,-21.242 -6.49,-31.525l0.151,-0.352l-0.219,-0.508c-0.564,-1.314 -1.183,-2.664 -1.844,-4.01c-0.123,-0.252 -0.259,-0.49 -0.384,-0.742l2.372,-4.112c2.113,-0.08 4.537,-1.739 5.556,-3.503c1.328,-2.301 12.921,-26.687 10.619,-28.016c-2.3,-1.328 -17.622,20.904 -18.95,23.206c-1.02,1.765 -1.244,4.693 -0.255,6.562l-1.273,2.208c-7.693,-13.702 -17.205,-22.162 -21.721,-22.162l0.002,0c-4.516,0 -14.029,8.46 -21.72,22.162l-1.274,-2.208c0.988,-1.869 0.765,-4.797 -0.255,-6.562c-1.328,-2.302 -16.651,-24.534 -18.951,-23.206c-2.301,1.329 9.292,25.715 10.619,28.016c1.02,1.764 3.445,3.423 5.557,3.503l2.371,4.112c-0.124,0.252 -0.26,0.49 -0.383,0.742c-0.66,1.346 -1.281,2.696 -1.844,4.01l-0.219,0.508l0.151,0.352c-4.297,10.283 -6.491,20.885 -6.491,31.525c0,10.641 2.194,21.24 6.491,31.522l-0.151,0.353l0.218,0.507c0.549,1.279 1.139,2.565 1.804,3.931c0.145,0.296 0.306,0.579 0.452,0.874l-14.834,25.662l3.03,1.749l13.736,-23.762c7.689,13.675 17.178,22.116 21.693,22.116l-0.002,0Z" style="fill-rule: nonzero" />
+            </g>
+            <g id="typeface">
+            <path d="M323.865,157.125l-8.23,0c-2.14,0 -2.636,-1.069 -2.715,-3.373l-0.905,-28.229l-0.164,0l-12.429,29.792c-0.658,1.645 -1.729,1.81 -2.798,1.81l-3.046,0c-1.566,0 -2.469,-0.246 -3.29,-1.891l-14.24,-29.711l-0.166,0l-0.495,29.051c0,2.305 -1.069,2.551 -2.795,2.551l-6.75,0c-1.894,0 -2.798,-0.658 -2.798,-2.386l0,-0.25l2.222,-51.847c0.084,-1.978 0.986,-2.634 2.551,-2.634l5.927,0c1.894,0 2.631,0.656 3.373,2.221l18.189,37.202l0.162,0l16.464,-37.202c0.659,-1.399 1.563,-2.221 3.375,-2.221l5.76,0c1.646,0 2.224,0.576 2.306,2.058l2.714,52.508l0,0.249c0,1.564 -0.739,2.302 -2.222,2.302" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M378.032,157.125l-41.809,0c-1.234,0 -1.893,-0.987 -1.893,-2.138l0,-3.129c0,-1.152 0.163,-1.976 0.903,-3.044l25.68,-38.108l-0.084,-0.083l-22.879,0c-1.48,0 -2.386,-0.654 -2.386,-2.386l0,-6.256c0,-1.232 0.741,-1.973 1.975,-1.973l38.845,0c1.73,0 2.309,0.988 2.309,2.221l0,2.469c0,1.481 -0.165,2.88 -1.153,4.282l-25.352,37.448l0.082,0.081l25.682,0c1.396,0 2.221,0.742 2.221,2.385l0,5.845c0,1.399 -0.739,2.386 -2.141,2.386" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M411.375,119.183c-0.58,-1.81 -1.072,-3.373 -1.485,-4.771l-0.163,0c-0.413,1.479 -0.909,3.125 -1.482,4.855l-5.186,16.132l13.499,0l-5.183,-16.216Zm24.444,37.943l-9.22,0c-1.977,0 -2.717,-0.904 -3.209,-2.302l-3.293,-9.548l-2.962,0l-14.485,0l-2.882,0l-3.291,9.875c-0.332,1.071 -0.99,1.975 -2.472,1.975l-9.382,0c-0.906,0 -1.316,-0.575 -1.316,-1.315c0,-0.332 0,-0.66 0.164,-0.987l19.588,-52.757c0.492,-1.236 1.237,-2.059 2.801,-2.059l8.474,0c1.648,0 2.555,0.741 2.965,1.809l19.999,52.43c0.164,0.493 0.246,0.904 0.246,1.232c0,0.989 -0.573,1.647 -1.725,1.647" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M477.717,157.125l-31.275,0c-1.729,0 -2.633,-0.41 -2.633,-2.636l0,-52.18c0,-1.479 0.74,-2.301 2.301,-2.301l8.317,0c1.812,0 2.467,0.576 2.467,2.468l0,43.621l20.989,0c1.564,0 2.306,0.905 2.306,2.387l0,6.255c0,1.811 -1.074,2.386 -2.472,2.386" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M521.592,157.125l-31.935,0c-1.894,0 -2.715,-0.492 -2.715,-2.551l0,-52.265c0,-1.396 0.74,-2.301 2.137,-2.301l32.758,0c1.316,0 2.061,0.656 2.061,1.479l0,0.414l-0.745,6.666c-0.163,1.728 -1.232,2.056 -3.206,2.056l-19.92,0l0,12.264l18.682,0c1.813,0 2.473,0.907 2.473,2.223l0,6.008c0,1.646 -0.825,2.385 -2.389,2.385l-18.766,0l0,13.006l21.484,0c1.479,0 2.387,0.658 2.387,2.221l0,6.093c0,1.564 -0.745,2.302 -2.306,2.302" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M581.267,157.125l-6.997,0c-1.479,0 -2.714,-0.575 -3.621,-1.81l-24.526,-32.672l-0.164,0l0,32.015c0,1.809 -0.821,2.467 -2.468,2.467l-7.656,0c-1.894,0 -2.715,-0.41 -2.715,-2.386l0,-52.18c0,-2.141 0.985,-2.551 2.715,-2.551l6.913,0c1.646,0 2.469,0.49 3.375,1.728l24.526,32.921l0.167,0l0,-32.262c0,-1.811 0.905,-2.387 2.548,-2.387l7.987,0c2.141,0 2.301,1.151 2.301,2.551l0,52.015c0,2.141 -0.9,2.551 -2.385,2.551" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M612.881,111.282l-4.608,0l0,34.731l5.843,0c8.23,0 16.46,-3.538 16.46,-17.365c0,-12.261 -6.091,-17.366 -17.695,-17.366m1.729,45.843l-16.79,0c-1.645,0 -2.633,-0.41 -2.633,-2.551l0,-51.932c0,-1.812 0.492,-2.634 2.714,-2.634l13.005,0c20.413,0 33.66,6.83 33.66,28.725c0,19.751 -13.247,28.392 -29.956,28.392" style="fill: #fff; fill-rule: nonzero" />
+            <path d="M677.001,109.886c-7.156,0 -12.013,6.337 -12.013,18.517c0,13.004 4.442,18.68 12.263,18.68c7.242,0 11.932,-5.841 11.932,-18.598c0,-13.25 -4.361,-18.599 -12.182,-18.599m-0.16,48.31c-16.547,0 -25.844,-11.767 -25.844,-29.462c0,-17.615 9.957,-29.961 26.339,-29.961c17.2,0 25.84,12.757 25.84,29.465c0,18.518 -10.865,29.958 -26.335,29.958" style="fill: #fff; fill-rule: nonzero" />
+            </g>
+            </g>
+            </g>
+          </svg>
+        </a>
+      </div>
+      <div class="footer-links">
+        <h4>Key Pages</h4>
+        <ul>
+          <li>
+            <a href="/mps-performance">MPs Performance</a>
+          </li>
+          <li>
+            <a href="/research-and-knowledge/voting-patterns">Voting Patterns</a>
+          </li>
+          <li>
+            <a href="/democracy-tools/hansard">Hansard</a>
+          </li>
+          <li>
+            <a href="/research-and-knowledge/scorecard">Annual Paliamentary Scorecard</a>
+          </li>
+          <li>
+            <a href="/research-and-knowledge">Research &amp; Knowledge Management</a>
+          </li>
+        </ul>
+      </div>
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <p>PO Box 21765 - 00505 Nairobi,</p>
+        <p>
+          Phone: <a href="tel:+254726464063">+254 (0)726 464 063</a>
+        </p>
+        <p>
+          Email: <a href="mailto:info@mzalendo.com">info@mzalendo.com</a>
+        </p>
+      </div>
+      <div class="footer-social">
+        <h4>Socials</h4>
+        <ul>
+          <li>
+            <a href="https://x.com/MzalendoWatch"
+               target="_blank"
+               aria-label="X-Twitter">
+              <i class="fa-brands fa-x-twitter"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.facebook.com/MzalendoWatch"
+               target="_blank"
+               aria-label="Facebook">
+              <i class="fa-brands fa-facebook"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.linkedin.com/company/mzalendo-trust/"
+               target="_blank"
+               aria-label="LinkedIn">
+              <i class="fa-brands fa-linkedin"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.youtube.com/user/MzalendoKenya"
+               target="_blank"
+               aria-label="YouTube">
+              <i class="fa-brands fa-youtube"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://open.spotify.com/show/1wSEzh5GVRNwVtzeN1fme1"
+               target="_blank"
+               aria-label="Spotify">
+              <i class="fa-brands fa-spotify"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.instagram.com/mzalendowatch"
+               target="_blank"
+               aria-label="Instagram">
+              <i class="fab fa-instagram"></i>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.tiktok.com/@mzalendowatch"
+               target="_blank"
+               aria-label="TikTok">
+              <i class="fab fa-tiktok"></i>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container">
+      <div class="footer-bottom-links">
+        <a href="/privacy-policy/">Privacy Policy</a>
+        <a href="/data-policy/">Data Policy</a>
+        <a href="/terms-of-service/">Terms of Service</a>
+      </div>
+      <div class="copyright">
+        © <span id="current-year"></span> Mzalendo Trust.
+        All Rights Reserved. Developed by
+        <a href="https://ra.co.ke">Red Afro</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+    <!-- Footer Content -->
+    <!-- Global javascript -->
+    <script type="text/javascript" src="/static/js/core.2f1cbe5598bb.js"></script>
+    <script type="text/javascript" src="/static/js/mobile-nav.093ecc04731f.js"></script>
+    
+      <script defer
+              src="https://analytics.mzalendo.com/script.js"
+              data-website-id="c29b6c19-8121-4464-a5e7-a64b2d5c9a0a"></script>
+    
+    
+      <!-- Global site tag (gtag.js) - Google Analytics -->
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-DTKJK4SXZ4"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments)};
+        gtag('js', new Date());
+
+        gtag('config', 'G-DTKJK4SXZ4');
+      </script>
+    
+    
+  <script type="text/javascript"
+          src="/static/parliament/js/parliament.a78ff925a919.js"></script>
+
+  </body>
+</html>

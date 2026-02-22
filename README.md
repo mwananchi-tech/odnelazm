@@ -1,6 +1,6 @@
 # odnelazm
 
-Tools for scraping, parsing, and accessing hansard data from [mzalendo.com](https://info.mzalendo.com) to provide structured transcripts of National Assembly and Senate sittings from the Parliament of Kenya.
+Tools for scraping, parsing, and accessing hansard data from [mzalendo.com](https://mzalendo.com) to provide structured transcripts of National Assembly and Senate sittings from the Parliament of Kenya.
 
 ## Crates
 
