@@ -57,6 +57,36 @@ impl WebScraper {
         Ok(parse_hansard_list(&html, house)?)
     }
 
+    pub async fn fetch_all_sittings(
+        &self,
+        house: Option<House>,
+    ) -> Result<Vec<HansardListing>, ScraperError> {
+        let first_url = format!("{}/democracy-tools/hansard/?page=1", self.base_url);
+        let first_html = self.get_html(&first_url).await?;
+        let total_pages = parse_page_info(&first_html)
+            .map(|(_, total)| total)
+            .unwrap_or(1);
+        let mut listings = parse_hansard_list(&first_html, house)?;
+
+        if total_pages > 1 {
+            log::info!(
+                "Fetching {} remaining hansard list page(s)...",
+                total_pages - 1
+            );
+            let mut futs: FuturesUnordered<_> = (2..=total_pages)
+                .map(|page| self.fetch_hansard_list(page, house))
+                .collect();
+            while let Some(result) = futs.next().await {
+                match result {
+                    Ok(page_listings) => listings.extend(page_listings),
+                    Err(e) => log::warn!("Failed to fetch hansard list page: {}", e),
+                }
+            }
+        }
+
+        Ok(listings)
+    }
+
     pub async fn fetch_hansard_sitting(
         &self,
         url_or_slug: &str,
