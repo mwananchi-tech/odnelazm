@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use crate::types::{
+use super::types::{
     Contribution, HansardDetail, HansardListing, HansardSection, House, PersonDetails,
 };
 
@@ -237,7 +237,7 @@ fn parse_hansard_entry(url: &str, display_text: &str) -> Result<HansardListing, 
     let full_url = if url.starts_with("http") {
         url.to_string()
     } else {
-        format!("{}{}", crate::BASE_URL, url)
+        format!("{}{}", super::BASE_URL, url)
     };
 
     Ok(HansardListing {
@@ -465,7 +465,6 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::House;
     use chrono::{NaiveDate, Timelike};
     use std::fs;
 

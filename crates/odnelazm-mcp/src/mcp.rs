@@ -1,4 +1,4 @@
-use odnelazm::{scraper::WebScraper, utils::ListingFilter};
+use odnelazm::archive::{scraper::WebScraper, utils::ListingFilter};
 use rmcp::{
     ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
