@@ -1,4 +1,4 @@
-use crate::types::{HansardListing, House};
+use super::types::{HansardListing, House};
 
 use chrono::NaiveDate;
 use schemars::JsonSchema;
