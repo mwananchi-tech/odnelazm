@@ -84,6 +84,7 @@ impl WebScraper {
             }
         }
 
+        listings.sort_by(|a, b| b.date.cmp(&a.date));
         Ok(listings)
     }
 
@@ -94,11 +95,7 @@ impl WebScraper {
         let url = if url_or_slug.starts_with("http") {
             url_or_slug.to_string()
         } else {
-            format!(
-                "{}/democracy-tools/hansard/{}/",
-                self.base_url,
-                url_or_slug.trim_matches('/')
-            )
+            format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         log::info!("Fetching hansard sitting: {}", url);
         let html = self.get_html(&url).await?;
