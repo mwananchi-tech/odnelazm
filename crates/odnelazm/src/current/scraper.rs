@@ -43,12 +43,16 @@ impl WebScraper {
         })
     }
 
-    pub async fn fetch_hansard_list(&self, page: u32) -> Result<Vec<HansardListing>, ScraperError> {
+    pub async fn fetch_hansard_list(
+        &self,
+        page: u32,
+        house: Option<House>,
+    ) -> Result<Vec<HansardListing>, ScraperError> {
         let url = format!("{}/democracy-tools/hansard/?page={}", self.base_url, page);
         log::info!("Fetching hansard list page {}...", page);
         let html = self.get_html(&url).await?;
         self.check_page(page, &html)?;
-        Ok(parse_hansard_list(&html)?)
+        Ok(parse_hansard_list(&html, house)?)
     }
 
     pub async fn fetch_hansard_sitting(
@@ -75,17 +79,16 @@ impl WebScraper {
         parliament: &str,
         page: u32,
     ) -> Result<Vec<Member>, ScraperError> {
-        let house_slug = match house {
-            House::NationalAssembly => "national-assembly",
-            House::Senate => "senate",
-        };
         let url = format!(
             "{}/mps-performance/{}/{}/?q=&page={}",
-            self.base_url, house_slug, parliament, page
+            self.base_url,
+            house.slug(),
+            parliament,
+            page
         );
         log::info!(
             "Fetching {} members ({}, page {})...",
-            house_slug,
+            house.slug(),
             parliament,
             page
         );

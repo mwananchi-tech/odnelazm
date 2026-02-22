@@ -17,8 +17,8 @@ pub enum ParseError {
     DateParse(String),
     #[error("Failed to parse time: {0}")]
     TimeParse(String),
-    #[error("Invalid house type, accepted values are 'senate' and 'national_assembly': {0}")]
-    InvalidHouse(String),
+    #[error(transparent)]
+    InvalidHouse(#[from] crate::types::HouseParseError),
     #[error("Missing required field: {0}")]
     MissingField(String),
 }
