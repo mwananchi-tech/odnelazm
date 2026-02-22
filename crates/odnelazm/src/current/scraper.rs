@@ -51,7 +51,7 @@ impl WebScraper {
         house: Option<House>,
     ) -> Result<Vec<HansardListing>, ScraperError> {
         let url = format!("{}/democracy-tools/hansard/?page={}", self.base_url, page);
-        log::info!("Fetching hansard list page {}...", page);
+        log::debug!("Fetching hansard list page {}...", page);
         let html = self.get_html(&url).await?;
         self.check_page(page, &html)?;
         Ok(parse_hansard_list(&html, house)?)
@@ -207,7 +207,7 @@ impl WebScraper {
             format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         let url = format!("{}/?contributions_page={}", base, contributions_page);
-        log::info!(
+        log::debug!(
             "Fetching member activity page {}: {}",
             contributions_page,
             url
@@ -235,7 +235,7 @@ impl WebScraper {
             format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         let url = format!("{}/?bills_page={}", base, bills_page);
-        log::info!("Fetching member bills page {}: {}", bills_page, url);
+        log::debug!("Fetching member bills page {}: {}", bills_page, url);
         let html = self.get_html(&url).await?;
         if let Some((current, last)) = parse_bills_page_info(&html)
             && current != bills_page
