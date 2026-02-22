@@ -2,7 +2,7 @@ use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-pub use crate::archive::types::House;
+pub use crate::types::House;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HansardListing {

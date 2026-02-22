@@ -407,7 +407,10 @@ pub fn parse_parliamentary_activity(html: &str) -> Vec<ParliamentaryActivity> {
     items
 }
 
-pub fn parse_hansard_list(html: &str) -> Result<Vec<HansardListing>, ParseError> {
+pub fn parse_hansard_list(
+    html: &str,
+    house_filter: Option<House>,
+) -> Result<Vec<HansardListing>, ParseError> {
     let document = Html::parse_document(html);
     let split_selector = Selector::parse("div.split-docs").unwrap();
     let link_selector = Selector::parse("div.hansard-document h3 a").unwrap();
@@ -420,6 +423,10 @@ pub fn parse_hansard_list(html: &str) -> Result<Vec<HansardListing>, ParseError>
         } else {
             House::Senate
         };
+
+        if house_filter.as_ref().is_some_and(|f| f != &house) {
+            continue;
+        }
 
         for link_elem in split_div.select(&link_selector) {
             let url = match link_elem.value().attr("href") {
@@ -873,7 +880,7 @@ mod tests {
         let html = fs::read_to_string("fixtures/current/Hansard_list_paginated")
             .expect("Failed to read fixture");
 
-        let listings = parse_hansard_list(&html).expect("Failed to parse hansard list");
+        let listings = parse_hansard_list(&html, None).expect("Failed to parse hansard list");
 
         assert!(!listings.is_empty(), "Should parse at least one listing");
         println!("Parsed {} listings", listings.len());
@@ -896,11 +903,59 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_hansard_list_filter_national_assembly() {
+        let html = fs::read_to_string("fixtures/current/Hansard_list_paginated")
+            .expect("Failed to read fixture");
+
+        let listings = parse_hansard_list(&html, Some(House::NationalAssembly))
+            .expect("Failed to parse hansard list");
+
+        assert!(!listings.is_empty(), "Should have listings");
+        assert!(
+            listings.iter().all(|l| l.house == House::NationalAssembly),
+            "All listings should be National Assembly"
+        );
+    }
+
+    #[test]
+    fn test_parse_hansard_list_filter_senate() {
+        let html = fs::read_to_string("fixtures/current/Hansard_list_paginated")
+            .expect("Failed to read fixture");
+
+        let listings =
+            parse_hansard_list(&html, Some(House::Senate)).expect("Failed to parse hansard list");
+
+        assert!(!listings.is_empty(), "Should have listings");
+        assert!(
+            listings.iter().all(|l| l.house == House::Senate),
+            "All listings should be Senate"
+        );
+    }
+
+    #[test]
+    fn test_parse_hansard_list_filter_excludes_other_house() {
+        let html = fs::read_to_string("fixtures/current/Hansard_list_paginated")
+            .expect("Failed to read fixture");
+
+        let na = parse_hansard_list(&html, Some(House::NationalAssembly))
+            .expect("Failed to parse NA listings");
+        let senate = parse_hansard_list(&html, Some(House::Senate))
+            .expect("Failed to parse Senate listings");
+        let all = parse_hansard_list(&html, None).expect("Failed to parse all listings");
+
+        assert_eq!(
+            na.len() + senate.len(),
+            all.len(),
+            "Filtered counts should sum to total"
+        );
+    }
+
+    #[test]
     fn test_parse_hansard_list_specific_entries() {
         let html = fs::read_to_string("fixtures/current/Hansard_list_paginated")
             .expect("Failed to read fixture");
 
-        let listings = parse_hansard_list(&html).expect("Failed to parse");
+        let listings = parse_hansard_list(&html, None).expect("Failed to parse");
 
         let feb12 = listings
             .iter()
