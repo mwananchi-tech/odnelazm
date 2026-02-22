@@ -201,11 +201,14 @@ enum CurrentCommands {
 
         #[arg(
             long,
-            help = "Page number to fetch",
+            help = "Page number to fetch (ignored when --all is set)",
             default_value = "1",
             value_parser = clap::value_parser!(u32).range(1..)
         )]
         page: u32,
+
+        #[arg(long, help = "Fetch all pages at once", conflicts_with = "page")]
+        all: bool,
 
         #[arg(
             short = 'o',
@@ -389,15 +392,18 @@ async fn run_current(command: CurrentCommands) {
             house,
             parliament,
             page,
+            all,
             format,
         } => {
-            let members = scraper
-                .fetch_members(house, &parliament, page)
-                .await
-                .unwrap_or_else(|e| {
-                    log::error!("Error fetching members: {}", e);
-                    process::exit(1);
-                });
+            let members = if all {
+                scraper.fetch_all_members(house, &parliament).await
+            } else {
+                scraper.fetch_members(house, &parliament, page).await
+            }
+            .unwrap_or_else(|e| {
+                log::error!("Error fetching members: {}", e);
+                process::exit(1);
+            });
 
             match format {
                 OutputFormat::Json => print_json(&members),

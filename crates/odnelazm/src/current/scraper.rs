@@ -129,6 +129,43 @@ impl WebScraper {
         Ok(parse_member_list(&html, house)?)
     }
 
+    pub async fn fetch_all_members(
+        &self,
+        house: House,
+        parliament: &str,
+    ) -> Result<Vec<Member>, ScraperError> {
+        let first_url = format!(
+            "{}/mps-performance/{}/{}/?q=&page=1",
+            self.base_url,
+            house.slug(),
+            parliament
+        );
+        let first_html = self.get_html(&first_url).await?;
+        let total_pages = parse_page_info(&first_html)
+            .map(|(_, total)| total)
+            .unwrap_or(1);
+        let mut members = parse_member_list(&first_html, house)?;
+
+        if total_pages > 1 {
+            log::info!(
+                "Fetching {} remaining {} member page(s)...",
+                total_pages - 1,
+                house.slug()
+            );
+            let mut futs: FuturesUnordered<_> = (2..=total_pages)
+                .map(|page| self.fetch_members(house, parliament, page))
+                .collect();
+            while let Some(result) = futs.next().await {
+                match result {
+                    Ok(page_members) => members.extend(page_members),
+                    Err(e) => log::warn!("Failed to fetch members page: {}", e),
+                }
+            }
+        }
+
+        Ok(members)
+    }
+
     pub async fn fetch_member_profile(
         &self,
         url_or_slug: &str,

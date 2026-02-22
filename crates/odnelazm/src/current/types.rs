@@ -166,9 +166,10 @@ impl Display for ParliamentaryActivity {
 pub struct MemberProfile {
     pub name: String,
     pub slug: String,
+    pub photo_url: Option<String>,
     pub biography: Option<String>,
     pub position_type: Option<String>,
-    pub position: Option<String>,
+    pub positions: Vec<String>,
     pub party: Option<String>,
     pub committees: Vec<String>,
     pub speeches_last_year: Option<u32>,
@@ -184,8 +185,8 @@ pub struct MemberProfile {
 impl Display for MemberProfile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.name)?;
-        if let Some(pos) = &self.position {
-            writeln!(f, "  Position: {}", pos)?;
+        if !self.positions.is_empty() {
+            writeln!(f, "  Positions: {}", self.positions.join(", "))?;
         }
         if let Some(party) = &self.party {
             writeln!(f, "  Party: {}", party)?;
