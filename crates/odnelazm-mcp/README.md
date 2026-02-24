@@ -4,24 +4,44 @@ MCP server for accessing Kenyan Parliament hansard data. Provides tools to list 
 
 ## Tools
 
-**list_sittings** - List available parliamentary sittings with optional filtering and pagination.
+### Archive (info.mzalendo.com — pre-2013)
 
-**get_sitting** - Fetch the full transcript of a sitting including sections, contributions and procedural notes.
+**archive_list_sittings** - List archived sittings. Filter by date range, house, limit, and offset.
 
-**get_person** - Fetch speaker details from person profile pages.
+**archive_get_sitting** - Fetch the full transcript of an archived sitting. Optionally fetch speaker profiles inline.
+
+**archive_get_person** - Fetch a speaker's archived profile including party, constituency, and contact info.
+
+### Current (mzalendo.com — 2013 to present)
+
+**current_list_sittings** - List recent sittings. Filter by house. Use `all: true` to fetch all pages at once.
+
+**current_get_sitting** - Fetch the full transcript of a current sitting.
+
+**current_list_members** - List MPs by house and parliament session. Use `all: true` to fetch all pages at once.
+
+**current_get_member_profile** - Fetch a member's full profile including biography, committees, voting patterns, and sponsored bills.
+
+## Installation
+
+With `cargo`
+
+```bash
+cargo install odnelazm-mcp
+```
 
 ## Usage
 
 ### Stdio transport
 
 ```bash
-cargo run --bin odnelazm-mcp
+odnelazm-mcp
 ```
 
 ### HTTP transport
 
 ```bash
-cargo run --bin odnelazm-mcp-web
+odnelazm-mcp-web
 ```
 
 The server listens on `127.0.0.1:8055` by default. Override with `BIND_ADDRESS`:
