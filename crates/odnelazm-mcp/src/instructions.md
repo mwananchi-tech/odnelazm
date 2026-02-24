@@ -25,13 +25,14 @@ Tools:
 
 - `current_list_sittings`: Browse recent sittings. Filter by house. Set `all: true` to fetch all pages at once, or use `page` to paginate manually.
 - `current_get_sitting`: Fetch the full transcript of a current sitting by URL or slug.
-- `current_list_members`: List members of parliament by house and parliament session (e.g. `"13th-parliament"`). Set `all: true` to fetch all pages, or use `page` to paginate.
+- `current_list_members`: List members of parliament. **Requires** `house` (`"national_assembly"` or `"senate"`) and `parliament` (e.g. `"13th-parliament"`). Set `all: true` to fetch all pages, or use `page` to paginate. Never pass `null` for `house`.
 - `current_get_member_profile`: Fetch a member's full profile — biography, positions, committees, voting patterns, parliamentary activity, and sponsored bills. Set `all_activity: true` or `all_bills: true` to fetch all paginated data exhaustively.
 
 Tips:
 
 - Use `current_list_sittings` first to find a sitting URL, then pass it to `current_get_sitting`.
-- Use `current_list_members` to find a member URL, then pass it to `current_get_member_profile`.
+- To look up a member's profile: call `current_list_members` (with explicit `house` and `parliament`) to get their URL or slug, then pass it to `current_get_member_profile`.
+- `house` in `current_list_members` is **required** — always pass `"national_assembly"` or `"senate"` explicitly. If you don't know which house the member belongs to, make two calls (one per house) and search the results.
 - Parliament sessions: `"13th-parliament"`, `"12th-parliament"`, `"11th-parliament"`.
 - Sitting URLs follow the pattern: `https://mzalendo.com/democracy-tools/hansard/{weekday}-{Nth}-{month}-{year}-{session}-{id}/`
 - Member profile URLs follow the pattern: `https://mzalendo.com/mps-performance/{house}/{parliament}/{slug}/`
