@@ -219,6 +219,23 @@ enum CurrentCommands {
         )]
         format: OutputFormat,
     },
+    /// List all members from both houses in parallel
+    AllMembers {
+        #[arg(
+            help = "Parliament session (e.g. 13th-parliament, 12th-parliament)",
+            default_value = "13th-parliament"
+        )]
+        parliament: String,
+
+        #[arg(
+            short = 'o',
+            long = "output",
+            value_enum,
+            default_value = "text",
+            help = "Output format"
+        )]
+        format: OutputFormat,
+    },
     /// Fetch a member's full profile including speeches, bills, and voting record
     Profile {
         #[arg(help = "URL or slug of the member profile to fetch")]
@@ -407,6 +424,29 @@ async fn run_current(command: CurrentCommands) {
                 log::error!("Error fetching members: {}", e);
                 process::exit(1);
             });
+
+            match format {
+                OutputFormat::Json => print_json(&members),
+                OutputFormat::Text => {
+                    if members.is_empty() {
+                        println!("No members to display.");
+                    } else {
+                        for (i, member) in members.iter().enumerate() {
+                            println!("{:>3}. {}", i + 1, member);
+                        }
+                    }
+                }
+            }
+        }
+
+        CurrentCommands::AllMembers { parliament, format } => {
+            let members = scraper
+                .fetch_all_members_all_houses(&parliament)
+                .await
+                .unwrap_or_else(|e| {
+                    log::error!("Error fetching all members: {}", e);
+                    process::exit(1);
+                });
 
             match format {
                 OutputFormat::Json => print_json(&members),
