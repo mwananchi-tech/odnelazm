@@ -1,7 +1,7 @@
 [package]
 name = "odnelazm-cli"
 description = "Command Line Interface for interacting with scraped data from odnelazm"
-version = "1.0.0-beta.4"
+version = "1.0.0-beta.5"
 readme = "README.md"
 authors.workspace = true
 edition.workspace = true
