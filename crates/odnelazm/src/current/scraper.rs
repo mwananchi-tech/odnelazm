@@ -163,6 +163,29 @@ impl WebScraper {
         Ok(members)
     }
 
+    pub async fn fetch_all_members_all_houses(
+        &self,
+        parliament: &str,
+    ) -> Result<Vec<Member>, ScraperError> {
+        let (na_result, senate_result) = future::join(
+            self.fetch_all_members(House::NationalAssembly, parliament),
+            self.fetch_all_members(House::Senate, parliament),
+        )
+        .await;
+
+        let mut members = Vec::new();
+        match na_result {
+            Ok(m) => members.extend(m),
+            Err(e) => log::warn!("Failed to fetch National Assembly members: {}", e),
+        }
+        match senate_result {
+            Ok(m) => members.extend(m),
+            Err(e) => log::warn!("Failed to fetch Senate members: {}", e),
+        }
+
+        Ok(members)
+    }
+
     pub async fn fetch_member_profile(
         &self,
         url_or_slug: &str,
