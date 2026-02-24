@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use chrono::{NaiveDate, NaiveTime};
 use regex::Regex;
-use scraper::{ElementRef, Html, Selector};
+use scraper::{ElementRef, Html, Selector, error::SelectorErrorKind};
 
 use super::types::{
     Bill, Contribution, HansardListing, HansardSection, HansardSitting, House, Member,
@@ -19,6 +19,14 @@ pub enum ParseError {
     TimeParse(String),
     #[error("Missing required field: {0}")]
     MissingField(String),
+    #[error("Failed to parse selector: {0}")]
+    HtmlSelector(String),
+}
+
+impl<'a> From<SelectorErrorKind<'a>> for ParseError {
+    fn from(err: SelectorErrorKind<'a>) -> Self {
+        ParseError::HtmlSelector(format!("{err:?}"))
+    }
 }
 
 static RE_LISTING_TITLE: LazyLock<Regex> = LazyLock::new(|| {
@@ -173,14 +181,15 @@ fn parse_date_from_url_slug(url: &str) -> Result<(NaiveDate, String, String), Pa
     Ok((date, day_of_week, session_type))
 }
 
-pub fn parse_page_info(html: &str) -> Option<(u32, u32)> {
+pub fn parse_page_info(html: &str) -> Result<Option<(u32, u32)>, ParseError> {
     let document = Html::parse_document(html);
 
-    let active_sel = Selector::parse("li.active.active_number_box span").unwrap();
+    let active_sel = Selector::parse("li.active.active_number_box span")?;
     let current_page = document
         .select(&active_sel)
         .next()
-        .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())?;
+        .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())
+        .ok_or_else(|| ParseError::MissingField("Missing pagination elements".to_string()))?;
 
     let page_label_sel = Selector::parse("a.page_label[href]").unwrap();
     let total_pages = document
@@ -195,19 +204,21 @@ pub fn parse_page_info(html: &str) -> Option<(u32, u32)> {
                 .parse::<u32>()
                 .ok()
         })
-        .max()?;
+        .max()
+        .unwrap_or(current_page);
 
-    Some((current_page, total_pages))
+    Ok(Some((current_page, total_pages)))
 }
 
-pub fn parse_bills_page_info(html: &str) -> Option<(u32, u32)> {
+pub fn parse_bills_page_info(html: &str) -> Result<Option<(u32, u32)>, ParseError> {
     let document = Html::parse_document(html);
 
-    let active_sel = Selector::parse("nav.bills-pagination li.active_number_box span").unwrap();
+    let active_sel = Selector::parse("nav.bills-pagination li.active_number_box span")?;
     let current_page = document
         .select(&active_sel)
         .next()
-        .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())?;
+        .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())
+        .ok_or_else(|| ParseError::MissingField("Missing pagination elements".to_string()))?;
 
     let link_sel = Selector::parse("nav.bills-pagination a[href]").unwrap();
     let total_pages = document
@@ -225,17 +236,17 @@ pub fn parse_bills_page_info(html: &str) -> Option<(u32, u32)> {
         .max()
         .unwrap_or(current_page);
 
-    Some((current_page, total_pages))
+    Ok(Some((current_page, total_pages)))
 }
 
-pub fn parse_bills(html: &str) -> Vec<Bill> {
+pub fn parse_bills(html: &str) -> Result<Vec<Bill>, ParseError> {
     let document = Html::parse_document(html);
-    let item_sel = Selector::parse("div.bill-item").unwrap();
-    let name_sel = Selector::parse("h3.bill-name").unwrap();
-    let year_sel = Selector::parse("span.bill-year").unwrap();
-    let stage_sel = Selector::parse("div.bill-stage").unwrap();
+    let item_sel = Selector::parse("div.bill-item")?;
+    let name_sel = Selector::parse("h3.bill-name")?;
+    let year_sel = Selector::parse("span.bill-year")?;
+    let stage_sel = Selector::parse("div.bill-stage")?;
 
-    document
+    let bills = document
         .select(&item_sel)
         .filter_map(|item| {
             let name = item
@@ -263,18 +274,19 @@ pub fn parse_bills(html: &str) -> Vec<Bill> {
 
             Some(Bill { name, year, status })
         })
-        .collect()
+        .collect();
+
+    Ok(bills)
 }
 
-pub fn parse_voting_patterns(html: &str) -> Vec<VoteRecord> {
+pub fn parse_voting_patterns(html: &str) -> Result<Vec<VoteRecord>, ParseError> {
     let document = Html::parse_document(html);
-    let row_sel = Selector::parse("div.voting-patterns-row").unwrap();
-    let date_sel = Selector::parse("div.voting-cell.voting-date").unwrap();
-    let title_sel = Selector::parse("div.voting-cell.voting-title a").unwrap();
-    let decision_sel =
-        Selector::parse("div.voting-cell.voting-decision span.decision-badge").unwrap();
+    let row_sel = Selector::parse("div.voting-patterns-row")?;
+    let date_sel = Selector::parse("div.voting-cell.voting-date")?;
+    let title_sel = Selector::parse("div.voting-cell.voting-title a")?;
+    let decision_sel = Selector::parse("div.voting-cell.voting-decision span.decision-badge")?;
 
-    document
+    let vote_records = document
         .select(&row_sel)
         .filter_map(|row| {
             let date = row
@@ -299,18 +311,20 @@ pub fn parse_voting_patterns(html: &str) -> Vec<VoteRecord> {
                 decision,
             })
         })
-        .collect()
+        .collect();
+
+    Ok(vote_records)
 }
 
-pub fn parse_activity_page_info(html: &str) -> Option<(u32, u32)> {
+pub fn parse_activity_page_info(html: &str) -> Result<Option<(u32, u32)>, ParseError> {
     let document = Html::parse_document(html);
 
-    let active_sel =
-        Selector::parse("nav.contributions-pagination li.active_number_box span").unwrap();
+    let active_sel = Selector::parse("nav.contributions-pagination li.active_number_box span")?;
     let current_page = document
         .select(&active_sel)
         .next()
-        .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())?;
+        .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())
+        .ok_or_else(|| ParseError::MissingField("Missing pagination elements".to_string()))?;
 
     let link_sel = Selector::parse("nav.contributions-pagination a[href]").unwrap();
     let total_pages = document
@@ -328,20 +342,20 @@ pub fn parse_activity_page_info(html: &str) -> Option<(u32, u32)> {
         .max()
         .unwrap_or(current_page);
 
-    Some((current_page, total_pages))
+    Ok(Some((current_page, total_pages)))
 }
 
-pub fn parse_parliamentary_activity(html: &str) -> Vec<ParliamentaryActivity> {
+pub fn parse_parliamentary_activity(html: &str) -> Result<Vec<ParliamentaryActivity>, ParseError> {
     let document = Html::parse_document(html);
-    let group_sel = Selector::parse("div.contribution-group").unwrap();
-    let topic_sel = Selector::parse("span.topic-badge.topic-badge-large").unwrap();
-    let date_sel = Selector::parse("span.group-date").unwrap();
-    let subgroup_sel = Selector::parse("div.conversation-subgroup").unwrap();
-    let type_sel = Selector::parse("span.conversation-type-badge").unwrap();
-    let title_sel = Selector::parse("a.conversation-title").unwrap();
-    let item_sel = Selector::parse("div.contribution-item").unwrap();
-    let link_sel = Selector::parse("a.contribution-text-link").unwrap();
-    let text_sel = Selector::parse("p.contribution-text").unwrap();
+    let group_sel = Selector::parse("div.contribution-group")?;
+    let topic_sel = Selector::parse("span.topic-badge.topic-badge-large")?;
+    let date_sel = Selector::parse("span.group-date")?;
+    let subgroup_sel = Selector::parse("div.conversation-subgroup")?;
+    let type_sel = Selector::parse("span.conversation-type-badge")?;
+    let title_sel = Selector::parse("a.conversation-title")?;
+    let item_sel = Selector::parse("div.contribution-item")?;
+    let link_sel = Selector::parse("a.contribution-text-link")?;
+    let text_sel = Selector::parse("p.contribution-text")?;
 
     let mut items = Vec::new();
 
@@ -404,7 +418,7 @@ pub fn parse_parliamentary_activity(html: &str) -> Vec<ParliamentaryActivity> {
         }
     }
 
-    items
+    Ok(items)
 }
 
 pub fn parse_hansard_list(
@@ -412,8 +426,8 @@ pub fn parse_hansard_list(
     house_filter: Option<House>,
 ) -> Result<Vec<HansardListing>, ParseError> {
     let document = Html::parse_document(html);
-    let split_selector = Selector::parse("div.split-docs").unwrap();
-    let link_selector = Selector::parse("div.hansard-document h3 a").unwrap();
+    let split_selector = Selector::parse("div.split-docs")?;
+    let link_selector = Selector::parse("div.hansard-document h3 a")?;
 
     let mut listings = Vec::new();
 
@@ -460,7 +474,7 @@ pub fn parse_hansard_list(
 pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, ParseError> {
     let document = Html::parse_document(html);
 
-    let house_selector = Selector::parse("span.house").unwrap();
+    let house_selector = Selector::parse("span.house")?;
     let house_text = document
         .select(&house_selector)
         .next()
@@ -472,7 +486,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
     } else if house_text.contains("Senate") {
         House::Senate
     } else {
-        let house_title_sel = Selector::parse("h1.house-title").unwrap();
+        let house_title_sel = Selector::parse("h1.house-title")?;
         let house_title = document
             .select(&house_title_sel)
             .next()
@@ -485,7 +499,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         }
     };
 
-    let breadcrumb_sel = Selector::parse("li.breadcrumb-item.current").unwrap();
+    let breadcrumb_sel = Selector::parse("li.breadcrumb-item.current")?;
     let breadcrumb_text = document
         .select(&breadcrumb_sel)
         .next()
@@ -498,7 +512,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         parse_date_from_url_slug(url)?
     };
 
-    let session_sel = Selector::parse("span.session").unwrap();
+    let session_sel = Selector::parse("span.session")?;
     let session_type = document
         .select(&session_sel)
         .next()
@@ -511,7 +525,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         .filter(|s| !s.is_empty())
         .unwrap_or(session_type);
 
-    let time_sel = Selector::parse("span.time").unwrap();
+    let time_sel = Selector::parse("span.time")?;
     let time = document
         .select(&time_sel)
         .next()
@@ -524,7 +538,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         .filter(|s| !s.is_empty())
         .and_then(|t| parse_time_12h(&t).ok());
 
-    let pdf_sel = Selector::parse("div.document-thumbnail a").unwrap();
+    let pdf_sel = Selector::parse("div.document-thumbnail a")?;
     let pdf_url = document
         .select(&pdf_sel)
         .next()
@@ -532,7 +546,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         .filter(|h| h.ends_with(".pdf"))
         .map(str::to_string);
 
-    let doc_summary_sel = Selector::parse("div.doc-summary").unwrap();
+    let doc_summary_sel = Selector::parse("div.doc-summary")?;
     let (summary, sentiment) = document
         .select(&doc_summary_sel)
         .next()
@@ -567,7 +581,7 @@ fn parse_doc_summary(elem: ElementRef) -> (Option<String>, Option<String>) {
         let rest = body[pos..]
             .strip_prefix("Sentimental Analysis")
             .map(|r| r.trim())
-            .unwrap_or("");
+            .unwrap_or_default();
         (s, rest)
     } else {
         (body, "")
@@ -589,7 +603,7 @@ fn parse_doc_summary(elem: ElementRef) -> (Option<String>, Option<String>) {
 }
 
 fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseError> {
-    let article_sel = Selector::parse("article.hansard-document").unwrap();
+    let article_sel = Selector::parse("article.hansard-document")?;
     let Some(article) = document.select(&article_sel).next() else {
         return Ok(Vec::new());
     };
@@ -604,7 +618,7 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
         };
 
         let tag = element.value().name();
-        let class = element.value().attr("class").unwrap_or("");
+        let class = element.value().attr("class").unwrap_or_default();
 
         if tag == "h2" && class.contains("major-section-header") {
             flush_pending_speaker(&mut pending_speaker, &mut current_section);
@@ -625,7 +639,7 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
         } else if tag == "div" && class.contains("contributor-name") {
             flush_pending_speaker(&mut pending_speaker, &mut current_section);
 
-            let a_sel = Selector::parse("a").unwrap();
+            let a_sel = Selector::parse("a")?;
             let (name, speaker_url) = if let Some(a) = element.select(&a_sel).next() {
                 let name = normalize_whitespace(&elem_text(a));
                 let url = a.value().attr("href").map(str::to_string);
@@ -639,8 +653,8 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
             }
         } else if tag == "div" && class.contains("speech-content") {
             if let Some((name, url)) = pending_speaker.take() {
-                let p_sel = Selector::parse("p").unwrap();
-                let procedural_sel = Selector::parse("aside.procedural-note").unwrap();
+                let p_sel = Selector::parse("p")?;
+                let procedural_sel = Selector::parse("aside.procedural-note")?;
 
                 let content = element
                     .select(&p_sel)
@@ -700,12 +714,11 @@ fn flush_pending_speaker(
 
 pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseError> {
     let document = Html::parse_document(html);
-    let item_sel = Selector::parse("a.members-list--item, a.senators-list--item").unwrap();
-    let name_sel = Selector::parse("div.members-list--name, div.senators-list--name").unwrap();
-    let leader_role_sel = Selector::parse("p.leader-role").unwrap();
+    let item_sel = Selector::parse("a.members-list--item, a.senators-list--item")?;
+    let name_sel = Selector::parse("div.members-list--name, div.senators-list--name")?;
+    let leader_role_sel = Selector::parse("p.leader-role")?;
     let repr_sel =
-        Selector::parse("div.members-list--representation, div.senators-list--representation")
-            .unwrap();
+        Selector::parse("div.members-list--representation, div.senators-list--representation")?;
 
     let mut members = Vec::new();
 
@@ -759,39 +772,39 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
         .ok_or_else(|| ParseError::UrlParse("Could not extract slug from URL".to_string()))?
         .to_string();
 
-    let name_sel = Selector::parse("h1.page-heading").unwrap();
+    let name_sel = Selector::parse("h1.page-heading")?;
     let name = document
         .select(&name_sel)
         .next()
         .map(|e| normalize_whitespace(&elem_text(e)))
         .ok_or_else(|| ParseError::MissingField("member name".to_string()))?;
 
-    let bio_sel = Selector::parse("section.member-biography div.biography-content").unwrap();
+    let bio_sel = Selector::parse("section.member-biography div.biography-content")?;
     let biography = document
         .select(&bio_sel)
         .next()
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty());
 
-    let position_type_sel = Selector::parse("h2.assembly-entry").unwrap();
+    let position_type_sel = Selector::parse("h2.assembly-entry")?;
     let position_type = document
         .select(&position_type_sel)
         .next()
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty());
 
-    let photo_sel = Selector::parse("img.member-list--image").unwrap();
+    let photo_sel = Selector::parse("img.member-list--image")?;
     let photo_url = document
         .select(&photo_sel)
         .next()
         .and_then(|e| e.value().attr("src"))
         .map(str::to_string);
 
-    let header_two_sel = Selector::parse("h2.header-two").unwrap();
-    let parties_heading_sel = Selector::parse("h2.header-two, h2.header-three").unwrap();
-    let p_sel = Selector::parse("p").unwrap();
+    let header_two_sel = Selector::parse("h2.header-two")?;
+    let parties_heading_sel = Selector::parse("h2.header-two, h2.header-three")?;
+    let p_sel = Selector::parse("p")?;
 
-    // Positions: collect all p under "CURRENT POSITIONS" h2.header-two,
+    // XXX: (positions) collect all p under "CURRENT POSITIONS" h2.header-two,
     // handling both NA (wrapped in div.position-section) and Senate (direct p.elected-post siblings).
     let positions: Vec<String> = document
         .select(&header_two_sel)
@@ -806,7 +819,7 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
                     && sibling
                         .value()
                         .attr("class")
-                        .unwrap_or("")
+                        .unwrap_or_default()
                         .contains("position-section")
                 {
                     // NA: collect all p inside the position-section div
@@ -828,7 +841,7 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
         })
         .unwrap_or_default();
 
-    // Party: first p.elected-post that follows the "Parties and Coalitions" heading
+    // XXX: (party) first p.elected-post that follows the "Parties and Coalitions" heading
     let party = document
         .select(&parties_heading_sel)
         .find(|h| elem_text(*h).contains("Parties"))
@@ -837,21 +850,21 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
                 e.value().name() == "p"
                     && e.value()
                         .attr("class")
-                        .unwrap_or("")
+                        .unwrap_or_default()
                         .contains("elected-post")
             })
         })
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty());
 
-    let committee_sel = Selector::parse("li.committee-item").unwrap();
+    let committee_sel = Selector::parse("li.committee-item")?;
     let committees = document
         .select(&committee_sel)
         .map(|e| normalize_whitespace(&elem_text(e)))
         .filter(|s| !s.is_empty())
         .collect();
 
-    let activity_sel = Selector::parse("div.activity-section p").unwrap();
+    let activity_sel = Selector::parse("div.activity-section p")?;
     let (speeches_last_year, speeches_total) = document
         .select(&activity_sel)
         .next()
@@ -871,17 +884,17 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
         caps[1].parse::<u32>().ok()
     });
 
-    let bills = parse_bills(html);
+    let bills = parse_bills(html)?;
 
-    let bills_pages = parse_bills_page_info(html)
+    let bills_pages = parse_bills_page_info(html)?
         .map(|(_, total)| total)
         .unwrap_or(if bills.is_empty() { 0 } else { 1 });
 
-    let voting_patterns = parse_voting_patterns(html);
+    let voting_patterns = parse_voting_patterns(html)?;
 
-    let activity = parse_parliamentary_activity(html);
+    let activity = parse_parliamentary_activity(html)?;
 
-    let activity_pages = parse_activity_page_info(html)
+    let activity_pages = parse_activity_page_info(html)?
         .map(|(_, total)| total)
         .unwrap_or(if activity.is_empty() { 0 } else { 1 });
 
@@ -915,7 +928,9 @@ mod tests {
         let html = fs::read_to_string("fixtures/current/Hansard_list_paginated")
             .expect("Failed to read fixture");
 
-        let (current, total) = parse_page_info(&html).expect("Should parse pagination");
+        let (current, total) = parse_page_info(&html)
+            .unwrap()
+            .expect("Should parse pagination");
         assert_eq!(current, 1);
         assert_eq!(total, 120);
     }
@@ -926,7 +941,9 @@ mod tests {
             fs::read_to_string("fixtures/current/national_assembly_13th_parliament_paginated")
                 .expect("Failed to read fixture");
 
-        let (current, total) = parse_page_info(&html).expect("Should parse pagination");
+        let (current, total) = parse_page_info(&html)
+            .unwrap()
+            .expect("Should parse pagination");
         assert_eq!(current, 1);
         assert_eq!(total, 8);
     }
@@ -1167,8 +1184,9 @@ mod tests {
         )
         .expect("Failed to read fixture");
 
-        let (current, total) =
-            parse_activity_page_info(&html).expect("Should parse activity pagination");
+        let (current, total) = parse_activity_page_info(&html)
+            .unwrap()
+            .expect("Should parse activity pagination");
         assert_eq!(current, 1);
         assert_eq!(total, 11);
     }
@@ -1180,7 +1198,7 @@ mod tests {
         )
         .expect("Failed to read fixture");
 
-        let items = parse_parliamentary_activity(&html);
+        let items = parse_parliamentary_activity(&html).unwrap();
 
         assert!(!items.is_empty(), "Should parse at least one activity item");
         for item in &items {
@@ -1221,7 +1239,7 @@ mod tests {
         )
         .expect("Failed to read fixture");
 
-        let bills = parse_bills(&html);
+        let bills = parse_bills(&html).unwrap();
 
         assert!(!bills.is_empty(), "Should parse at least one bill");
         let first = &bills[0];
@@ -1242,7 +1260,9 @@ mod tests {
         )
         .expect("Failed to read fixture");
 
-        let (current, total) = parse_bills_page_info(&html).expect("Should parse bills pagination");
+        let (current, total) = parse_bills_page_info(&html)
+            .unwrap()
+            .expect("Should parse bills pagination");
         assert_eq!(current, 1);
         assert_eq!(total, 2);
     }
@@ -1254,7 +1274,7 @@ mod tests {
         )
         .expect("Failed to read fixture");
 
-        let votes = parse_voting_patterns(&html);
+        let votes = parse_voting_patterns(&html).unwrap();
 
         assert!(!votes.is_empty(), "Should parse at least one vote record");
         for vote in &votes {

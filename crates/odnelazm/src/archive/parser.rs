@@ -7,7 +7,7 @@ use super::types::{
 
 use chrono::{NaiveDate, NaiveTime};
 use regex::Regex;
-use scraper::{ElementRef, Html, Selector};
+use scraper::{ElementRef, Html, Selector, error::SelectorErrorKind};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParseError {
@@ -21,6 +21,14 @@ pub enum ParseError {
     InvalidHouse(#[from] crate::types::HouseParseError),
     #[error("Missing required field: {0}")]
     MissingField(String),
+    #[error("Failed to parse selector: {0}")]
+    HtmlSelector(String),
+}
+
+impl<'a> From<SelectorErrorKind<'a>> for ParseError {
+    fn from(err: SelectorErrorKind<'a>) -> Self {
+        ParseError::HtmlSelector(format!("{err:?}"))
+    }
 }
 
 static RE_SESSION_TYPE: LazyLock<Regex> = LazyLock::new(|| {
@@ -56,7 +64,7 @@ fn extract_parenthesized(text: &str) -> Option<String> {
 
 pub fn parse_hansard_list(html: &str) -> Result<Vec<HansardListing>, ParseError> {
     let document = Html::parse_document(html);
-    let list_selector = Selector::parse("ul.listing li a").unwrap();
+    let list_selector = Selector::parse("ul.listing li a")?;
     let mut listings = Vec::new();
 
     for element in document.select(&list_selector) {
@@ -92,7 +100,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         .ok_or_else(|| ParseError::UrlParse("Could not extract date from URL".to_string()))?;
     let (date, start_time, _) = parse_date_time(date_time_str, "")?;
 
-    let h2_selector = Selector::parse("h2").unwrap();
+    let h2_selector = Selector::parse("h2")?;
 
     let parliament_number = document
         .select(&h2_selector)
@@ -106,7 +114,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         .find(|t| t.contains("Session"))
         .unwrap_or_else(|| "Unknown Session".to_string());
 
-    let page_number_selector = Selector::parse("li.page_number").unwrap();
+    let page_number_selector = Selector::parse("li.page_number")?;
     let session_type = document
         .select(&page_number_selector)
         .next()
@@ -117,7 +125,7 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         })
         .unwrap_or_else(|| "Regular Sitting".to_string());
 
-    let scene_selector = Selector::parse("li.scene").unwrap();
+    let scene_selector = Selector::parse("li.scene")?;
     let speaker_in_chair = document
         .select(&scene_selector)
         .find_map(|e| {
@@ -151,14 +159,14 @@ pub fn parse_person_details(html: &str, url: &str) -> Result<PersonDetails, Pars
         .ok_or_else(|| ParseError::UrlParse("Could not extract slug from URL".to_string()))?
         .to_string();
 
-    let h1_selector = Selector::parse("h1").unwrap();
+    let h1_selector = Selector::parse("h1")?;
     let name = document
         .select(&h1_selector)
         .next()
         .map(|e| normalize_whitespace(&elem_text(e)))
         .ok_or_else(|| ParseError::MissingField("name".to_string()))?;
 
-    let p_selector = Selector::parse("p").unwrap();
+    let p_selector = Selector::parse("p")?;
     let summary = document
         .select(&p_selector)
         .find(|e| {
@@ -170,7 +178,7 @@ pub fn parse_person_details(html: &str, url: &str) -> Result<PersonDetails, Pars
         })
         .map(|e| normalize_whitespace(&elem_text(e)));
 
-    let party_selector = Selector::parse(".party-membership").unwrap();
+    let party_selector = Selector::parse(".party-membership")?;
     let (party, party_url) = document
         .select(&party_selector)
         .next()
@@ -182,27 +190,27 @@ pub fn parse_person_details(html: &str, url: &str) -> Result<PersonDetails, Pars
         })
         .unwrap_or((None, None));
 
-    let email_selector = Selector::parse("a[href^='mailto:']").unwrap();
+    let email_selector = Selector::parse("a[href^='mailto:']")?;
     let email = document
         .select(&email_selector)
         .next()
         .and_then(|e| e.value().attr("href"))
         .map(|h| h.trim_start_matches("mailto:").to_string());
 
-    let tel_selector = Selector::parse("a[href^='tel:']").unwrap();
+    let tel_selector = Selector::parse("a[href^='tel:']")?;
     let telephone = document
         .select(&tel_selector)
         .next()
         .and_then(|e| e.value().attr("href"))
         .map(|h| h.trim_start_matches("tel:").to_string());
 
-    let position_selector = Selector::parse(".position.ongoing h4").unwrap();
+    let position_selector = Selector::parse(".position.ongoing h4")?;
     let current_position = document
         .select(&position_selector)
         .next()
         .map(|e| normalize_whitespace(&elem_text(e)));
 
-    let place_selector = Selector::parse(".position.ongoing a[href^='/place/']").unwrap();
+    let place_selector = Selector::parse(".position.ongoing a[href^='/place/']")?;
     let constituency = document
         .select(&place_selector)
         .next()
@@ -318,10 +326,10 @@ fn parse_sections(document: &Html) -> Result<Vec<HansardSection>, ParseError> {
     let mut sections: Vec<HansardSection> = Vec::new();
     let mut current: Option<HansardSection> = None;
 
-    let all_items_selector = Selector::parse("li.heading, li.speech, li.scene").unwrap();
+    let all_items_selector = Selector::parse("li.heading, li.speech, li.scene")?;
 
     for element in document.select(&all_items_selector) {
-        let class = element.value().attr("class").unwrap_or("");
+        let class = element.value().attr("class").unwrap_or_default();
 
         if class.contains("heading") {
             if let Some(section) = current.take() {
@@ -369,8 +377,8 @@ fn parse_sections(document: &Html) -> Result<Vec<HansardSection>, ParseError> {
 }
 
 fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
-    let strong_selector = Selector::parse("strong").unwrap();
-    let a_selector = Selector::parse("a").unwrap();
+    let strong_selector = Selector::parse("strong")?;
+    let a_selector = Selector::parse("a")?;
 
     let (mut speaker_name, speaker_url) =
         if let Some(strong_elem) = element.select(&strong_selector).next() {
@@ -391,7 +399,7 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
         .map(|e| elem_text(e))
         .unwrap_or_default();
 
-    let p_selector = Selector::parse("p").unwrap();
+    let p_selector = Selector::parse("p")?;
     let full_text = elem_text(element);
     let content_text = element
         .select(&p_selector)
@@ -410,21 +418,21 @@ fn parse_contribution(element: ElementRef) -> Result<Contribution, ParseError> {
     // "<strong>The Speaker (Hon. Lusaka)</strong>" or "<strong>Mwala, UDA</strong> (Hon. Vincent Musau)".
     // We detect and normalize these cases by swapping when appropriate.
 
-    if let Some(role) = &speaker_role {
+    if let Some(role) = &mut speaker_role {
         // case 1: name is "Constituency, Party", role is the actual person name
         let name_is_constituency =
             RE_CONSTITUENCY.is_match(&speaker_name) && !RE_NAME_PREFIX.is_match(&speaker_name);
         let role_is_name = RE_NAME_PREFIX.is_match(role);
 
         if name_is_constituency && role_is_name {
-            std::mem::swap(&mut speaker_name, speaker_role.as_mut().unwrap());
+            std::mem::swap(&mut speaker_name, role);
         }
     }
 
-    if let Some(role) = &speaker_role {
+    if let Some(role) = &mut speaker_role {
         // case 2: name looks like a role title, role looks like a person name
         if RE_NAME_PREFIX.is_match(role) && RE_ROLE_PREFIX.is_match(&speaker_name) {
-            std::mem::swap(&mut speaker_name, speaker_role.as_mut().unwrap());
+            std::mem::swap(&mut speaker_name, role);
         }
     }
 

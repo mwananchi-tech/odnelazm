@@ -112,6 +112,7 @@ impl Display for Contribution {
         Ok(())
     }
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PersonDetails {
     pub name: String,
