@@ -189,7 +189,7 @@ pub fn parse_page_info(html: &str) -> Result<Option<(u32, u32)>, ParseError> {
         .select(&active_sel)
         .next()
         .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())
-        .ok_or_else(|| ParseError::MissingField(format!("Missing pagination elements")))?;
+        .ok_or_else(|| ParseError::MissingField("Missing pagination elements".to_string()))?;
 
     let page_label_sel = Selector::parse("a.page_label[href]").unwrap();
     let total_pages = document
@@ -218,7 +218,7 @@ pub fn parse_bills_page_info(html: &str) -> Result<Option<(u32, u32)>, ParseErro
         .select(&active_sel)
         .next()
         .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())
-        .ok_or_else(|| ParseError::MissingField(format!("Missing pagination elements")))?;
+        .ok_or_else(|| ParseError::MissingField("Missing pagination elements".to_string()))?;
 
     let link_sel = Selector::parse("nav.bills-pagination a[href]").unwrap();
     let total_pages = document
@@ -324,7 +324,7 @@ pub fn parse_activity_page_info(html: &str) -> Result<Option<(u32, u32)>, ParseE
         .select(&active_sel)
         .next()
         .and_then(|e| normalize_whitespace(&elem_text(e)).parse::<u32>().ok())
-        .ok_or_else(|| ParseError::MissingField(format!("Missing pagination elements")))?;
+        .ok_or_else(|| ParseError::MissingField("Missing pagination elements".to_string()))?;
 
     let link_sel = Selector::parse("nav.contributions-pagination a[href]").unwrap();
     let total_pages = document
