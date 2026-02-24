@@ -138,7 +138,7 @@ impl WebScraper {
     }
 
     async fn get_html(&self, url: &str) -> Result<String, ScraperError> {
-        Ok(self
+        let html = self
             .client
             .get(url)
             .send()
@@ -147,6 +147,8 @@ impl WebScraper {
             .error_for_status()?
             .text()
             .await
-            .inspect_err(|e| log::error!("Decode error: {e:?}"))?)
+            .inspect_err(|e| log::error!("Decode error: {e:?}"))?;
+
+        Ok(html)
     }
 }
