@@ -8,7 +8,7 @@ use rmcp::{
     tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct McpServer {
@@ -49,17 +49,7 @@ impl McpServer {
                 McpError::internal_error(format!("Failed to fetch hansard list: {e:?}"), None)
             })?;
 
-        let listings = filters.apply(listings);
-        let json = serde_json::to_string_pretty(&listings)
-            .inspect_err(|e| log::error!("Serialization error: {e:?}"))
-            .map_err(|e| {
-                McpError::internal_error(
-                    format!("Failed to serialize hansard listings: {e:?}"),
-                    None,
-                )
-            })?;
-
-        Ok(json)
+        serialize_list(filters.apply(listings))
     }
 
     #[tool(
@@ -77,11 +67,9 @@ impl McpServer {
             .inspect_err(|e| log::error!("Failed to fetch archive sitting: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
 
-        let json = serde_json::to_string_pretty(&sitting).map_err(|e| {
+        serde_json::to_string_pretty(&sitting).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize sitting: {e}"), None)
-        })?;
-
-        Ok(json)
+        })
     }
 
     #[tool(
@@ -98,11 +86,8 @@ impl McpServer {
             .await
             .map_err(|e| McpError::internal_error(format!("Failed to fetch person: {e}"), None))?;
 
-        let json = serde_json::to_string_pretty(&person).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize person: {e}"), None)
-        })?;
-
-        Ok(json)
+        serde_json::to_string_pretty(&person)
+            .map_err(|e| McpError::internal_error(format!("Failed to serialize person: {e}"), None))
     }
 
     #[tool(
@@ -135,11 +120,7 @@ impl McpServer {
                 })?
         };
 
-        let json = serde_json::to_string_pretty(&listings).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize listings: {e}"), None)
-        })?;
-
-        Ok(json)
+        serialize_list(listings)
     }
 
     #[tool(
@@ -157,16 +138,14 @@ impl McpServer {
             .inspect_err(|e| log::error!("Failed to fetch current sitting: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
 
-        let json = serde_json::to_string_pretty(&sitting).map_err(|e| {
+        serde_json::to_string_pretty(&sitting).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize sitting: {e}"), None)
-        })?;
-
-        Ok(json)
+        })
     }
 
     #[tool(
         name = "current_list_members",
-        description = "List members of parliament from the current source (mzalendo.com). Requires a house and parliament session (e.g. '13th-parliament'). Set `all` to true to fetch all pages at once."
+        description = "List members of parliament from the current source (mzalendo.com). Requires a house ('national_assembly' or 'senate') and parliament session (e.g. '13th-parliament'). Set `all` to true to fetch all pages at once."
     )]
     pub async fn current_list_members(
         &self,
@@ -194,11 +173,29 @@ impl McpServer {
                 })?
         };
 
-        let json = serde_json::to_string_pretty(&members).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize members: {e}"), None)
-        })?;
+        serialize_list(members)
+    }
 
-        Ok(json)
+    #[tool(
+        name = "current_get_all_members",
+        description = "Fetch all members of parliament from both houses (National Assembly and Senate) in parallel for a given parliament session. Use this when you don't know which house a member belongs to, or need the full membership list. `parliament` defaults to '13th-parliament'."
+    )]
+    pub async fn current_get_all_members(
+        &self,
+        Parameters(params): Parameters<CurrentGetAllMembersParams>,
+    ) -> Result<String, McpError> {
+        let parliament = params.parliament.as_deref().unwrap_or("13th-parliament");
+
+        let members = self
+            .current_scraper
+            .fetch_all_members_all_houses(parliament)
+            .await
+            .inspect_err(|e| log::error!("Failed to fetch all members (all houses): {e}"))
+            .map_err(|e| {
+                McpError::internal_error(format!("Failed to fetch all members: {e}"), None)
+            })?;
+
+        serialize_list(members)
     }
 
     #[tool(
@@ -218,12 +215,16 @@ impl McpServer {
                 McpError::internal_error(format!("Failed to fetch member profile: {e}"), None)
             })?;
 
-        let json = serde_json::to_string_pretty(&profile).map_err(|e| {
+        serde_json::to_string_pretty(&profile).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize profile: {e}"), None)
-        })?;
-
-        Ok(json)
+        })
     }
+}
+
+fn serialize_list<T: Serialize>(items: Vec<T>) -> Result<String, McpError> {
+    let count = items.len();
+    serde_json::to_string_pretty(&serde_json::json!({ "count": count, "data": items }))
+        .map_err(|e| McpError::internal_error(format!("Failed to serialize list: {e}"), None))
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -257,6 +258,12 @@ pub struct CurrentListMembersParams {
     page: Option<u32>,
     #[serde(default)]
     all: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct CurrentGetAllMembersParams {
+    /// Parliament session. One of: "13th-parliament", "12th-parliament", "11th-parliament". Defaults to "13th-parliament".
+    parliament: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
