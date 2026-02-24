@@ -63,7 +63,7 @@ impl WebScraper {
     ) -> Result<Vec<HansardListing>, ScraperError> {
         let first_url = format!("{}/democracy-tools/hansard/?page=1", self.base_url);
         let first_html = self.get_html(&first_url).await?;
-        let total_pages = parse_page_info(&first_html)
+        let total_pages = parse_page_info(&first_html)?
             .map(|(_, total)| total)
             .unwrap_or(1);
         let mut listings = parse_hansard_list(&first_html, house)?;
@@ -138,7 +138,7 @@ impl WebScraper {
             parliament
         );
         let first_html = self.get_html(&first_url).await?;
-        let total_pages = parse_page_info(&first_html)
+        let total_pages = parse_page_info(&first_html)?
             .map(|(_, total)| total)
             .unwrap_or(1);
         let mut members = parse_member_list(&first_html, house)?;
@@ -270,7 +270,7 @@ impl WebScraper {
             url
         );
         let html = self.get_html(&url).await?;
-        if let Some((current, last)) = parse_activity_page_info(&html)
+        if let Some((current, last)) = parse_activity_page_info(&html)?
             && current != contributions_page
         {
             return Err(ScraperError::PageOutOfRange {
@@ -278,7 +278,7 @@ impl WebScraper {
                 last,
             });
         }
-        Ok(parse_parliamentary_activity(&html))
+        Ok(parse_parliamentary_activity(&html)?)
     }
 
     pub async fn fetch_member_bills(
@@ -294,7 +294,7 @@ impl WebScraper {
         let url = format!("{}/?bills_page={}", base, bills_page);
         log::debug!("Fetching member bills page {}: {}", bills_page, url);
         let html = self.get_html(&url).await?;
-        if let Some((current, last)) = parse_bills_page_info(&html)
+        if let Some((current, last)) = parse_bills_page_info(&html)?
             && current != bills_page
         {
             return Err(ScraperError::PageOutOfRange {
@@ -302,11 +302,11 @@ impl WebScraper {
                 last,
             });
         }
-        Ok(parse_bills(&html))
+        Ok(parse_bills(&html)?)
     }
 
     fn check_page(&self, requested: u32, html: &str) -> Result<(), ScraperError> {
-        if let Some((current, last)) = parse_page_info(html)
+        if let Some((current, last)) = parse_page_info(html)?
             && current != requested
         {
             return Err(ScraperError::PageOutOfRange { requested, last });
@@ -315,7 +315,7 @@ impl WebScraper {
     }
 
     async fn get_html(&self, url: &str) -> Result<String, ScraperError> {
-        Ok(self
+        let html = self
             .client
             .get(url)
             .send()
@@ -324,6 +324,8 @@ impl WebScraper {
             .error_for_status()?
             .text()
             .await
-            .inspect_err(|e| log::error!("Decode error: {e:?}"))?)
+            .inspect_err(|e| log::error!("Decode error: {e:?}"))?;
+
+        Ok(html)
     }
 }
