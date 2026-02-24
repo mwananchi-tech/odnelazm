@@ -37,7 +37,7 @@ cargo install odnelazm-mcp
 ### Stdio transport
 
 ```bash
-odnelazm-mcp
+odnelazm-mcp-local
 ```
 
 ### HTTP transport
