@@ -105,6 +105,20 @@ odnelazm current members senate 13th-parliament --page 2 -o json
 odnelazm current members na 13th-parliament --all -o json
 ```
 
+### current all-members
+
+List all members from both houses in parallel for a given parliament session.
+
+| Flag                      | Description                                                              |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `[parliament]`            | Parliament session (default: `13th-parliament`)                          |
+| `-o, --output text\|json` | Output format (default: text)                                            |
+
+```bash
+odnelazm current all-members
+odnelazm current all-members 12th-parliament -o json
+```
+
 ### current profile
 
 Fetch a member's full profile including speeches, bills, and voting record.
