@@ -1,6 +1,6 @@
 [package]
 name = "odnelazm-mcp"
-version = "1.0.0-beta.4"
+version = "1.0.0-beta.5"
 description = "A MCP server that allows LLM clients to interact with Kenyan parliementary sittings data"
 authors.workspace = true
 edition.workspace = true
@@ -21,7 +21,7 @@ anyhow = "1.0"
 axum = "0.8.8"
 env_logger = "0.11.9"
 log = "0.4.29"
-odnelazm = { version = "1.0.0-beta.6", path = "../odnelazm" }
+odnelazm = { version = "1.0.0-beta.7", path = "../odnelazm" }
 rmcp = { version = "0.16", features = [
   "server",
   "transport-io",
