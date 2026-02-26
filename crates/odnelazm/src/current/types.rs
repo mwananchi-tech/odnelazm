@@ -56,8 +56,25 @@ impl Display for HansardSitting {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HansardSubsection {
+    pub title: String,
+    pub contributions: Vec<Contribution>,
+}
+
+impl Display for HansardSubsection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "  ── {}", self.title)?;
+        for contrib in &self.contributions {
+            write!(f, "{}", contrib)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HansardSection {
     pub section_type: String,
+    pub subsections: Vec<HansardSubsection>,
     pub contributions: Vec<Contribution>,
 }
 
@@ -66,6 +83,9 @@ impl Display for HansardSection {
         writeln!(f, "── {}", self.section_type)?;
         for contrib in &self.contributions {
             write!(f, "{}", contrib)?;
+        }
+        for subsection in &self.subsections {
+            write!(f, "{}", subsection)?;
         }
         Ok(())
     }
@@ -161,7 +181,7 @@ impl Display for ParliamentaryActivity {
     }
 }
 
-// TODO: Verify validity of counts to actual length of parsed data
+// TODO: verify validity of counts to actual length of parsed data
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemberProfile {
     pub name: String,
