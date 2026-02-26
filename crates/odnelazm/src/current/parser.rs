@@ -5,8 +5,8 @@ use regex::Regex;
 use scraper::{ElementRef, Html, Selector, error::SelectorErrorKind};
 
 use super::types::{
-    Bill, Contribution, HansardListing, HansardSection, HansardSitting, House, Member,
-    MemberProfile, ParliamentaryActivity, VoteRecord,
+    Bill, Contribution, HansardListing, HansardSection, HansardSitting, HansardSubsection, House,
+    Member, MemberProfile, ParliamentaryActivity, VoteRecord,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -512,18 +512,9 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         parse_date_from_url_slug(url)?
     };
 
-    let session_sel = Selector::parse("span.session")?;
-    let session_type = document
-        .select(&session_sel)
-        .next()
-        .map(|e| {
-            normalize_whitespace(&elem_text(e))
-                .replace("Session:", "")
-                .trim()
-                .to_string()
-        })
-        .filter(|s| !s.is_empty())
-        .unwrap_or(session_type);
+    // XXX: do not trust span.session — it can contain stale/incorrect metadata on the site
+    // (e.g. shows "Afternoon Sitting" for a morning sitting). the breadcrumb and URL slug
+    // parsed above are the authoritative source for session_type.
 
     let time_sel = Selector::parse("span.time")?;
     let time = document
@@ -603,26 +594,53 @@ fn parse_doc_summary(elem: ElementRef) -> (Option<String>, Option<String>) {
 }
 
 fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseError> {
+    // XXX: support both HTML formats:
+    //   old: article.hansard-document → semantic elements as direct children
+    //   new: div.hansard-content → div.chunk-wrapper → semantic elements
     let article_sel = Selector::parse("article.hansard-document")?;
-    let Some(article) = document.select(&article_sel).next() else {
+    let content_sel = Selector::parse("div.hansard-content")?;
+
+    let container = document
+        .select(&article_sel)
+        .next()
+        .or_else(|| document.select(&content_sel).next());
+
+    let Some(container) = container else {
         return Ok(Vec::new());
     };
 
+    // XXX: flatten chunk-wrappers so the state machine sees a uniform element stream
+    // regardless of format. in the new format contributor-name and speech-content
+    // are paired inside the same chunk-wrapper; unwrapping produces the same
+    // sequential order as the old format.
+    let elements: Vec<ElementRef> = container
+        .children()
+        .filter_map(ElementRef::wrap)
+        .flat_map(|child| -> Vec<ElementRef> {
+            let tag = child.value().name();
+            let class = child.value().attr("class").unwrap_or_default();
+            if tag == "div" && class.contains("chunk-wrapper") {
+                child.children().filter_map(ElementRef::wrap).collect()
+            } else {
+                vec![child]
+            }
+        })
+        .collect();
+
     let mut sections: Vec<HansardSection> = Vec::new();
     let mut current_section: Option<HansardSection> = None;
+    let mut current_subsection: Option<HansardSubsection> = None;
     let mut pending_speaker: Option<(String, Option<String>)> = None;
 
-    for child in article.children() {
-        let Some(element) = ElementRef::wrap(child) else {
-            continue;
-        };
-
+    for element in elements {
         let tag = element.value().name();
         let class = element.value().attr("class").unwrap_or_default();
 
         if tag == "h2" && class.contains("major-section-header") {
-            flush_pending_speaker(&mut pending_speaker, &mut current_section);
-
+            if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
+                push_contribution(contrib, &mut current_subsection, &mut current_section);
+            }
+            flush_subsection(&mut current_subsection, &mut current_section);
             if let Some(section) = current_section.take() {
                 sections.push(section);
             }
@@ -631,13 +649,36 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
             if !heading.is_empty() {
                 current_section = Some(HansardSection {
                     section_type: heading,
+                    subsections: Vec::new(),
                     contributions: Vec::new(),
                 });
             }
         } else if tag == "h2" && class.contains("header-section") {
-            flush_pending_speaker(&mut pending_speaker, &mut current_section);
+            if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
+                push_contribution(contrib, &mut current_subsection, &mut current_section);
+            }
+            flush_subsection(&mut current_subsection, &mut current_section);
+
+            let heading = normalize_whitespace(&elem_text(element));
+            if !heading.is_empty() {
+                // XXX: for resumption sittings there may be no preceding major-section-header;
+                // create an implicit unnamed section so subsections are not silently dropped.
+                if current_section.is_none() {
+                    current_section = Some(HansardSection {
+                        section_type: String::new(),
+                        subsections: Vec::new(),
+                        contributions: Vec::new(),
+                    });
+                }
+                current_subsection = Some(HansardSubsection {
+                    title: heading,
+                    contributions: Vec::new(),
+                });
+            }
         } else if tag == "div" && class.contains("contributor-name") {
-            flush_pending_speaker(&mut pending_speaker, &mut current_section);
+            if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
+                push_contribution(contrib, &mut current_subsection, &mut current_section);
+            }
 
             let a_sel = Selector::parse("a")?;
             let (name, speaker_url) = if let Some(a) = element.select(&a_sel).next() {
@@ -667,28 +708,56 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
                     .map(|a| normalize_whitespace(&elem_text(a)))
                     .collect();
 
-                if let Some(ref mut section) = current_section {
-                    section.contributions.push(Contribution {
+                push_contribution(
+                    Contribution {
                         speaker_name: name,
                         speaker_url: url,
                         content,
                         procedural_notes,
-                    });
-                }
+                    },
+                    &mut current_subsection,
+                    &mut current_section,
+                );
             }
         } else if tag == "div" && class.contains("scene-description") {
             let scene = normalize_whitespace(&elem_text(element));
-            if !scene.is_empty()
-                && let Some(ref mut section) = current_section
-                && let Some(last) = section.contributions.last_mut()
-            {
-                last.procedural_notes.push(scene);
+            if !scene.is_empty() {
+                if let Some(ref mut sub) = current_subsection {
+                    if let Some(last) = sub.contributions.last_mut() {
+                        last.procedural_notes.push(scene);
+                    }
+                } else if let Some(ref mut sec) = current_section
+                    && let Some(last) = sec.contributions.last_mut()
+                {
+                    last.procedural_notes.push(scene);
+                }
+            }
+        } else if tag == "p" {
+            let text = normalize_whitespace(&elem_text(element));
+            if !text.is_empty() {
+                append_text_to_active("\n\n", text, &mut current_subsection, &mut current_section);
+            }
+        } else if tag == "ol" && class.contains("content-list") {
+            // XXX: auto-generated list from PDF conversion — often a direct continuation of a
+            // preceding <p> (e.g. bill metadata or NG-CDF constituency lists). flatten all
+            // <li> text and append with a space so it reads as part of the same sentence.
+            let li_sel = Selector::parse("li")?;
+            let text = element
+                .select(&li_sel)
+                .map(|li| normalize_whitespace(&elem_text(li)))
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !text.is_empty() {
+                append_text_to_active(" ", text, &mut current_subsection, &mut current_section);
             }
         }
     }
 
-    flush_pending_speaker(&mut pending_speaker, &mut current_section);
-
+    if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
+        push_contribution(contrib, &mut current_subsection, &mut current_section);
+    }
+    flush_subsection(&mut current_subsection, &mut current_section);
     if let Some(section) = current_section {
         sections.push(section);
     }
@@ -696,19 +765,77 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
     Ok(sections)
 }
 
-fn flush_pending_speaker(
-    pending: &mut Option<(String, Option<String>)>,
-    section: &mut Option<HansardSection>,
+// XXX: appends `text` to the last contribution in the active target (subsection → section).
+// `sep` is the separator inserted when content is non-empty (e.g. `"\n\n"` for paragraphs,
+// `" "` for inline continuations like ol.content-list fragments).
+fn append_text_to_active(
+    sep: &str,
+    text: String,
+    current_subsection: &mut Option<HansardSubsection>,
+    current_section: &mut Option<HansardSection>,
 ) {
-    if let Some((name, url)) = pending.take()
-        && let Some(s) = section
-    {
-        s.contributions.push(Contribution {
-            speaker_name: name,
-            speaker_url: url,
-            content: String::new(),
+    let target_contributions = if let Some(sub) = current_subsection {
+        &mut sub.contributions
+    } else if let Some(sec) = current_section {
+        &mut sec.contributions
+    } else {
+        return;
+    };
+
+    if let Some(last) = target_contributions.last_mut() {
+        if !last.content.is_empty() {
+            last.content.push_str(sep);
+        }
+        last.content.push_str(&text);
+    } else {
+        target_contributions.push(Contribution {
+            speaker_name: String::new(),
+            speaker_url: None,
+            content: text,
             procedural_notes: Vec::new(),
         });
+    }
+}
+
+fn take_pending_contribution(
+    pending: &mut Option<(String, Option<String>)>,
+) -> Option<Contribution> {
+    pending.take().map(|(name, url)| Contribution {
+        speaker_name: name,
+        speaker_url: url,
+        content: String::new(),
+        procedural_notes: Vec::new(),
+    })
+}
+
+// XXX: pushes a contribution to the active subsection or section. if neither exists
+// (content before any section header), creates an implicit unnamed section so
+// contributions from resumption sittings are not silently dropped.
+fn push_contribution(
+    contrib: Contribution,
+    current_subsection: &mut Option<HansardSubsection>,
+    current_section: &mut Option<HansardSection>,
+) {
+    if let Some(sub) = current_subsection {
+        sub.contributions.push(contrib);
+    } else {
+        let sec = current_section.get_or_insert_with(|| HansardSection {
+            section_type: String::new(),
+            subsections: Vec::new(),
+            contributions: Vec::new(),
+        });
+        sec.contributions.push(contrib);
+    }
+}
+
+fn flush_subsection(
+    current_subsection: &mut Option<HansardSubsection>,
+    current_section: &mut Option<HansardSection>,
+) {
+    if let Some(subsection) = current_subsection.take()
+        && let Some(section) = current_section
+    {
+        section.subsections.push(subsection);
     }
 }
 
@@ -822,7 +949,6 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
                         .unwrap_or_default()
                         .contains("position-section")
                 {
-                    // NA: collect all p inside the position-section div
                     results.extend(
                         sibling
                             .select(&p_sel)
@@ -830,7 +956,6 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
                             .filter(|s| !s.is_empty()),
                     );
                 } else if sibling.value().name() == "p" {
-                    // Senate: direct p siblings (elected-post role + plain term sentence)
                     let text = normalize_whitespace(&elem_text(sibling));
                     if !text.is_empty() {
                         results.push(text);
@@ -1068,6 +1193,49 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_national_assembly_sitting_new_format() {
+        let html =
+            fs::read_to_string("fixtures/current/national_assembly_hansard_sitting_new_format")
+                .expect("Failed to read new-format fixture");
+        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-19th-february-2026-afternoon-sitting-2440/";
+
+        let sitting =
+            parse_hansard_sitting(&html, url).expect("Failed to parse new-format sitting");
+
+        assert_eq!(sitting.house, House::NationalAssembly);
+        assert_eq!(sitting.date.to_string(), "2026-02-19");
+        assert!(
+            !sitting.sections.is_empty(),
+            "New-format sitting should have sections"
+        );
+
+        let all_contributions: Vec<_> = sitting
+            .sections
+            .iter()
+            .flat_map(|s| {
+                s.contributions.iter().chain(
+                    s.subsections
+                        .iter()
+                        .flat_map(|sub| sub.contributions.iter()),
+                )
+            })
+            .collect();
+        assert!(
+            !all_contributions.is_empty(),
+            "New-format sitting should have contributions"
+        );
+
+        let notices = sitting
+            .sections
+            .iter()
+            .find(|s| s.section_type == "NOTICES OF MOTIONS");
+        assert!(
+            notices.is_some(),
+            "New-format sitting should have NOTICES OF MOTIONS section"
+        );
+    }
+
+    #[test]
     fn test_parse_senate_sitting() {
         let html = fs::read_to_string("fixtures/current/senate_hansard_sitting")
             .expect("Failed to read fixture");
@@ -1091,11 +1259,118 @@ mod tests {
         let with_url = sitting
             .sections
             .iter()
-            .flat_map(|s| &s.contributions)
+            .flat_map(|s| {
+                s.contributions.iter().chain(
+                    s.subsections
+                        .iter()
+                        .flat_map(|sub| sub.contributions.iter()),
+                )
+            })
             .any(|c| c.speaker_url.is_some());
         assert!(
             with_url,
             "Should have at least one contribution with a speaker URL"
+        );
+    }
+
+    #[test]
+    fn test_parse_sitting_subsections_notices_of_motions() {
+        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
+            .expect("Failed to read fixture");
+        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
+
+        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
+
+        let notices = sitting
+            .sections
+            .iter()
+            .find(|s| s.section_type == "NOTICES OF MOTIONS")
+            .expect("Should have a NOTICES OF MOTIONS section");
+
+        assert!(
+            !notices.subsections.is_empty(),
+            "NOTICES OF MOTIONS should have subsections"
+        );
+
+        let titles: Vec<&str> = notices
+            .subsections
+            .iter()
+            .map(|s| s.title.as_str())
+            .collect();
+        assert!(
+            titles.iter().any(|t| t.contains("POLLUTION OF ATHI RIVER")),
+            "Should include Athi River motion subsection, got: {:?}",
+            titles
+        );
+        assert!(
+            titles
+                .iter()
+                .any(|t| t.contains("HARDSHIP AREAS") || t.contains("MWALA")),
+            "Should include Mwala/Kalama hardship areas subsection, got: {:?}",
+            titles
+        );
+    }
+
+    #[test]
+    fn test_parse_sitting_subsections_questions_and_statements() {
+        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
+            .expect("Failed to read fixture");
+        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
+
+        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
+
+        let qs = sitting
+            .sections
+            .iter()
+            .find(|s| s.section_type == "QUESTIONS AND STATEMENTS")
+            .expect("Should have a QUESTIONS AND STATEMENTS section");
+
+        assert!(
+            !qs.subsections.is_empty(),
+            "QUESTIONS AND STATEMENTS should have subsections"
+        );
+
+        let titles: Vec<&str> = qs.subsections.iter().map(|s| s.title.as_str()).collect();
+        assert!(
+            titles.iter().any(|t| t.contains("REQUESTS FOR STATEMENTS")),
+            "Should include REQUESTS FOR STATEMENTS subsection, got: {:?}",
+            titles
+        );
+        assert!(
+            titles.iter().any(|t| t.contains("MURDER OF CHIEF")),
+            "Should include MURDER OF CHIEF AND TEACHER subsection, got: {:?}",
+            titles
+        );
+    }
+
+    #[test]
+    fn test_parse_sitting_subsections_bills() {
+        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
+            .expect("Failed to read fixture");
+        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
+
+        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
+
+        let bills_section = sitting
+            .sections
+            .iter()
+            .find(|s| s.section_type == "BILLS" || s.section_type == "BILL")
+            .expect("Should have a BILLS section");
+
+        assert!(
+            !bills_section.subsections.is_empty(),
+            "BILLS section should have subsections"
+        );
+
+        let titles: Vec<&str> = bills_section
+            .subsections
+            .iter()
+            .map(|s| s.title.as_str())
+            .collect();
+        assert!(
+            titles.iter().any(|t| t.contains("HEALTH")),
+            "Should include Health Amendment Bill subsection, got: {:?}",
+            titles
         );
     }
 
