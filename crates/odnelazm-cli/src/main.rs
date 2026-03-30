@@ -282,7 +282,7 @@ async fn main() {
     let cli = Cli::parse();
 
     env_logger::Builder::new()
-        .filter_level(cli.log_level.clone().into())
+        .filter_level(cli.log_level.into())
         .init();
 
     let scraper = HansardScraper::new().unwrap_or_else(|e| {
