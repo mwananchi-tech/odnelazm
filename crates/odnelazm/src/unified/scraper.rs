@@ -2,8 +2,7 @@ use chrono::NaiveDate;
 use futures::future;
 
 use crate::{
-    archive::scraper::WebScraper as ArchiveScraper,
-    current::scraper::WebScraper as CurrentScraper,
+    archive::scraper::WebScraper as ArchiveScraper, current::scraper::WebScraper as CurrentScraper,
     types::House,
 };
 
@@ -12,10 +11,34 @@ use super::types::{
     SittingListOptions,
 };
 
-/// Sittings from this date onward are served by the current source (mzalendo.com).
-/// Sittings before this date are served by the archive (info.mzalendo.com).
 fn current_cutoff() -> NaiveDate {
     NaiveDate::from_ymd_opt(2013, 3, 28).expect("valid date")
+}
+
+impl DataSource {
+    /// Detect the source from a URL or slug.
+    /// Archive URLs contain `info.mzalendo.com` or the `/hansard/sitting/` path prefix.
+    /// Everything else is treated as current.
+    fn from_url(url_or_slug: &str) -> Self {
+        if url_or_slug.contains("info.mzalendo.com") || url_or_slug.contains("/hansard/sitting/") {
+            DataSource::Archive
+        } else {
+            DataSource::Current
+        }
+    }
+
+    /// Resolve a URL or bare slug to a fully qualified URL for this source.
+    fn normalize_url(&self, url_or_slug: &str) -> String {
+        if url_or_slug.starts_with("http") {
+            return url_or_slug.to_string();
+        }
+        match self {
+            DataSource::Archive => format!("https://info.mzalendo.com{}", url_or_slug),
+            DataSource::Current => {
+                format!("https://mzalendo.com{}", url_or_slug.trim_end_matches('/'))
+            }
+        }
+    }
 }
 
 enum ListingRoute {
@@ -27,51 +50,37 @@ enum ListingRoute {
     Both,
 }
 
-/// Determine which source(s) to query.
-///
-/// Rules:
-/// - No dates at all → Current (paginated recent listing).
-/// - `end_date` before the cutoff → Archive.
-/// - `start_date` at or after the cutoff → Current.
-/// - Anything else (range spans the cutoff, or one bound is missing while the
-///   other crosses it) → Both.
-fn route_listing(start_date: Option<NaiveDate>, end_date: Option<NaiveDate>) -> ListingRoute {
-    let cutoff = current_cutoff();
-    match (start_date, end_date) {
-        (None, None) => ListingRoute::Current,
-        (_, Some(end)) if end < cutoff => ListingRoute::Archive,
-        (Some(start), _) if start >= cutoff => ListingRoute::Current,
-        _ => ListingRoute::Both,
+impl ListingRoute {
+    /// Choose the route from a date range.
+    ///
+    /// | start_date  | end_date    | Route   |
+    /// |-------------|-------------|---------|
+    /// | any         | none        | Current (or Both if start < cutoff) |
+    /// | —           | —           | Current |
+    /// | —           | < cutoff    | Archive |
+    /// | ≥ cutoff    | any         | Current |
+    /// | < cutoff    | ≥ cutoff    | Both    |
+    /// | < cutoff    | none        | Both    |
+    fn from_dates(start_date: Option<NaiveDate>, end_date: Option<NaiveDate>) -> Self {
+        let cutoff = current_cutoff();
+        match (start_date, end_date) {
+            (None, None) => ListingRoute::Current,
+            (_, Some(end)) if end < cutoff => ListingRoute::Archive,
+            (Some(start), _) if start >= cutoff => ListingRoute::Current,
+            _ => ListingRoute::Both,
+        }
     }
 }
 
-/// Route a sitting lookup by inspecting the URL or slug.
-/// Archive URLs contain info.mzalendo.com or the /hansard/sitting/ path.
-/// Everything else is treated as current.
-fn detect_sitting_source(url_or_slug: &str) -> DataSource {
-    if url_or_slug.contains("info.mzalendo.com") || url_or_slug.contains("/hansard/sitting/") {
-        DataSource::Archive
-    } else {
-        DataSource::Current
-    }
-}
-
-fn to_archive_url(url_or_slug: &str) -> String {
-    if url_or_slug.starts_with("http") {
-        url_or_slug.to_string()
-    } else {
-        format!("https://info.mzalendo.com{}", url_or_slug)
-    }
-}
-
-fn to_current_url(url_or_slug: &str) -> String {
-    if url_or_slug.starts_with("http") {
-        url_or_slug.to_string()
-    } else {
-        format!(
-            "https://mzalendo.com{}",
-            url_or_slug.trim_end_matches('/')
-        )
+impl SittingListOptions {
+    /// Apply `offset` (skip) then `limit` (truncate) to `listings` in place.
+    fn apply_slice(&self, listings: &mut Vec<HansardListing>) {
+        if let Some(off) = self.offset {
+            *listings = listings.drain(off..).collect();
+        }
+        if let Some(lim) = self.limit {
+            listings.truncate(lim);
+        }
     }
 }
 
@@ -99,12 +108,12 @@ impl HansardScraper {
 
     /// List parliamentary sittings with automatic source routing.
     ///
-    /// | Date range                              | Source        |
-    /// |-----------------------------------------|---------------|
+    /// | Date range                              | Source          |
+    /// |-----------------------------------------|-----------------|
     /// | No dates                                | Current (paged) |
-    /// | `end_date` before 2013-03-28            | Archive       |
-    /// | `start_date` on or after 2013-03-28     | Current       |
-    /// | Spans the cutoff (or one bound missing) | Both, merged  |
+    /// | `end_date` before 2013-03-28            | Archive         |
+    /// | `start_date` on or after 2013-03-28     | Current         |
+    /// | Spans the cutoff (or one bound missing) | Both, merged    |
     ///
     /// When both sources are queried they are fetched in parallel. Results are
     /// merged and sorted by date descending before `limit`/`offset` are applied.
@@ -113,15 +122,16 @@ impl HansardScraper {
         &self,
         opts: SittingListOptions,
     ) -> Result<Vec<HansardListing>, ScraperError> {
-        match route_listing(opts.start_date, opts.end_date) {
+        match ListingRoute::from_dates(opts.start_date, opts.end_date) {
             ListingRoute::Archive => {
-                let mut listings = self.fetch_archive_listings(opts.start_date, opts.end_date, opts.house).await?;
-                apply_slice(&mut listings, opts.offset, opts.limit);
+                let mut listings = self
+                    .fetch_archive_listings(opts.start_date, opts.end_date, opts.house)
+                    .await?;
+                opts.apply_slice(&mut listings);
                 Ok(listings)
             }
 
             ListingRoute::Current => {
-                // If dates are specified, fetch all pages so the filter can match across them.
                 let has_date_filter = opts.start_date.is_some() || opts.end_date.is_some();
                 let raw = if opts.all || has_date_filter {
                     self.current.fetch_all_sittings(opts.house).await?
@@ -138,7 +148,7 @@ impl HansardScraper {
                 if let Some(end) = opts.end_date {
                     listings.retain(|l| l.date <= end);
                 }
-                apply_slice(&mut listings, opts.offset, opts.limit);
+                opts.apply_slice(&mut listings);
                 Ok(listings)
             }
 
@@ -149,7 +159,11 @@ impl HansardScraper {
                 let cutoff = current_cutoff();
 
                 let (archive_result, current_result) = future::join(
-                    self.fetch_archive_listings(opts.start_date, Some(cutoff - chrono::Days::new(1)), opts.house),
+                    self.fetch_archive_listings(
+                        opts.start_date,
+                        Some(cutoff - chrono::Days::new(1)),
+                        opts.house,
+                    ),
                     self.current.fetch_all_sittings(opts.house),
                 )
                 .await;
@@ -163,11 +177,8 @@ impl HansardScraper {
 
                 match current_result {
                     Ok(items) => {
-                        let mut current_listings: Vec<HansardListing> = items
-                            .into_iter()
-                            .map(HansardListing::from)
-                            .collect();
-                        // Filter current results to the requested end_date
+                        let mut current_listings: Vec<HansardListing> =
+                            items.into_iter().map(HansardListing::from).collect();
                         if let Some(end) = opts.end_date {
                             current_listings.retain(|l| l.date <= end);
                         }
@@ -177,7 +188,7 @@ impl HansardScraper {
                 }
 
                 listings.sort_by_key(|l| std::cmp::Reverse(l.date));
-                apply_slice(&mut listings, opts.offset, opts.limit);
+                opts.apply_slice(&mut listings);
                 Ok(listings)
             }
         }
@@ -186,14 +197,14 @@ impl HansardScraper {
     /// Fetch the full transcript of a sitting by URL or slug.
     /// The data source is detected automatically from the URL shape.
     pub async fn get_sitting(&self, url_or_slug: &str) -> Result<HansardSitting, ScraperError> {
-        match detect_sitting_source(url_or_slug) {
+        let source = DataSource::from_url(url_or_slug);
+        let url = source.normalize_url(url_or_slug);
+        match source {
             DataSource::Archive => {
-                let url = to_archive_url(url_or_slug);
                 let sitting = self.archive.fetch_hansard_sitting(&url, false).await?;
                 Ok(HansardSitting::from_archive(sitting, url))
             }
             DataSource::Current => {
-                let url = to_current_url(url_or_slug);
                 let sitting = self.current.fetch_hansard_sitting(&url).await?;
                 Ok(HansardSitting::from_current(sitting, url))
             }
@@ -221,7 +232,10 @@ impl HansardScraper {
         &self,
         parliament: &str,
     ) -> Result<Vec<Member>, ScraperError> {
-        Ok(self.current.fetch_all_members_all_houses(parliament).await?)
+        Ok(self
+            .current
+            .fetch_all_members_all_houses(parliament)
+            .await?)
     }
 
     pub async fn get_member_profile(
@@ -241,7 +255,10 @@ impl HansardScraper {
         url_or_slug: &str,
         page: u32,
     ) -> Result<Vec<ParliamentaryActivity>, ScraperError> {
-        Ok(self.current.fetch_member_activity(url_or_slug, page).await?)
+        Ok(self
+            .current
+            .fetch_member_activity(url_or_slug, page)
+            .await?)
     }
 
     pub async fn get_member_bills(
@@ -252,7 +269,7 @@ impl HansardScraper {
         Ok(self.current.fetch_member_bills(url_or_slug, page).await?)
     }
 
-    /// Fetch archive listings and filter client-side by date range and house.
+    /// Fetch archive listings and apply date-range and house filters client-side.
     async fn fetch_archive_listings(
         &self,
         start_date: Option<NaiveDate>,
@@ -278,14 +295,5 @@ impl HansardScraper {
         }
 
         Ok(listings)
-    }
-}
-
-fn apply_slice(listings: &mut Vec<HansardListing>, offset: Option<usize>, limit: Option<usize>) {
-    if let Some(off) = offset {
-        *listings = listings.drain(off..).collect();
-    }
-    if let Some(lim) = limit {
-        listings.truncate(lim);
     }
 }

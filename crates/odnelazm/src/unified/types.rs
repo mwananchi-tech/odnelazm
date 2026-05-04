@@ -27,8 +27,8 @@ pub struct SittingListOptions {
     pub offset: Option<usize>,
 }
 
-pub use crate::types::House;
 pub use crate::current::types::{Bill, Member, MemberProfile, ParliamentaryActivity, VoteRecord};
+pub use crate::types::House;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -123,7 +123,10 @@ pub struct HansardSitting {
 }
 
 impl HansardSitting {
-    pub(crate) fn from_archive(sitting: crate::archive::types::HansardSitting, url: String) -> Self {
+    pub(crate) fn from_archive(
+        sitting: crate::archive::types::HansardSitting,
+        url: String,
+    ) -> Self {
         Self {
             house: sitting.house,
             date: sitting.date,
@@ -147,13 +150,20 @@ impl HansardSitting {
         }
     }
 
-    pub(crate) fn from_current(sitting: crate::current::types::HansardSitting, url: String) -> Self {
+    pub(crate) fn from_current(
+        sitting: crate::current::types::HansardSitting,
+        url: String,
+    ) -> Self {
         Self {
             house: sitting.house,
             date: sitting.date,
             url,
             session_type: sitting.session_type,
-            sections: sitting.sections.into_iter().map(HansardSection::from).collect(),
+            sections: sitting
+                .sections
+                .into_iter()
+                .map(HansardSection::from)
+                .collect(),
             source: DataSource::Current,
             day_of_week: Some(sitting.day_of_week),
             start_time: sitting.time,
@@ -170,7 +180,11 @@ impl HansardSitting {
 
 impl Display for HansardSitting {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "┌─ {} ─ {} ─ {}", self.house, self.date, self.session_type)?;
+        writeln!(
+            f,
+            "┌─ {} ─ {} ─ {}",
+            self.house, self.date, self.session_type
+        )?;
         writeln!(f, "│  Source: {}", self.source)?;
         writeln!(f, "│  URL:    {}", self.url)?;
         if let Some(dow) = &self.day_of_week {
@@ -235,8 +249,16 @@ impl From<crate::current::types::HansardSection> for HansardSection {
     fn from(s: crate::current::types::HansardSection) -> Self {
         Self {
             section_type: s.section_type,
-            subsections: s.subsections.into_iter().map(HansardSubsection::from).collect(),
-            contributions: s.contributions.into_iter().map(Contribution::from).collect(),
+            subsections: s
+                .subsections
+                .into_iter()
+                .map(HansardSubsection::from)
+                .collect(),
+            contributions: s
+                .contributions
+                .into_iter()
+                .map(Contribution::from)
+                .collect(),
         }
     }
 }
@@ -264,7 +286,11 @@ impl From<crate::current::types::HansardSubsection> for HansardSubsection {
     fn from(s: crate::current::types::HansardSubsection) -> Self {
         Self {
             title: s.title,
-            contributions: s.contributions.into_iter().map(Contribution::from).collect(),
+            contributions: s
+                .contributions
+                .into_iter()
+                .map(Contribution::from)
+                .collect(),
         }
     }
 }

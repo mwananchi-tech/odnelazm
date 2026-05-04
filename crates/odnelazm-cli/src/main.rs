@@ -341,14 +341,14 @@ async fn main() {
             }
         }
 
-        Commands::Sitting { url_or_slug, format } => {
-            let sitting = scraper
-                .get_sitting(&url_or_slug)
-                .await
-                .unwrap_or_else(|e| {
-                    log::error!("Error fetching sitting: {}", e);
-                    process::exit(1);
-                });
+        Commands::Sitting {
+            url_or_slug,
+            format,
+        } => {
+            let sitting = scraper.get_sitting(&url_or_slug).await.unwrap_or_else(|e| {
+                log::error!("Error fetching sitting: {}", e);
+                process::exit(1);
+            });
 
             match format {
                 OutputFormat::Json => print_json(&sitting),

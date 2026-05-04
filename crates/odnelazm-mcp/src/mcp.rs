@@ -43,10 +43,16 @@ impl McpServer {
             ));
         }
         if params.offset.is_some_and(|o| o == 0) {
-            return Err(McpError::invalid_params("offset must be greater than 0", None));
+            return Err(McpError::invalid_params(
+                "offset must be greater than 0",
+                None,
+            ));
         }
         if params.limit.is_some_and(|l| l == 0) {
-            return Err(McpError::invalid_params("limit must be greater than 0", None));
+            return Err(McpError::invalid_params(
+                "limit must be greater than 0",
+                None,
+            ));
         }
 
         let listings = self
@@ -62,7 +68,9 @@ impl McpServer {
             })
             .await
             .inspect_err(|e| log::error!("Failed to fetch sittings: {e}"))
-            .map_err(|e| McpError::internal_error(format!("Failed to fetch sittings: {e}"), None))?;
+            .map_err(|e| {
+                McpError::internal_error(format!("Failed to fetch sittings: {e}"), None)
+            })?;
 
         serialize_list(listings)
     }
@@ -82,8 +90,9 @@ impl McpServer {
             .inspect_err(|e| log::error!("Failed to fetch sitting: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
 
-        serde_json::to_string_pretty(&sitting)
-            .map_err(|e| McpError::internal_error(format!("Failed to serialize sitting: {e}"), None))
+        serde_json::to_string_pretty(&sitting).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize sitting: {e}"), None)
+        })
     }
 
     #[tool(
@@ -155,8 +164,9 @@ impl McpServer {
                 McpError::internal_error(format!("Failed to fetch member profile: {e}"), None)
             })?;
 
-        serde_json::to_string_pretty(&profile)
-            .map_err(|e| McpError::internal_error(format!("Failed to serialize profile: {e}"), None))
+        serde_json::to_string_pretty(&profile).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize profile: {e}"), None)
+        })
     }
 }
 
