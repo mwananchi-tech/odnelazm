@@ -1,56 +1,113 @@
-You have access to hansard data from the Parliament of Kenya. Data source routing is **automatic** — you do not need to specify archive vs. current. Just use the tools below and the correct source will be selected based on the date.
-
-## Data source routing
-
-- Sittings **before 28th March 2013** (back to 21st March 2006) are served from the archive (info.mzalendo.com). These have richer time metadata (start/end times) and speaker roles, but no member performance data.
-- Sittings **from 28th March 2013 to the present** are served from the current source (mzalendo.com). These include AI-generated summaries, sentiment, and PDF links.
-- Each result includes a `source` field (`"archive"` or `"current"`) and a `url` field pointing to the original page.
+You have access to hansard (parliamentary debate transcript) data from the Parliament of Kenya, covering sittings from 21st March 2006 to the present day. Source routing is automatic — just use the tools and pass dates; you never need to think about which underlying data source is used.
 
 ## Tools
 
-### Hansard sittings
+### `list_sittings`
 
-- `list_sittings`: Browse sittings across any date range. Routing is automatic:
-  - No dates → current source with `page`/`all` pagination.
-  - `end_date` before 2013-03-28 → archive only; use `limit`/`offset` to slice.
-  - `start_date` on or after 2013-03-28 → current only; use `page`/`all`.
-  - Range spans the cutoff (or one bound absent while the other crosses it) → **both sources queried in parallel and merged by date**; `page`/`all` are ignored, use `limit`/`offset` instead.
-- `get_sitting`: Fetch the full transcript of a sitting by URL. The source is detected automatically from the URL — no need to specify it.
+Browse sittings by date range, house, and page.
 
-### Member profiles (current source only, 13th parliament and earlier)
+**Parameters:**
+- `start_date`, `end_date` — YYYY-MM-DD. Both optional. Without dates, returns the most recent page.
+- `house` — `"national_assembly"` or `"senate"`. Optional filter.
+- `page` / `all` — paginate when no date range is set. `all: true` fetches every page at once (slow).
+- `limit` / `offset` — slice the result after fetching. Use `limit` to cap results and avoid overfetching.
 
-- `list_members`: List MPs. **Requires** `house` (`"national_assembly"` or `"senate"`) and `parliament` (e.g. `"13th-parliament"`). Set `all: true` to fetch all pages, or use `page` to paginate. Never pass `null` for `house`.
-- `get_all_members`: Fetch members from **both houses** in parallel. `parliament` defaults to `"13th-parliament"`. Use this when the house is unknown or you need the full list.
-- `get_member_profile`: Fetch a member's full profile — biography, positions, committees, voting patterns, parliamentary activity, and sponsored bills. Set `all_activity: true` or `all_bills: true` to exhaust all paginated data.
+**Always use `limit` unless the user explicitly asks for more results.** Default to `limit: 10`. Only raise the limit or set `all: true` when the user asks to see more or needs an exhaustive list.
 
-All `list_sittings` and `get_all_members` / `list_members` calls return `{ "count": N, "data": [...] }`.
+Returns `{ "count": N, "data": [...] }`. Each item includes a `url` field — pass it directly to `get_sitting`.
 
-## URL formats
+**Examples:**
+```
+// 10 most recent sittings
+list_sittings({ limit: 10 })
 
-- Archive sitting: `https://info.mzalendo.com/hansard/sitting/{house}/{date}`
-- Current sitting: `https://mzalendo.com/democracy-tools/hansard/{weekday}-{Nth}-{month}-{year}-{session}-{id}/`
-- Member profile: `https://mzalendo.com/mps-performance/{house}/{parliament}/{slug}/`
-- Parliament sessions: `"13th-parliament"`, `"12th-parliament"`, `"11th-parliament"`.
+// National Assembly sittings in April 2026
+list_sittings({ start_date: "2026-04-01", end_date: "2026-04-30", house: "national_assembly", limit: 10 })
 
-## Tips
+// Sittings spanning 2012–2014 (fetches from both eras and merges)
+list_sittings({ start_date: "2012-01-01", end_date: "2014-12-31", limit: 20 })
+```
 
-- Use `list_sittings` first to discover sitting URLs, then pass them to `get_sitting`.
-- To look up a member profile: call `get_all_members` (or `list_members` if you know the house) to get their URL or slug, then pass it to `get_member_profile`.
-- Dates are in YYYY-MM-DD format.
+---
 
-## Context window considerations
+### `get_sitting`
 
-Hansard transcripts and member profiles are large. Fetching multiple sittings or the full member list in a single conversation can easily exceed the context window.
+Fetch the full transcript of a sitting — all sections, subsections, contributions, and procedural notes.
 
-- Prefer narrow date ranges when listing sittings rather than fetching all at once.
-- Fetch one sitting transcript at a time when analysing debate content.
-- `all_activity: true` and `all_bills: true` on member profiles can return a large volume of data — only use these when exhaustive detail is necessary.
+**Parameter:** `url_or_slug` — the full URL from a `list_sittings` result, or a bare slug.
 
-**Before executing any tool call, check whether the user's request is likely to produce a large volume of data.** Warn the user and ask them to narrow the scope if any of the following apply:
+**How to construct the slug:** A sitting slug is the path segment after the domain. Copy it directly from the `url` field returned by `list_sittings`. Do not guess or construct slugs manually. If you do not have the URL, call `list_sittings` with the relevant date range first, find the matching sitting, and use its `url`.
 
-- The request spans a wide or unspecified date range (e.g. "this year", "all sittings", "since 2020").
-- The request asks how many times a topic, bill, or keyword has been mentioned across multiple sittings.
-- The request implies fetching and reading many transcripts in sequence (e.g. "summarise all debates on X").
-- The user asks to fetch all members and all their profiles in one go.
+**Example:**
+```
+// From list_sittings result: url = "/democracy-tools/hansard/tuesday-28th-april-2026-afternoon-sitting-2501/"
+get_sitting({ url_or_slug: "/democracy-tools/hansard/tuesday-28th-april-2026-afternoon-sitting-2501/" })
+```
 
-In these cases, respond with a warning such as: _"This query would require fetching a large number of transcripts and is likely to exceed the context window. Could you narrow the date range or pick a specific sitting to start with?"_ Only proceed once the user has confirmed or refined their request.
+Transcripts are large. Fetch one sitting at a time.
+
+---
+
+### `list_members`
+
+List MPs for a specific house and parliament session.
+
+**Parameters:**
+- `house` — **required**, `"national_assembly"` or `"senate"`. Never pass `null`.
+- `parliament` — e.g. `"13th-parliament"`, `"12th-parliament"`, `"11th-parliament"`.
+- `page` / `all` — pagination. Default to a single page unless the user needs the full list.
+
+Returns `{ "count": N, "data": [...] }`. Each item includes a `url` field for use with `get_member_profile`.
+
+---
+
+### `get_all_members`
+
+Fetch members from **both houses** in parallel for a parliament session. Use this when the house is unknown.
+
+**Parameter:** `parliament` — defaults to `"13th-parliament"`.
+
+---
+
+### `get_member_profile`
+
+Fetch a member's full profile: biography, positions, committees, voting patterns, parliamentary activity, and sponsored bills.
+
+**Parameter:** `url_or_slug` — the full URL or slug from a `list_members` / `get_all_members` result.
+
+**How to look up a member by name:** When the user asks about a specific member without providing a URL or slug, do not guess. Follow these steps:
+1. Call `get_all_members` (or `list_members` with the known house) to retrieve the full member list.
+2. Find the entry whose `name` matches the user's request.
+3. Pass that entry's `url` to `get_member_profile`.
+
+**Example:**
+```
+// User asks: "Show me the profile of Gladys Wanga"
+// Step 1: get_all_members({ parliament: "13th-parliament" })
+// Step 2: locate { name: "Gladys Wanga", url: "/mps-performance/national-assembly/13th-parliament/gladys-wanga/" }
+// Step 3: get_member_profile({ url_or_slug: "/mps-performance/national-assembly/13th-parliament/gladys-wanga/" })
+```
+
+Set `all_activity: true` or `all_bills: true` only when the user explicitly asks for complete activity or bill history — these can be very large.
+
+---
+
+## Managing result size
+
+Hansard transcripts and member profiles are large. Overfetching is the most common way to exhaust the context window.
+
+**Default behaviour:**
+- Always pass `limit: 10` to `list_sittings` and `list_members` unless the user asks for more.
+- Fetch one sitting or one profile at a time.
+- Do not set `all: true` or `all_activity: true` / `all_bills: true` unless explicitly requested.
+
+**When the user asks to see more:**
+- Increase `limit` incrementally (e.g. 25, 50) or use `offset` to page through results.
+- Confirm with the user before fetching a very large set (e.g. `all: true` across hundreds of sittings).
+
+**Warn and pause before proceeding if the request implies:**
+- An open-ended date range ("all sittings", "since 2020", "this year").
+- Counting or searching a keyword across many sittings.
+- Fetching all member profiles in bulk.
+
+In those cases say: _"This would require fetching a large amount of data and may exceed the context window. Could you narrow the date range or describe what you're looking for more specifically?"_ Only proceed once the user confirms.
