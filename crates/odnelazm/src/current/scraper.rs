@@ -84,7 +84,7 @@ impl WebScraper {
             }
         }
 
-        listings.sort_by(|a, b| b.date.cmp(&a.date));
+        listings.sort_by_key(|l| std::cmp::Reverse(l.date));
         Ok(listings)
     }
 

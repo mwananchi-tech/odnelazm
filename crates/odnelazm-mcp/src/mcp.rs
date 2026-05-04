@@ -1,6 +1,4 @@
-use odnelazm::archive::{scraper::WebScraper as ArchiveScraper, utils::ListingFilter};
-use odnelazm::current::scraper::WebScraper as CurrentScraper;
-use odnelazm::types::House;
+use odnelazm::{HansardScraper, House, SittingListOptions};
 use rmcp::{
     ServerHandler,
     handler::server::{tool::ToolRouter, wrapper::Parameters},
@@ -10,10 +8,11 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use chrono::NaiveDate;
+
 #[derive(Debug, Clone)]
 pub struct McpServer {
-    archive_scraper: ArchiveScraper,
-    current_scraper: CurrentScraper,
+    scraper: HansardScraper,
     tool_router: ToolRouter<Self>,
 }
 
@@ -21,139 +20,83 @@ pub struct McpServer {
 impl McpServer {
     pub fn new() -> Result<Self, anyhow::Error> {
         Ok(Self {
-            archive_scraper: ArchiveScraper::new()?,
-            current_scraper: CurrentScraper::new()?,
+            scraper: HansardScraper::new()?,
             tool_router: Self::tool_router(),
         })
     }
 
     #[tool(
-        name = "archive_list_sittings",
-        description = "List parliamentary sittings from the archive (info.mzalendo.com). Supports filtering by date range, house, limit, and offset. Use this for historical sitting data."
+        name = "list_sittings",
+        description = "List parliamentary sittings with automatic source routing. If `end_date` is before 2013-03-28 the archive (info.mzalendo.com) is used. If `start_date` is on or after 2013-03-28 the current source (mzalendo.com) is used. If the range spans the cutoff — or one bound is absent while the other crosses it — both sources are queried in parallel and results are merged by date. With no dates, the current source is used with `page`/`all` pagination. Use `limit`/`offset` to slice the final result."
     )]
-    pub async fn archive_list_sittings(
+    pub async fn list_sittings(
         &self,
-        Parameters(filters): Parameters<ListingFilter>,
+        Parameters(params): Parameters<ListSittingsParams>,
     ) -> Result<String, McpError> {
-        let filters = filters
-            .validate()
-            .inspect_err(|e| log::error!("Invalid params: {e:?}"))
-            .map_err(|e| McpError::invalid_params(e, None))?;
+        if let Some(start) = params.start_date
+            && let Some(end) = params.end_date
+            && start > end
+        {
+            return Err(McpError::invalid_params(
+                "start_date cannot be after end_date",
+                None,
+            ));
+        }
+        if params.offset.is_some_and(|o| o == 0) {
+            return Err(McpError::invalid_params("offset must be greater than 0", None));
+        }
+        if params.limit.is_some_and(|l| l == 0) {
+            return Err(McpError::invalid_params("limit must be greater than 0", None));
+        }
 
         let listings = self
-            .archive_scraper
-            .fetch_hansard_list()
+            .scraper
+            .list_sittings(SittingListOptions {
+                start_date: params.start_date,
+                end_date: params.end_date,
+                house: params.house,
+                page: params.page.unwrap_or(1),
+                all: params.all,
+                limit: params.limit,
+                offset: params.offset,
+            })
             .await
-            .inspect_err(|e| log::error!("Failed to fetch archive hansard list: {e:?}"))
-            .map_err(|e| {
-                McpError::internal_error(format!("Failed to fetch hansard list: {e:?}"), None)
-            })?;
-
-        serialize_list(filters.apply(listings))
-    }
-
-    #[tool(
-        name = "archive_get_sitting",
-        description = "Fetch the full transcript of an archived sitting (info.mzalendo.com), including sections, contributions, and procedural notes. Optionally fetch full speaker profiles inline."
-    )]
-    pub async fn archive_get_sitting(
-        &self,
-        Parameters(params): Parameters<ArchiveGetSittingParams>,
-    ) -> Result<String, McpError> {
-        let sitting = self
-            .archive_scraper
-            .fetch_hansard_sitting(&params.url_or_slug, params.fetch_speakers)
-            .await
-            .inspect_err(|e| log::error!("Failed to fetch archive sitting: {e}"))
-            .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
-
-        serde_json::to_string_pretty(&sitting).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize sitting: {e}"), None)
-        })
-    }
-
-    #[tool(
-        name = "archive_get_person",
-        description = "Fetch speaker/member details from an archived profile page (info.mzalendo.com), including party, constituency, and contact info."
-    )]
-    pub async fn archive_get_person(
-        &self,
-        Parameters(params): Parameters<ArchiveGetPersonParams>,
-    ) -> Result<String, McpError> {
-        let person = self
-            .archive_scraper
-            .fetch_person_details(&params.url_or_slug)
-            .await
-            .map_err(|e| McpError::internal_error(format!("Failed to fetch person: {e}"), None))?;
-
-        serde_json::to_string_pretty(&person)
-            .map_err(|e| McpError::internal_error(format!("Failed to serialize person: {e}"), None))
-    }
-
-    #[tool(
-        name = "current_list_sittings",
-        description = "List recent parliamentary sittings from the current source (mzalendo.com). Supports house filtering and pagination. Set `all` to true to fetch all pages at once."
-    )]
-    pub async fn current_list_sittings(
-        &self,
-        Parameters(params): Parameters<CurrentListSittingsParams>,
-    ) -> Result<String, McpError> {
-        let listings = if params.all {
-            self.current_scraper
-                .fetch_all_sittings(params.house)
-                .await
-                .inspect_err(|e| log::error!("Failed to fetch all current sittings: {e}"))
-                .map_err(|e| {
-                    McpError::internal_error(format!("Failed to fetch all sittings: {e}"), None)
-                })?
-        } else {
-            let page = params.page.unwrap_or(1);
-            self.current_scraper
-                .fetch_hansard_list(page, params.house)
-                .await
-                .inspect_err(|e| log::error!("Failed to fetch current sittings page {page}: {e}"))
-                .map_err(|e| {
-                    McpError::internal_error(
-                        format!("Failed to fetch sittings page {page}: {e}"),
-                        None,
-                    )
-                })?
-        };
+            .inspect_err(|e| log::error!("Failed to fetch sittings: {e}"))
+            .map_err(|e| McpError::internal_error(format!("Failed to fetch sittings: {e}"), None))?;
 
         serialize_list(listings)
     }
 
     #[tool(
-        name = "current_get_sitting",
-        description = "Fetch the full transcript of a current sitting (mzalendo.com), including sections, contributions, and procedural notes."
+        name = "get_sitting",
+        description = "Fetch the full transcript of a parliamentary sitting, including sections, subsections, contributions, and procedural notes. The data source (archive or current) is detected automatically from the URL — archive URLs contain info.mzalendo.com, current URLs contain mzalendo.com/democracy-tools."
     )]
-    pub async fn current_get_sitting(
+    pub async fn get_sitting(
         &self,
-        Parameters(params): Parameters<CurrentGetSittingParams>,
+        Parameters(params): Parameters<GetSittingParams>,
     ) -> Result<String, McpError> {
         let sitting = self
-            .current_scraper
-            .fetch_hansard_sitting(&params.url_or_slug)
+            .scraper
+            .get_sitting(&params.url_or_slug)
             .await
-            .inspect_err(|e| log::error!("Failed to fetch current sitting: {e}"))
+            .inspect_err(|e| log::error!("Failed to fetch sitting: {e}"))
             .map_err(|e| McpError::internal_error(format!("Failed to fetch sitting: {e}"), None))?;
 
-        serde_json::to_string_pretty(&sitting).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize sitting: {e}"), None)
-        })
+        serde_json::to_string_pretty(&sitting)
+            .map_err(|e| McpError::internal_error(format!("Failed to serialize sitting: {e}"), None))
     }
 
     #[tool(
-        name = "current_list_members",
+        name = "list_members",
         description = "List members of parliament from the current source (mzalendo.com). Requires a house ('national_assembly' or 'senate') and parliament session (e.g. '13th-parliament'). Set `all` to true to fetch all pages at once."
     )]
-    pub async fn current_list_members(
+    pub async fn list_members(
         &self,
-        Parameters(params): Parameters<CurrentListMembersParams>,
+        Parameters(params): Parameters<ListMembersParams>,
     ) -> Result<String, McpError> {
         let members = if params.all {
-            self.current_scraper
-                .fetch_all_members(params.house, &params.parliament)
+            self.scraper
+                .list_all_members(params.house, &params.parliament)
                 .await
                 .inspect_err(|e| log::error!("Failed to fetch all members: {e}"))
                 .map_err(|e| {
@@ -161,15 +104,12 @@ impl McpServer {
                 })?
         } else {
             let page = params.page.unwrap_or(1);
-            self.current_scraper
-                .fetch_members(params.house, &params.parliament, page)
+            self.scraper
+                .list_members(params.house, &params.parliament, page)
                 .await
                 .inspect_err(|e| log::error!("Failed to fetch members page {page}: {e}"))
                 .map_err(|e| {
-                    McpError::internal_error(
-                        format!("Failed to fetch members page {page}: {e}"),
-                        None,
-                    )
+                    McpError::internal_error(format!("Failed to fetch members: {e}"), None)
                 })?
         };
 
@@ -177,18 +117,18 @@ impl McpServer {
     }
 
     #[tool(
-        name = "current_get_all_members",
-        description = "Fetch all members of parliament from both houses (National Assembly and Senate) in parallel for a given parliament session. Use this when you don't know which house a member belongs to, or need the full membership list. `parliament` defaults to '13th-parliament'."
+        name = "get_all_members",
+        description = "Fetch all members of parliament from both houses (National Assembly and Senate) in parallel for a given parliament session. Use this when you need the full membership list or don't know which house a member belongs to. `parliament` defaults to '13th-parliament'."
     )]
-    pub async fn current_get_all_members(
+    pub async fn get_all_members(
         &self,
-        Parameters(params): Parameters<CurrentGetAllMembersParams>,
+        Parameters(params): Parameters<GetAllMembersParams>,
     ) -> Result<String, McpError> {
         let parliament = params.parliament.as_deref().unwrap_or("13th-parliament");
 
         let members = self
-            .current_scraper
-            .fetch_all_members_all_houses(parliament)
+            .scraper
+            .list_all_members_all_houses(parliament)
             .await
             .inspect_err(|e| log::error!("Failed to fetch all members (all houses): {e}"))
             .map_err(|e| {
@@ -199,25 +139,24 @@ impl McpServer {
     }
 
     #[tool(
-        name = "current_get_member_profile",
-        description = "Fetch a member of parliament's profile from the current source (mzalendo.com), including biography, positions, committees, voting patterns, parliamentary activity, and sponsored bills. Set `all_activity` or `all_bills` to true to fetch all paginated data exhaustively."
+        name = "get_member_profile",
+        description = "Fetch a member of parliament's profile from the current source (mzalendo.com), including biography, positions, committees, voting patterns, parliamentary activity, and sponsored bills. Set `all_activity` or `all_bills` to true to exhaust all paginated data."
     )]
-    pub async fn current_get_member_profile(
+    pub async fn get_member_profile(
         &self,
-        Parameters(params): Parameters<CurrentGetMemberProfileParams>,
+        Parameters(params): Parameters<GetMemberProfileParams>,
     ) -> Result<String, McpError> {
         let profile = self
-            .current_scraper
-            .fetch_member_profile(&params.url_or_slug, params.all_activity, params.all_bills)
+            .scraper
+            .get_member_profile(&params.url_or_slug, params.all_activity, params.all_bills)
             .await
             .inspect_err(|e| log::error!("Failed to fetch member profile: {e}"))
             .map_err(|e| {
                 McpError::internal_error(format!("Failed to fetch member profile: {e}"), None)
             })?;
 
-        serde_json::to_string_pretty(&profile).map_err(|e| {
-            McpError::internal_error(format!("Failed to serialize profile: {e}"), None)
-        })
+        serde_json::to_string_pretty(&profile)
+            .map_err(|e| McpError::internal_error(format!("Failed to serialize profile: {e}"), None))
     }
 }
 
@@ -228,51 +167,64 @@ fn serialize_list<T: Serialize>(items: Vec<T>) -> Result<String, McpError> {
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct ArchiveGetSittingParams {
-    url_or_slug: String,
-    fetch_speakers: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct ArchiveGetPersonParams {
-    url_or_slug: String,
-}
-
-#[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct CurrentListSittingsParams {
-    page: Option<u32>,
-    house: Option<House>,
+pub struct ListSittingsParams {
+    /// Start of date range (YYYY-MM-DD).
+    /// Setting this before 2013-03-28 while `end_date` is absent or on/after 2013-03-28
+    /// triggers a cross-source merged query (archive + current fetched in parallel).
+    pub start_date: Option<NaiveDate>,
+    /// End of date range (YYYY-MM-DD).
+    /// Before 2013-03-28 → archive only.
+    /// On or after 2013-03-28 with `start_date` also before the cutoff → both sources merged.
+    /// On or after 2013-03-28 with `start_date` absent or also on/after the cutoff → current only.
+    pub end_date: Option<NaiveDate>,
+    /// Filter by house: "senate" or "national_assembly".
+    pub house: Option<House>,
+    /// Page number for current-only queries (default: 1). Ignored for cross-source merged queries.
+    pub page: Option<u32>,
+    /// Fetch all pages at once for current-only queries. Ignored for cross-source merged queries.
     #[serde(default)]
-    all: bool,
+    pub all: bool,
+    /// Maximum results to return, applied after merging and sorting.
+    pub limit: Option<usize>,
+    /// Results to skip, applied after merging and sorting.
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct CurrentGetSittingParams {
-    url_or_slug: String,
+pub struct GetSittingParams {
+    /// Full URL or slug of the sitting. Archive URLs contain info.mzalendo.com; current URLs contain mzalendo.com/democracy-tools.
+    pub url_or_slug: String,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct CurrentListMembersParams {
-    house: House,
-    parliament: String,
-    page: Option<u32>,
+pub struct ListMembersParams {
+    /// House to list: "national_assembly" or "senate".
+    pub house: House,
+    /// Parliament session, e.g. "13th-parliament", "12th-parliament", "11th-parliament".
+    pub parliament: String,
+    /// Page number (default: 1). Ignored when `all` is true.
+    pub page: Option<u32>,
+    /// Fetch all pages at once.
     #[serde(default)]
-    all: bool,
+    pub all: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct CurrentGetAllMembersParams {
+pub struct GetAllMembersParams {
     /// Parliament session. One of: "13th-parliament", "12th-parliament", "11th-parliament". Defaults to "13th-parliament".
-    parliament: Option<String>,
+    pub parliament: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
-pub struct CurrentGetMemberProfileParams {
-    url_or_slug: String,
+pub struct GetMemberProfileParams {
+    /// Full URL or slug of the member's profile page.
+    pub url_or_slug: String,
+    /// Fetch all pages of parliamentary activity (may be slow).
     #[serde(default)]
-    all_activity: bool,
+    pub all_activity: bool,
+    /// Fetch all pages of sponsored bills (may be slow).
     #[serde(default)]
-    all_bills: bool,
+    pub all_bills: bool,
 }
 
 #[tool_handler]

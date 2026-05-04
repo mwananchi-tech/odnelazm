@@ -4,18 +4,11 @@ use std::str::FromStr;
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::LevelFilter;
-use odnelazm::{
-    House,
-    archive::{
-        WebScraper as ArchiveScraper,
-        utils::{ListingFilter, ListingStats},
-    },
-    current::WebScraper as CurrentScraper,
-};
+use odnelazm::{HansardListing, HansardScraper, House, Member, MemberProfile, SittingListOptions};
 
 #[derive(Parser)]
 #[command(name = "odnelazm")]
-#[command(about = "A mzalendo.com hansard scraper", long_about = None)]
+#[command(about = "Kenya Hansard scraper — automatically routes to archive or current source based on date", long_about = None)]
 struct Cli {
     #[arg(
         short = 'l',
@@ -62,40 +55,29 @@ enum OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Archive hansard data from info.mzalendo.com
-    Archive {
-        #[command(subcommand)]
-        command: ArchiveCommands,
-    },
-    /// Current hansard data from mzalendo.com/democracy-tools
-    Current {
-        #[command(subcommand)]
-        command: CurrentCommands,
-    },
-}
-
-#[derive(Subcommand)]
-enum ArchiveCommands {
-    /// List available parliamentary sittings with optional filtering and pagination
-    List {
-        #[arg(
-            long,
-            help = "Maximum number of results to return",
-            value_parser = clap::value_parser!(u16).range(1..)
-        )]
-        limit: Option<usize>,
-
-        #[arg(
-            long,
-            help = "Number of results to skip from the beginning",
-            value_parser = clap::value_parser!(u16).range(1..)
-        )]
-        offset: Option<usize>,
-
+    /// List parliamentary sittings with automatic source routing.
+    ///
+    /// Routing rules (cutoff = 2013-03-28):
+    ///   No dates              → current source, paged via --page / --all
+    ///   --end-date < cutoff   → archive only
+    ///   --start-date ≥ cutoff → current only, paged via --page / --all
+    ///   Range spans cutoff    → BOTH sources fetched in parallel and merged by date;
+    ///                           --page and --all are ignored, use --limit / --offset instead
+    ///
+    /// Examples:
+    ///   # Recent sittings (current, page 1)
+    ///   odnelazm sittings
+    ///
+    ///   # All archive sittings in 2010
+    ///   odnelazm sittings --start-date 2010-01-01 --end-date 2010-12-31
+    ///
+    ///   # Cross-era range: archive + current merged
+    ///   odnelazm sittings --start-date 2012-01-01 --end-date 2014-12-31
+    Sittings {
         #[arg(
             long,
             value_name = "YYYY-MM-DD",
-            help = "Filter sessions from this date onwards",
+            help = "Start of date range. If before 2013-03-28 with no --end-date, both archive and current are queried and merged.",
             value_parser = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|e| e.to_string()),
         )]
         start_date: Option<NaiveDate>,
@@ -103,7 +85,7 @@ enum ArchiveCommands {
         #[arg(
             long,
             value_name = "YYYY-MM-DD",
-            help = "Filter sessions up to this date",
+            help = "End of date range. Before 2013-03-28 → archive only; on or after → current (or both if --start-date is also before the cutoff).",
             value_parser = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|e| e.to_string()),
         )]
         end_date: Option<NaiveDate>,
@@ -116,54 +98,33 @@ enum ArchiveCommands {
         house: Option<House>,
 
         #[arg(
-            short = 'o',
-            long = "output",
-            value_enum,
-            default_value = "text",
-            help = "Output format"
-        )]
-        format: OutputFormat,
-    },
-    /// Fetch the full transcript of a sitting including sections, contributions and procedural notes
-    Sitting {
-        #[arg(help = "URL of the hansard detail page to fetch")]
-        url: String,
-
-        #[arg(long, help = "Fetch speaker details from person profile pages")]
-        fetch_speakers: bool,
-
-        #[arg(
-            short = 'o',
-            long = "output",
-            value_enum,
-            default_value = "text",
-            help = "Output format"
-        )]
-        format: OutputFormat,
-    },
-}
-
-#[derive(Subcommand)]
-enum CurrentCommands {
-    /// List available sittings (paged or all at once)
-    Sittings {
-        #[arg(
             long,
-            help = "Page number to fetch (ignored when --all is set)",
+            help = "Page to fetch from the current source (ignored when --all is set or when a cross-era range triggers a merged query)",
             default_value = "1",
             value_parser = clap::value_parser!(u32).range(1..)
         )]
         page: u32,
 
-        #[arg(long, help = "Fetch all pages at once", conflicts_with = "page")]
+        #[arg(
+            long,
+            help = "Fetch all pages from the current source at once (ignored for cross-era merged queries; conflicts with --page)",
+            conflicts_with = "page"
+        )]
         all: bool,
 
         #[arg(
             long,
-            value_parser = |s: &str| House::from_str(s).map_err(|e| e.to_string()),
-            help = "Filter by house (senate, national_assembly, na)"
+            help = "Maximum results to return, applied after merging and sorting",
+            value_parser = clap::value_parser!(u16).range(1..)
         )]
-        house: Option<House>,
+        limit: Option<usize>,
+
+        #[arg(
+            long,
+            help = "Results to skip, applied after merging and sorting",
+            value_parser = clap::value_parser!(u16).range(1..)
+        )]
+        offset: Option<usize>,
 
         #[arg(
             short = 'o',
@@ -174,7 +135,11 @@ enum CurrentCommands {
         )]
         format: OutputFormat,
     },
-    /// Fetch the full transcript of a sitting
+
+    /// Fetch the full transcript of a sitting. Source is detected automatically from the URL.
+    ///
+    /// Archive URLs: https://info.mzalendo.com/hansard/sitting/...
+    /// Current URLs: https://mzalendo.com/democracy-tools/hansard/...
     Sitting {
         #[arg(help = "URL or slug of the sitting to fetch")]
         url_or_slug: String,
@@ -188,7 +153,8 @@ enum CurrentCommands {
         )]
         format: OutputFormat,
     },
-    /// List members of parliament
+
+    /// List members of parliament (current source only)
     Members {
         #[arg(
             help = "House to list members for (senate, national_assembly, na)",
@@ -219,7 +185,8 @@ enum CurrentCommands {
         )]
         format: OutputFormat,
     },
-    /// List all members from both houses in parallel
+
+    /// List all members from both houses in parallel (current source only)
     AllMembers {
         #[arg(
             help = "Parliament session (e.g. 13th-parliament, 12th-parliament)",
@@ -236,7 +203,8 @@ enum CurrentCommands {
         )]
         format: OutputFormat,
     },
-    /// Fetch a member's full profile including speeches, bills, and voting record
+
+    /// Fetch a member's full profile including speeches, bills, and voting record (current source only)
     Profile {
         #[arg(help = "URL or slug of the member profile to fetch")]
         url_or_slug: String,
@@ -268,6 +236,57 @@ fn print_json<T: serde::Serialize>(value: &T) {
     }
 }
 
+fn print_listings(listings: &[HansardListing]) {
+    if listings.is_empty() {
+        println!("No entries to display.");
+        return;
+    }
+    for (i, listing) in listings.iter().enumerate() {
+        println!("{:>3}. {}", i + 1, listing);
+    }
+    let senate = listings.iter().filter(|l| l.house == House::Senate).count();
+    let na = listings
+        .iter()
+        .filter(|l| l.house == House::NationalAssembly)
+        .count();
+    println!("\nStatistics:");
+    println!("  Senate sittings:            {}", senate);
+    println!("  National Assembly sittings: {}", na);
+    println!("  Total:                      {}", listings.len());
+}
+
+fn print_members(members: &[Member]) {
+    if members.is_empty() {
+        println!("No members to display.");
+        return;
+    }
+    for (i, member) in members.iter().enumerate() {
+        println!("{:>3}. {}", i + 1, member);
+    }
+}
+
+fn print_profile(profile: &MemberProfile) {
+    println!("{}", profile);
+    if !profile.bills.is_empty() {
+        println!("\nBills ({}):", profile.bills.len());
+        for bill in &profile.bills {
+            println!("  - {}", bill);
+        }
+    }
+    if !profile.voting_patterns.is_empty() {
+        println!("\nVoting record ({}):", profile.voting_patterns.len());
+        for vote in &profile.voting_patterns {
+            println!("  - {}", vote);
+        }
+    }
+    if !profile.activity.is_empty() {
+        println!("\nActivity ({}):", profile.activity.len());
+        for item in &profile.activity {
+            println!("  - {}", item);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -276,126 +295,55 @@ async fn main() {
         .filter_level(cli.log_level.clone().into())
         .init();
 
-    match cli.command {
-        Commands::Archive { command } => run_archive(command).await,
-        Commands::Current { command } => run_current(command).await,
-    }
-}
-
-async fn run_archive(command: ArchiveCommands) {
-    let scraper = ArchiveScraper::new().unwrap_or_else(|e| {
-        log::error!("Failed to create archive scraper: {}", e);
+    let scraper = HansardScraper::new().unwrap_or_else(|e| {
+        log::error!("Failed to create scraper: {}", e);
         process::exit(1);
     });
 
-    match command {
-        ArchiveCommands::List {
-            limit,
-            offset,
+    match cli.command {
+        Commands::Sittings {
             start_date,
             end_date,
             house,
+            page,
+            all,
+            limit,
+            offset,
             format,
         } => {
-            let filters = ListingFilter {
-                limit,
-                offset,
-                start_date,
-                end_date,
-                house,
-            }
-            .validate()
-            .unwrap_or_else(|e| {
-                log::error!("Invalid args: {}", e);
+            if let Some(start) = start_date
+                && let Some(end) = end_date
+                && start > end
+            {
+                log::error!("--start-date cannot be after --end-date");
                 process::exit(1);
-            });
-
-            let mut listings = scraper.fetch_hansard_list().await.unwrap_or_else(|e| {
-                log::error!("Error fetching hansard list: {}", e);
-                process::exit(1);
-            });
-
-            listings = filters.apply(listings);
-
-            match format {
-                OutputFormat::Json => print_json(&listings),
-                OutputFormat::Text => {
-                    if listings.is_empty() {
-                        println!("No entries to display.");
-                    } else {
-                        for (i, listing) in listings.iter().enumerate() {
-                            println!("{:>3}. {}", i + 1, listing);
-                        }
-                        print!("{}", ListingStats::from_hansard_listings(&listings));
-                    }
-                }
             }
-        }
 
-        ArchiveCommands::Sitting {
-            url,
-            fetch_speakers,
-            format,
-        } => {
-            let detail = scraper
-                .fetch_hansard_sitting(&url, fetch_speakers)
+            let listings = scraper
+                .list_sittings(SittingListOptions {
+                    start_date,
+                    end_date,
+                    house,
+                    page,
+                    all,
+                    limit,
+                    offset,
+                })
                 .await
                 .unwrap_or_else(|e| {
-                    log::error!("Error fetching hansard detail: {}", e);
+                    log::error!("Error fetching sittings: {}", e);
                     process::exit(1);
                 });
 
             match format {
-                OutputFormat::Json => print_json(&detail),
-                OutputFormat::Text => println!("{}", detail),
-            }
-        }
-    }
-}
-
-async fn run_current(command: CurrentCommands) {
-    let scraper = CurrentScraper::new().unwrap_or_else(|e| {
-        log::error!("Failed to create current scraper: {}", e);
-        process::exit(1);
-    });
-
-    match command {
-        CurrentCommands::Sittings {
-            page,
-            all,
-            house,
-            format,
-        } => {
-            let listings = if all {
-                scraper.fetch_all_sittings(house).await
-            } else {
-                scraper.fetch_hansard_list(page, house).await
-            }
-            .unwrap_or_else(|e| {
-                log::error!("Error fetching sittings: {}", e);
-                process::exit(1);
-            });
-
-            match format {
                 OutputFormat::Json => print_json(&listings),
-                OutputFormat::Text => {
-                    if listings.is_empty() {
-                        println!("No entries to display.");
-                    } else {
-                        for (i, listing) in listings.iter().enumerate() {
-                            println!("{:>3}. {}", i + 1, listing);
-                        }
-                    }
-                }
+                OutputFormat::Text => print_listings(&listings),
             }
         }
 
-        CurrentCommands::Sitting {
-            url_or_slug,
-            format,
-        } => {
+        Commands::Sitting { url_or_slug, format } => {
             let sitting = scraper
-                .fetch_hansard_sitting(&url_or_slug)
+                .get_sitting(&url_or_slug)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error fetching sitting: {}", e);
@@ -408,7 +356,7 @@ async fn run_current(command: CurrentCommands) {
             }
         }
 
-        CurrentCommands::Members {
+        Commands::Members {
             house,
             parliament,
             page,
@@ -416,9 +364,9 @@ async fn run_current(command: CurrentCommands) {
             format,
         } => {
             let members = if all {
-                scraper.fetch_all_members(house, &parliament).await
+                scraper.list_all_members(house, &parliament).await
             } else {
-                scraper.fetch_members(house, &parliament, page).await
+                scraper.list_members(house, &parliament, page).await
             }
             .unwrap_or_else(|e| {
                 log::error!("Error fetching members: {}", e);
@@ -427,21 +375,13 @@ async fn run_current(command: CurrentCommands) {
 
             match format {
                 OutputFormat::Json => print_json(&members),
-                OutputFormat::Text => {
-                    if members.is_empty() {
-                        println!("No members to display.");
-                    } else {
-                        for (i, member) in members.iter().enumerate() {
-                            println!("{:>3}. {}", i + 1, member);
-                        }
-                    }
-                }
+                OutputFormat::Text => print_members(&members),
             }
         }
 
-        CurrentCommands::AllMembers { parliament, format } => {
+        Commands::AllMembers { parliament, format } => {
             let members = scraper
-                .fetch_all_members_all_houses(&parliament)
+                .list_all_members_all_houses(&parliament)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error fetching all members: {}", e);
@@ -450,26 +390,18 @@ async fn run_current(command: CurrentCommands) {
 
             match format {
                 OutputFormat::Json => print_json(&members),
-                OutputFormat::Text => {
-                    if members.is_empty() {
-                        println!("No members to display.");
-                    } else {
-                        for (i, member) in members.iter().enumerate() {
-                            println!("{:>3}. {}", i + 1, member);
-                        }
-                    }
-                }
+                OutputFormat::Text => print_members(&members),
             }
         }
 
-        CurrentCommands::Profile {
+        Commands::Profile {
             url_or_slug,
             all_activity,
             all_bills,
             format,
         } => {
             let profile = scraper
-                .fetch_member_profile(&url_or_slug, all_activity, all_bills)
+                .get_member_profile(&url_or_slug, all_activity, all_bills)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Error fetching member profile: {}", e);
@@ -478,7 +410,7 @@ async fn run_current(command: CurrentCommands) {
 
             match format {
                 OutputFormat::Json => print_json(&profile),
-                OutputFormat::Text => println!("{}", profile),
+                OutputFormat::Text => print_profile(&profile),
             }
         }
     }
