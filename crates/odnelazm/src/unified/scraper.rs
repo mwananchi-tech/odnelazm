@@ -121,14 +121,25 @@ impl HansardScraper {
             }
 
             ListingRoute::Current => {
-                let raw = if opts.all {
+                // If dates are specified, fetch all pages so the filter can match across them.
+                let has_date_filter = opts.start_date.is_some() || opts.end_date.is_some();
+                let raw = if opts.all || has_date_filter {
                     self.current.fetch_all_sittings(opts.house).await?
                 } else {
                     self.current
                         .fetch_hansard_list(opts.page.max(1), opts.house)
                         .await?
                 };
-                Ok(raw.into_iter().map(HansardListing::from).collect())
+                let mut listings: Vec<HansardListing> =
+                    raw.into_iter().map(HansardListing::from).collect();
+                if let Some(start) = opts.start_date {
+                    listings.retain(|l| l.date >= start);
+                }
+                if let Some(end) = opts.end_date {
+                    listings.retain(|l| l.date <= end);
+                }
+                apply_slice(&mut listings, opts.offset, opts.limit);
+                Ok(listings)
             }
 
             ListingRoute::Both => {

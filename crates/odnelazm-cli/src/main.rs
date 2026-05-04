@@ -115,14 +115,14 @@ enum Commands {
         #[arg(
             long,
             help = "Maximum results to return, applied after merging and sorting",
-            value_parser = clap::value_parser!(u16).range(1..)
+            value_parser = |s: &str| s.parse::<usize>().map_err(|e| e.to_string()).and_then(|v| if v > 0 { Ok(v) } else { Err("must be greater than 0".into()) }),
         )]
         limit: Option<usize>,
 
         #[arg(
             long,
             help = "Results to skip, applied after merging and sorting",
-            value_parser = clap::value_parser!(u16).range(1..)
+            value_parser = |s: &str| s.parse::<usize>().map_err(|e| e.to_string()).and_then(|v| if v > 0 { Ok(v) } else { Err("must be greater than 0".into()) }),
         )]
         offset: Option<usize>,
 
