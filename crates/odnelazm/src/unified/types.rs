@@ -30,7 +30,7 @@ pub struct SittingListOptions {
 pub use crate::current::types::{Bill, Member, MemberProfile, ParliamentaryActivity, VoteRecord};
 pub use crate::types::House;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DataSource {
     Archive,
@@ -40,9 +40,15 @@ pub enum DataSource {
 impl Display for DataSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataSource::Archive => write!(f, "archive (info.mzalendo.com)"),
-            DataSource::Current => write!(f, "current (mzalendo.com)"),
+            DataSource::Archive => write!(f, "{}", crate::archive::BASE_URL),
+            DataSource::Current => write!(f, "{}", crate::current::BASE_URL),
         }
+    }
+}
+
+impl Serialize for DataSource {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -135,7 +141,7 @@ impl HansardSitting {
             sections: sitting
                 .sections
                 .into_iter()
-                .map(HansardSection::from_archive)
+                .map(HansardSection::from)
                 .collect(),
             source: DataSource::Archive,
             day_of_week: None,
@@ -227,8 +233,8 @@ pub struct HansardSection {
     pub contributions: Vec<Contribution>,
 }
 
-impl HansardSection {
-    fn from_archive(s: crate::archive::types::HansardSection) -> Self {
+impl From<crate::archive::types::HansardSection> for HansardSection {
+    fn from(s: crate::archive::types::HansardSection) -> Self {
         let section_type = match s.title {
             Some(title) => format!("{}: {}", s.section_type, title),
             None => s.section_type,
@@ -239,7 +245,7 @@ impl HansardSection {
             contributions: s
                 .contributions
                 .into_iter()
-                .map(Contribution::from_archive)
+                .map(Contribution::from)
                 .collect(),
         }
     }
@@ -314,8 +320,8 @@ pub struct Contribution {
     pub procedural_notes: Vec<String>,
 }
 
-impl Contribution {
-    fn from_archive(c: crate::archive::types::Contribution) -> Self {
+impl From<crate::archive::types::Contribution> for Contribution {
+    fn from(c: crate::archive::types::Contribution) -> Self {
         Self {
             speaker_name: c.speaker_name,
             speaker_role: c.speaker_role,
