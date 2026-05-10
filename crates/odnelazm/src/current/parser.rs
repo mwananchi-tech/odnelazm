@@ -1097,7 +1097,7 @@ mod tests {
             first.session_type.contains("Sitting"),
             "Session type should contain 'Sitting'"
         );
-        println!("First listing: {}", first);
+        println!("First listing: {:#?}", first);
     }
 
     #[test]
