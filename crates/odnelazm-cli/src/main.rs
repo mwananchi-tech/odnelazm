@@ -4,7 +4,8 @@ use std::str::FromStr;
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand, ValueEnum};
 use log::LevelFilter;
-use odnelazm::{HansardListing, HansardScraper, House, Member, MemberProfile, SittingListOptions};
+use odnelazm::{HansardScraper, House, SittingListOptions};
+use polars::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "odnelazm")]
@@ -49,8 +50,9 @@ impl From<LogLevel> for LevelFilter {
 
 #[derive(Debug, Clone, ValueEnum)]
 enum OutputFormat {
-    Text,
     Json,
+    Csv,
+    Parquet,
 }
 
 #[derive(Subcommand)]
@@ -130,7 +132,7 @@ enum Commands {
             short = 'o',
             long = "output",
             value_enum,
-            default_value = "text",
+            default_value = "json",
             help = "Output format"
         )]
         format: OutputFormat,
@@ -148,7 +150,7 @@ enum Commands {
             short = 'o',
             long = "output",
             value_enum,
-            default_value = "text",
+            default_value = "json",
             help = "Output format"
         )]
         format: OutputFormat,
@@ -180,7 +182,7 @@ enum Commands {
             short = 'o',
             long = "output",
             value_enum,
-            default_value = "text",
+            default_value = "json",
             help = "Output format"
         )]
         format: OutputFormat,
@@ -198,7 +200,7 @@ enum Commands {
             short = 'o',
             long = "output",
             value_enum,
-            default_value = "text",
+            default_value = "json",
             help = "Output format"
         )]
         format: OutputFormat,
@@ -219,7 +221,7 @@ enum Commands {
             short = 'o',
             long = "output",
             value_enum,
-            default_value = "text",
+            default_value = "json",
             help = "Output format"
         )]
         format: OutputFormat,
@@ -236,55 +238,43 @@ fn print_json<T: serde::Serialize>(value: &T) {
     }
 }
 
-fn print_listings(listings: &[HansardListing]) {
-    if listings.is_empty() {
-        println!("No entries to display.");
-        return;
+/// Convert any serializable value to a polars DataFrame via JSON.
+/// Single objects are wrapped in an array so polars always sees a record list.
+fn to_dataframe<T: serde::Serialize>(data: &T) -> PolarsResult<DataFrame> {
+    let mut value =
+        serde_json::to_value(data).map_err(|e| PolarsError::ComputeError(e.to_string().into()))?;
+    if !value.is_array() {
+        value = serde_json::Value::Array(vec![value]);
     }
-    for (i, listing) in listings.iter().enumerate() {
-        println!("{:>3}. {}", i + 1, listing);
-    }
-    let senate = listings.iter().filter(|l| l.house == House::Senate).count();
-    let na = listings
-        .iter()
-        .filter(|l| l.house == House::NationalAssembly)
-        .count();
-    println!("\nStatistics:");
-    println!("  Senate sittings:            {}", senate);
-    println!("  National Assembly sittings: {}", na);
-    println!("  Total:                      {}", listings.len());
+    let json = serde_json::to_string(&value)
+        .map_err(|e| PolarsError::ComputeError(e.to_string().into()))?;
+    JsonReader::new(std::io::Cursor::new(json.into_bytes())).finish()
 }
 
-fn print_members(members: &[Member]) {
-    if members.is_empty() {
-        println!("No members to display.");
-        return;
-    }
-    for (i, member) in members.iter().enumerate() {
-        println!("{:>3}. {}", i + 1, member);
-    }
+fn print_csv<T: serde::Serialize>(data: &T) {
+    let mut df = to_dataframe(data).unwrap_or_else(|e| {
+        log::error!("Failed to build dataframe: {}", e);
+        process::exit(1);
+    });
+    CsvWriter::new(std::io::stdout())
+        .finish(&mut df)
+        .unwrap_or_else(|e| {
+            log::error!("CSV write error: {}", e);
+            process::exit(1);
+        });
 }
 
-fn print_profile(profile: &MemberProfile) {
-    println!("{}", profile);
-    if !profile.bills.is_empty() {
-        println!("\nBills ({}):", profile.bills.len());
-        for bill in &profile.bills {
-            println!("  - {}", bill);
-        }
-    }
-    if !profile.voting_patterns.is_empty() {
-        println!("\nVoting record ({}):", profile.voting_patterns.len());
-        for vote in &profile.voting_patterns {
-            println!("  - {}", vote);
-        }
-    }
-    if !profile.activity.is_empty() {
-        println!("\nActivity ({}):", profile.activity.len());
-        for item in &profile.activity {
-            println!("  - {}", item);
-        }
-    }
+fn print_parquet<T: serde::Serialize>(data: &T) {
+    let mut df = to_dataframe(data).unwrap_or_else(|e| {
+        log::error!("Failed to build dataframe: {}", e);
+        process::exit(1);
+    });
+    ParquetWriter::new(std::io::stdout())
+        .finish(&mut df)
+        .unwrap_or_else(|e| {
+            log::error!("Parquet write error: {}", e);
+            process::exit(1);
+        });
 }
 
 #[tokio::main]
@@ -337,7 +327,8 @@ async fn main() {
 
             match format {
                 OutputFormat::Json => print_json(&listings),
-                OutputFormat::Text => print_listings(&listings),
+                OutputFormat::Csv => print_csv(&listings),
+                OutputFormat::Parquet => print_parquet(&listings),
             }
         }
 
@@ -352,7 +343,8 @@ async fn main() {
 
             match format {
                 OutputFormat::Json => print_json(&sitting),
-                OutputFormat::Text => println!("{}", sitting),
+                OutputFormat::Csv => print_csv(&sitting),
+                OutputFormat::Parquet => print_parquet(&sitting),
             }
         }
 
@@ -375,7 +367,8 @@ async fn main() {
 
             match format {
                 OutputFormat::Json => print_json(&members),
-                OutputFormat::Text => print_members(&members),
+                OutputFormat::Csv => print_csv(&members),
+                OutputFormat::Parquet => print_parquet(&members),
             }
         }
 
@@ -390,7 +383,8 @@ async fn main() {
 
             match format {
                 OutputFormat::Json => print_json(&members),
-                OutputFormat::Text => print_members(&members),
+                OutputFormat::Csv => print_csv(&members),
+                OutputFormat::Parquet => print_parquet(&members),
             }
         }
 
@@ -410,7 +404,8 @@ async fn main() {
 
             match format {
                 OutputFormat::Json => print_json(&profile),
-                OutputFormat::Text => print_profile(&profile),
+                OutputFormat::Csv => print_csv(&profile),
+                OutputFormat::Parquet => print_parquet(&profile),
             }
         }
     }

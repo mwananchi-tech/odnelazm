@@ -64,21 +64,6 @@ pub struct HansardListing {
     pub source: DataSource,
 }
 
-impl Display for HansardListing {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {} — {}", self.house, self.date, self.title)?;
-        if let Some(session_type) = &self.session_type {
-            write!(f, " ({})", session_type)?;
-        }
-        match (self.start_time, self.end_time) {
-            (Some(start), Some(end)) => write!(f, "\n   Time: {} – {}", start, end)?,
-            (Some(start), None) => write!(f, "\n   Start: {}", start)?,
-            _ => {}
-        }
-        write!(f, "\n   {}", self.url)
-    }
-}
-
 impl From<crate::archive::types::HansardListing> for HansardListing {
     fn from(l: crate::archive::types::HansardListing) -> Self {
         Self {
@@ -184,48 +169,6 @@ impl HansardSitting {
     }
 }
 
-impl Display for HansardSitting {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "┌─ {} ─ {} ─ {}",
-            self.house, self.date, self.session_type
-        )?;
-        writeln!(f, "│  Source: {}", self.source)?;
-        writeln!(f, "│  URL:    {}", self.url)?;
-        if let Some(dow) = &self.day_of_week {
-            writeln!(f, "│  Day:    {}", dow)?;
-        }
-        match (self.start_time, self.end_time) {
-            (Some(start), Some(end)) => writeln!(f, "│  Time:   {} – {}", start, end)?,
-            (Some(start), None) => writeln!(f, "│  Time:   {}", start)?,
-            _ => {}
-        }
-        if let Some(parl) = &self.parliament_number {
-            writeln!(
-                f,
-                "│  Parliament: {} · Session: {} ({})",
-                parl,
-                self.session_number.as_deref().unwrap_or(""),
-                self.session_type
-            )?;
-        }
-        if let Some(chair) = &self.speaker_in_chair {
-            writeln!(f, "│  Chair: {}", chair)?;
-        }
-        if let Some(summary) = &self.summary {
-            let preview: String = summary.chars().take(120).collect();
-            writeln!(f, "│  Summary: {}…", preview)?;
-        }
-        writeln!(f, "└─ {} section(s)", self.sections.len())?;
-        writeln!(f)?;
-        for (i, section) in self.sections.iter().enumerate() {
-            writeln!(f, "{:>2}. {}", i + 1, section)?;
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HansardSection {
     pub section_type: String,
@@ -269,19 +212,6 @@ impl From<crate::current::types::HansardSection> for HansardSection {
     }
 }
 
-impl Display for HansardSection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "── {}", self.section_type)?;
-        for contrib in &self.contributions {
-            write!(f, "{}", contrib)?;
-        }
-        for subsection in &self.subsections {
-            write!(f, "{}", subsection)?;
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HansardSubsection {
     pub title: String,
@@ -298,16 +228,6 @@ impl From<crate::current::types::HansardSubsection> for HansardSubsection {
                 .map(Contribution::from)
                 .collect(),
         }
-    }
-}
-
-impl Display for HansardSubsection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "  ── {}", self.title)?;
-        for contrib in &self.contributions {
-            write!(f, "{}", contrib)?;
-        }
-        Ok(())
     }
 }
 
@@ -341,21 +261,5 @@ impl From<crate::current::types::Contribution> for Contribution {
             content: c.content,
             procedural_notes: c.procedural_notes,
         }
-    }
-}
-
-impl Display for Contribution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "  ▸ {}", self.speaker_name)?;
-        if let Some(role) = &self.speaker_role {
-            write!(f, " ({})", role)?;
-        }
-        writeln!(f)?;
-        let preview: String = self.content.chars().take(120).collect();
-        writeln!(f, "    {}", preview)?;
-        for note in &self.procedural_notes {
-            writeln!(f, "    [{}]", note)?;
-        }
-        Ok(())
     }
 }
