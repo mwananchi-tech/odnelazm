@@ -1189,7 +1189,7 @@ mod tests {
         let has_contributions = sitting.sections.iter().any(|s| !s.contributions.is_empty());
         assert!(has_contributions, "Should have at least one contribution");
 
-        println!("Sitting: {}", sitting);
+        println!("Sitting: {:#?}", sitting);
     }
 
     #[test]
@@ -1449,7 +1449,7 @@ mod tests {
             "Should have voting records"
         );
 
-        println!("{}", profile);
+        println!("{:#?}", profile);
     }
 
     #[test]
@@ -1490,7 +1490,7 @@ mod tests {
             );
         }
         println!("Parsed {} activity items", items.len());
-        println!("First: {}", items[0]);
+        println!("First: {:#?}", items[0]);
     }
 
     #[test]
@@ -1525,7 +1525,7 @@ mod tests {
             !first.status.starts_with("Status:"),
             "Status prefix should be stripped"
         );
-        println!("First bill: {}", first);
+        println!("First bill: {:#?}", first);
     }
 
     #[test]
@@ -1559,7 +1559,7 @@ mod tests {
             assert!(vote.url.is_some(), "Should have a URL");
         }
         println!("Parsed {} vote records", votes.len());
-        println!("First vote: {}", votes[0]);
+        println!("First vote: {:#?}", votes[0]);
     }
 
     #[test]
