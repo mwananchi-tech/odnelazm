@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/odnelazm", "crates/odnelazm-cli", "crates/odnelazm-mcp"]
+members = ["crates/odnelazm", "crates/odnelazm-cli", "crates/odnelazm-mcp", "crates/odnelazm-ingest"]
 resolver = "2"
 
 
