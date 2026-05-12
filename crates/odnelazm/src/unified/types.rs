@@ -30,8 +30,7 @@ pub struct SittingListOptions {
 pub use crate::current::types::{Bill, Member, MemberProfile, ParliamentaryActivity, VoteRecord};
 pub use crate::types::House;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataSource {
     Archive,
     Current,
@@ -49,6 +48,20 @@ impl Display for DataSource {
 impl Serialize for DataSource {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for DataSource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "archive" | "https://info.mzalendo.com" => Ok(DataSource::Archive),
+            "current" | "https://mzalendo.com" => Ok(DataSource::Current),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["archive", "current", "https://info.mzalendo.com", "https://mzalendo.com"],
+            )),
+        }
     }
 }
 
