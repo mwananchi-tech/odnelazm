@@ -6,13 +6,15 @@ use odnelazm::HansardSitting;
 
 use crate::{
     Result,
-    store::{BillMentionRecord, BillRecord, DataStore, SpeakerRecord},
+    store::{BillMentionRecord, BillRecord, DataStore, MemberRecord, SpeakerRecord},
 };
 
 const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0001_init.sql"),
     "\n",
     include_str!("../migrations/0002_bill_speakers.sql"),
+    "\n",
+    include_str!("../migrations/0004_members.sql"),
 );
 
 #[derive(Debug, Clone)]
@@ -179,6 +181,41 @@ impl DataStore for PostgresStore {
         .fetch_one(&self.pool)
         .await?;
         Ok(row.0)
+    }
+
+    async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid> {
+        let row: (Uuid,) = sqlx::query_as(
+            r#"
+            INSERT INTO members (id, name, url, house, parliament, role, constituency)
+            VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
+            ON CONFLICT (url) DO UPDATE SET
+                name         = EXCLUDED.name,
+                role         = COALESCE(EXCLUDED.role, members.role),
+                constituency = COALESCE(EXCLUDED.constituency, members.constituency)
+            RETURNING id
+            "#,
+        )
+        .bind(&member.name)
+        .bind(&member.url)
+        .bind(&member.house)
+        .bind(&member.parliament)
+        .bind(member.role.as_deref())
+        .bind(member.constituency.as_deref())
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.0)
+    }
+
+    async fn link_speakers_to_members(&self) -> Result<u64> {
+        let url_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_url()")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let name_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_name(0.45)")
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok((url_linked.0 + name_linked.0) as u64)
     }
 
     async fn link_speaker_to_bill_mention(

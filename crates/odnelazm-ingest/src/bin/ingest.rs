@@ -24,6 +24,10 @@ async fn main() {
         .and_then(|s| s.parse().ok())
         .unwrap_or(4);
 
+    let parliament = std::env::var("PARLIAMENT").unwrap_or_else(|_| "13th-parliament".to_string());
+
+    let skip_members = std::env::var("SKIP_MEMBERS").is_ok();
+
     log::info!("Connecting to database...");
     let store = PostgresStore::connect(&database_url)
         .await
@@ -45,6 +49,8 @@ async fn main() {
 
     let pipeline = IngestPipeline::new(scraper, store);
 
+    // ── Sittings ──────────────────────────────────────────────────────────────
+
     let stats = match (start_date, end_date) {
         (Some(start), Some(end)) => {
             log::info!("Ingesting range {start} – {end} (concurrency={concurrency})");
@@ -60,5 +66,18 @@ async fn main() {
         std::process::exit(1);
     });
 
-    log::info!("Done — {stats}");
+    log::info!("Sittings — {stats}");
+
+    // ── Members + speaker linkage ─────────────────────────────────────────────
+
+    if !skip_members {
+        let linked = pipeline
+            .import_members(&parliament)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!("Member import error: {e}");
+                std::process::exit(1);
+            });
+        log::info!("Members done — {linked} speaker→member links created");
+    }
 }

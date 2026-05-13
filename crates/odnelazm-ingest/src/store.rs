@@ -43,6 +43,18 @@ pub struct BillMentionRecord {
     pub speech_count: u32,
 }
 
+/// A canonical member of parliament from the member listing API.
+#[derive(Debug, Clone)]
+pub struct MemberRecord {
+    pub name: String,
+    /// Relative mzalendo profile URL, e.g. "/mps-performance/national-assembly/13th-parliament/slug/"
+    pub url: String,
+    pub house: String,
+    pub parliament: String,
+    pub role: Option<String>,
+    pub constituency: Option<String>,
+}
+
 /// Generic async datastore interface.
 ///
 /// Implement this trait to plug in any backend (PostgreSQL, SQLite, in-memory,
@@ -88,4 +100,11 @@ pub trait DataStore: Send + Sync {
         speaker_id: Uuid,
         speech_count: u32,
     ) -> Result<()>;
+
+    /// Upsert a member (on url). Returns the member's UUID.
+    async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
+
+    /// Wire speakers to members via URL match, then fuzzy name match.
+    /// Returns the number of new links created.
+    async fn link_speakers_to_members(&self) -> Result<u64>;
 }
