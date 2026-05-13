@@ -5,6 +5,7 @@ use regex::Regex;
 
 use odnelazm::HansardSitting;
 
+use crate::extract::speakers::is_noise_speaker;
 use crate::store::BillRecord;
 
 /// A member who spoke during a bill's debate segment.
@@ -42,6 +43,10 @@ static RE_READING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)be read a (First|Second|Third) Time").expect("invalid reading regex")
 });
 
+// Normalises "No.X" / "No.  X" → "No. X" inside bill names
+static RE_BILL_NO_SPACING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"No\.(\d)").expect("invalid bill no spacing regex"));
+
 fn stage_from_title(title: &str) -> Option<String> {
     let u = title.to_uppercase();
     if u.contains("FIRST READING") {
@@ -52,10 +57,21 @@ fn stage_from_title(title: &str) -> Option<String> {
         Some("Third Reading".into())
     } else if u.contains("COMMITTEE OF THE WHOLE HOUSE") || u.contains("IN THE COMMITTEE") {
         Some("Committee Stage".into())
-    } else if u.contains("CONSIDERATION OF REPORT") {
+    } else if u.contains("CONSIDERATION OF REPORT")
+        || u.contains("CONSIDERATION OF THE REPORT")
+        || u.contains("CONSIDERATION OF SENATE AMENDMENTS")
+        || u.contains("SENATE AMENDMENTS TO THE")
+    {
         Some("Report Stage".into())
     } else if u.contains("APPROVAL OF MEDIATED VERSION") {
         Some("Mediation Approval".into())
+    } else if u.contains("PRESIDENT'S RESERVATIONS")
+        || u.contains("AMENDMENTS RECOMMENDED BY H. E.")
+        || u.contains("PRESIDENTIAL MEMORANDA")
+    {
+        Some("Presidential Reservations".into())
+    } else if u.contains("REDUCTION OF PUBLICATION PERIOD") {
+        Some("Publication Period Reduction".into())
     } else {
         None
     }
@@ -72,22 +88,57 @@ fn stage_from_text(text: &str) -> Option<String> {
 }
 
 /// Stage prefixes that appear before the actual bill name in subsection titles.
+/// Ordered longest-first so more specific patterns are tried before generic ones.
 static STAGE_PREFIXES: &[&str] = &[
     "APPROVAL OF MEDIATED VERSION OF THE ",
+    "CONSIDERATION OF THE REPORT ON THE ",
+    "CONSIDERATION OF REPORT ON SENATE AMENDMENTS TO THE ",
+    "CONSIDERATION OF SENATE AMENDMENTS TO THE ",
+    "CONSIDERATION OF REPORT OF THE ",
     "CONSIDERATION OF REPORT ON THE ",
+    "CONSIDERATION OF THE PRESIDENT'S RESERVATIONS ON THE ",
+    "CONSIDERATION OF ",
+    "ADOPTION OF REPORT ON PETITION TO AMEND THE ",
+    "ADOPTION OF MEDIATION COMMITTEE REPORT ON THE ",
     "ADOPTION OF REPORT ON THE ",
+    "SENATE AMENDMENTS TO THE ",
+    "AMENDMENTS RECOMMENDED BY H. E. THE PRESIDENT TO THE ",
+    "PROCEDURE FOR DISPOSAL OF PRESIDENTIAL MEMORANDA ON THE ",
+    "REDUCTION OF PUBLICATION PERIOD OF THE ",
     "SECOND READING OF THE ",
     "THIRD READING OF THE ",
     "FIRST READING OF THE ",
+    "ADJOURNMENT OF DEBATE ON THE ",
+];
+
+/// Substrings that identify non-bill titles masquerading as bills.
+static EXCLUSION_PATTERNS: &[&str] = &[
+    "NG-CDF",
+    "STATUTORY PROVISION",
+    "CONSTITUENCY",
+    "BIENNIAL REPORT",
+    "MESSAGE FROM THE NATIONAL ASSEMBLY",
+    "APPOINTMENT OF MEMBERS TO MEDIATION COMMITTEE",
+    "ADJOURNMENT OF DEBATE",
 ];
 
 /// Return the canonical bill name if the title describes a bill, or None.
 fn bill_name_from_title(title: &str) -> Option<String> {
     let upper = title.trim().to_uppercase();
 
-    // Must end with BILL or ACT (common Kenyan parliamentary naming)
+    // Must end with BILL or ACT
     if !upper.ends_with("BILL") && !upper.ends_with(" ACT") {
         return None;
+    }
+
+    // Reject table-header and non-legislative titles
+    if upper.starts_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    }
+    for pattern in EXCLUSION_PATTERNS {
+        if upper.contains(pattern) {
+            return None;
+        }
     }
 
     // Strip any known stage prefix
@@ -99,7 +150,25 @@ fn bill_name_from_title(title: &str) -> Option<String> {
     // Strip leading "THE "
     let stripped = stripped.strip_prefix("THE ").unwrap_or(stripped);
 
-    Some(title_case(stripped))
+    let name = title_case(stripped);
+
+    // Reject if the name doesn't start with a letter (e.g. bare "(Amendment) Bill")
+    if !name.starts_with(|c: char| c.is_alphabetic()) {
+        return None;
+    }
+
+    // Reject suspiciously short names
+    if name.len() < 8 {
+        return None;
+    }
+
+    // Normalise spacing around bill numbers: "No.2" → "No. 2"
+    let name = RE_BILL_NO_SPACING.replace_all(&name, "No. $1").to_string();
+
+    // Normalise possessives: "Judges'" → "Judges"
+    let name = name.replace("s' ", "s ").replace("'s ", "s ");
+
+    Some(name)
 }
 
 fn title_case(s: &str) -> String {
@@ -136,6 +205,9 @@ fn tally_contributors<'a>(
 ) -> Vec<BillContributor> {
     let mut counts: HashMap<(String, Option<String>), u32> = HashMap::new();
     for c in contribs {
+        if is_noise_speaker(&c.speaker_name) {
+            continue;
+        }
         *counts
             .entry((c.speaker_name.clone(), c.speaker_url.clone()))
             .or_default() += 1;

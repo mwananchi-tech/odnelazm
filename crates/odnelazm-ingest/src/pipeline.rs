@@ -6,7 +6,7 @@ use crate::{
     Result,
     embed::{Embedder, sitting_text},
     extract::{extract_bills, extract_speakers},
-    store::{BillMentionRecord, DataStore},
+    store::{BillMentionRecord, DataStore, MemberRecord},
 };
 
 #[derive(Debug, Default)]
@@ -252,5 +252,40 @@ impl<S: DataStore> IngestPipeline<S> {
         }
 
         Ok(total)
+    }
+
+    /// Fetch all members for a parliament session, store them, then link them
+    /// to existing speaker rows via URL match and fuzzy name match.
+    /// Returns the number of speaker→member links created.
+    pub async fn import_members(&self, parliament: &str) -> Result<u64> {
+        let members = self.scraper.list_all_members_all_houses(parliament).await?;
+        log::info!("Importing {} members for {parliament}...", members.len());
+
+        for member in &members {
+            self.store
+                .upsert_member(&MemberRecord {
+                    name: member.name.clone(),
+                    url: normalise_url(&member.url),
+                    house: member.house.to_string(),
+                    parliament: parliament.to_string(),
+                    role: member.role.clone(),
+                    constituency: member.constituency.clone(),
+                })
+                .await?;
+        }
+
+        log::info!("Members stored — running speaker linkage...");
+        let linked = self.store.link_speakers_to_members().await?;
+        log::info!("{linked} speaker rows linked to members");
+        Ok(linked)
+    }
+}
+
+fn normalise_url(url: &str) -> String {
+    let u = url.trim();
+    if u.ends_with('/') {
+        u.to_string()
+    } else {
+        format!("{u}/")
     }
 }

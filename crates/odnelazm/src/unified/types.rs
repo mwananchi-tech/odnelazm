@@ -59,7 +59,12 @@ impl<'de> serde::Deserialize<'de> for DataSource {
             "current" | "https://mzalendo.com" => Ok(DataSource::Current),
             other => Err(serde::de::Error::unknown_variant(
                 other,
-                &["archive", "current", "https://info.mzalendo.com", "https://mzalendo.com"],
+                &[
+                    "archive",
+                    "current",
+                    "https://info.mzalendo.com",
+                    "https://mzalendo.com",
+                ],
             )),
         }
     }
