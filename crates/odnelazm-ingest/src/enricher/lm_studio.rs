@@ -74,12 +74,7 @@ impl LmStudioSummarizer {
         // Always use the last item with type "message".
         resp.output
             .into_iter()
-            .filter(|o| o.r#type == "message")
-            .next_back()
-            .or_else(|| {
-                // Fallback: any non-empty output item
-                None
-            })
+            .rfind(|o| o.r#type == "message")
             .map(|o| o.content.trim().to_string())
             .ok_or_else(|| IngestError::Embed("LLM returned no message output".into()))
     }
