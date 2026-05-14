@@ -2,11 +2,15 @@ use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use chrono::NaiveDate;
 use odnelazm::HansardSitting;
 
 use crate::{
     Result,
-    store::{BillMentionRecord, BillRecord, DataStore, MemberRecord, SpeakerRecord},
+    store::{
+        BillMentionRecord, BillRecord, DataStore, MemberEnrichment, MemberRecord,
+        PendingBillSummary, PendingTopicSummary, SpeakerRecord, TopicRecord,
+    },
 };
 
 const MIGRATIONS: &str = concat!(
@@ -15,6 +19,16 @@ const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0002_bill_speakers.sql"),
     "\n",
     include_str!("../migrations/0004_members.sql"),
+    "\n",
+    include_str!("../migrations/0005_topics.sql"),
+    "\n",
+    include_str!("../migrations/0006_contribution_text.sql"),
+    "\n",
+    include_str!("../migrations/0007_member_enrichment.sql"),
+    "\n",
+    include_str!("../migrations/0008_fix_bill_mentions_unique.sql"),
+    "\n",
+    include_str!("../migrations/0009_bill_sponsor_id.sql"),
 );
 
 #[derive(Debug, Clone)]
@@ -183,6 +197,204 @@ impl DataStore for PostgresStore {
         Ok(row.0)
     }
 
+    async fn upsert_topic(&self, topic: &TopicRecord) -> Result<Uuid> {
+        let row: (Uuid,) = sqlx::query_as(
+            r#"
+            INSERT INTO topics (id, sitting_id, section_type, title, speech_count)
+            VALUES (uuid_generate_v4(), $1, $2, $3, $4)
+            ON CONFLICT (sitting_id, section_type, title) DO UPDATE SET
+                speech_count = EXCLUDED.speech_count
+            RETURNING id
+            "#,
+        )
+        .bind(topic.sitting_id)
+        .bind(&topic.section_type)
+        .bind(&topic.title)
+        .bind(topic.speech_count as i32)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.0)
+    }
+
+    async fn link_speaker_to_topic(
+        &self,
+        topic_id: Uuid,
+        speaker_id: Uuid,
+        speech_count: u32,
+        contributions_text: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO topic_speakers (topic_id, speaker_id, speech_count, contributions_text)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (topic_id, speaker_id) DO UPDATE SET
+                speech_count       = EXCLUDED.speech_count,
+                contributions_text = EXCLUDED.contributions_text
+            "#,
+        )
+        .bind(topic_id)
+        .bind(speaker_id)
+        .bind(speech_count as i32)
+        .bind(contributions_text)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn pending_bill_summaries(&self, limit: u32) -> Result<Vec<PendingBillSummary>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                Uuid,
+                Option<String>,
+                String,
+                NaiveDate,
+                String,
+                Option<String>,
+                String,
+            ),
+        >(
+            r#"
+            SELECT bms.bill_mention_id, bms.speaker_id,
+                   m.name, b.name, bm.date, bm.house, bm.stage,
+                   bms.contributions_text
+            FROM bill_mention_speakers bms
+            JOIN bill_mentions bm ON bm.id = bms.bill_mention_id
+            JOIN bills b          ON b.id  = bm.bill_id
+            JOIN speakers sp      ON sp.id = bms.speaker_id
+            LEFT JOIN members m   ON m.id  = sp.member_id
+            WHERE bms.contributions_text IS NOT NULL
+              AND bms.summary IS NULL
+            LIMIT $1
+            "#,
+        )
+        .bind(limit as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(
+                |(
+                    bill_mention_id,
+                    speaker_id,
+                    member_name,
+                    bill_name,
+                    date,
+                    house,
+                    stage,
+                    contributions_text,
+                )| {
+                    PendingBillSummary {
+                        bill_mention_id,
+                        speaker_id,
+                        member_name,
+                        bill_name,
+                        date,
+                        house,
+                        stage,
+                        contributions_text,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    async fn store_bill_mention_summary(
+        &self,
+        bill_mention_id: Uuid,
+        speaker_id: Uuid,
+        summary: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE bill_mention_speakers SET summary = $1 WHERE bill_mention_id = $2 AND speaker_id = $3",
+        )
+        .bind(summary)
+        .bind(bill_mention_id)
+        .bind(speaker_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn pending_topic_summaries(&self, limit: u32) -> Result<Vec<PendingTopicSummary>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                Uuid,
+                Option<String>,
+                String,
+                String,
+                NaiveDate,
+                String,
+                String,
+            ),
+        >(
+            r#"
+            SELECT ts.topic_id, ts.speaker_id,
+                   m.name, t.title, t.section_type, s.date, s.house,
+                   ts.contributions_text
+            FROM topic_speakers ts
+            JOIN topics t         ON t.id  = ts.topic_id
+            JOIN sittings s       ON s.id  = t.sitting_id
+            JOIN speakers sp      ON sp.id = ts.speaker_id
+            LEFT JOIN members m   ON m.id  = sp.member_id
+            WHERE ts.contributions_text IS NOT NULL
+              AND ts.summary IS NULL
+            LIMIT $1
+            "#,
+        )
+        .bind(limit as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(
+                |(
+                    topic_id,
+                    speaker_id,
+                    member_name,
+                    topic_title,
+                    section_type,
+                    date,
+                    house,
+                    contributions_text,
+                )| {
+                    PendingTopicSummary {
+                        topic_id,
+                        speaker_id,
+                        member_name,
+                        topic_title,
+                        section_type,
+                        date,
+                        house,
+                        contributions_text,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    async fn store_topic_summary(
+        &self,
+        topic_id: Uuid,
+        speaker_id: Uuid,
+        summary: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE topic_speakers SET summary = $1 WHERE topic_id = $2 AND speaker_id = $3",
+        )
+        .bind(summary)
+        .bind(topic_id)
+        .bind(speaker_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid> {
         let row: (Uuid,) = sqlx::query_as(
             r#"
@@ -206,6 +418,44 @@ impl DataStore for PostgresStore {
         Ok(row.0)
     }
 
+    async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>> {
+        let rows: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, url FROM members ORDER BY name")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows)
+    }
+
+    async fn enrich_member(&self, member_id: Uuid, e: &MemberEnrichment) -> Result<()> {
+        let positions = serde_json::to_value(&e.positions)?;
+        let committees = serde_json::to_value(&e.committees)?;
+        sqlx::query(
+            r#"
+            UPDATE members SET
+                photo_url          = COALESCE($1, photo_url),
+                biography          = COALESCE($2, biography),
+                party              = COALESCE($3, party),
+                positions          = COALESCE($4, positions),
+                committees         = COALESCE($5, committees),
+                speeches_last_year = COALESCE($6, speeches_last_year),
+                speeches_total     = COALESCE($7, speeches_total),
+                bills_total        = COALESCE($8, bills_total)
+            WHERE id = $9
+            "#,
+        )
+        .bind(e.photo_url.as_deref())
+        .bind(e.biography.as_deref())
+        .bind(e.party.as_deref())
+        .bind(&positions)
+        .bind(&committees)
+        .bind(e.speeches_last_year.map(|v| v as i32))
+        .bind(e.speeches_total.map(|v| v as i32))
+        .bind(e.bills_total.map(|v| v as i32))
+        .bind(member_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn link_speakers_to_members(&self) -> Result<u64> {
         let url_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_url()")
             .fetch_one(&self.pool)
@@ -223,18 +473,21 @@ impl DataStore for PostgresStore {
         bill_mention_id: Uuid,
         speaker_id: Uuid,
         speech_count: u32,
+        contributions_text: &str,
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO bill_mention_speakers (bill_mention_id, speaker_id, speech_count)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (bill_mention_id, speaker_id) DO UPDATE
-                SET speech_count = bill_mention_speakers.speech_count + EXCLUDED.speech_count
+            INSERT INTO bill_mention_speakers (bill_mention_id, speaker_id, speech_count, contributions_text)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (bill_mention_id, speaker_id) DO UPDATE SET
+                speech_count       = EXCLUDED.speech_count,
+                contributions_text = EXCLUDED.contributions_text
             "#,
         )
         .bind(bill_mention_id)
         .bind(speaker_id)
         .bind(speech_count as i32)
+        .bind(contributions_text)
         .execute(&self.pool)
         .await?;
         Ok(())
