@@ -167,6 +167,7 @@ impl EnrichTarget {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_ingest(
     store: PostgresStore,
     start_date: Option<NaiveDate>,
