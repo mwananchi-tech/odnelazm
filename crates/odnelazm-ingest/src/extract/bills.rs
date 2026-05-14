@@ -14,6 +14,8 @@ pub struct BillContributor {
     pub name: String,
     pub url: Option<String>,
     pub speech_count: u32,
+    /// Concatenated text of all this speaker's contributions in the segment.
+    pub contributions_text: String,
 }
 
 /// An extracted bill mention ready to be handed to the pipeline.
@@ -203,21 +205,25 @@ fn extract_bill_number(text: &str) -> Option<String> {
 fn tally_contributors<'a>(
     contribs: impl Iterator<Item = &'a odnelazm::Contribution>,
 ) -> Vec<BillContributor> {
-    let mut counts: HashMap<(String, Option<String>), u32> = HashMap::new();
+    type Key = (String, Option<String>);
+    type Val<'b> = (u32, Vec<&'b str>);
+    let mut map: HashMap<Key, Val<'a>> = HashMap::new();
     for c in contribs {
         if is_noise_speaker(&c.speaker_name) {
             continue;
         }
-        *counts
+        let entry = map
             .entry((c.speaker_name.clone(), c.speaker_url.clone()))
-            .or_default() += 1;
+            .or_default();
+        entry.0 += 1;
+        entry.1.push(c.content.as_str());
     }
-    counts
-        .into_iter()
-        .map(|((name, url), speech_count)| BillContributor {
+    map.into_iter()
+        .map(|((name, url), (speech_count, texts))| BillContributor {
             name,
             url,
             speech_count,
+            contributions_text: texts.join("\n\n"),
         })
         .collect()
 }

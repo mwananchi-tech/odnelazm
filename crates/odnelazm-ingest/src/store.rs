@@ -6,48 +6,41 @@ use odnelazm::HansardSitting;
 
 use crate::Result;
 
-/// A speaker extracted from a sitting's contributions.
 #[derive(Debug, Clone)]
 pub struct SpeakerRecord {
-    /// Display name as it appears in the transcript.
     pub name: String,
-    /// Relative mzalendo profile URL, when present in the contribution.
     pub url: Option<String>,
 }
 
-/// A bill identified by the extractor.
 #[derive(Debug, Clone)]
 pub struct BillRecord {
-    /// Canonical, title-cased bill name used as the identity key.
-    /// e.g. "Income Tax (Amendment) Bill"
     pub name: String,
-    /// Formal bill number when extractable from contribution text.
-    /// e.g. "National Assembly Bill No.20 of 2026"
     pub bill_number: Option<String>,
     pub year: Option<i32>,
-    /// Name of the member who moved the bill (first mover in the debate).
     pub sponsor: Option<String>,
 }
 
-/// One appearance of a bill in one sitting at a particular legislative stage.
 #[derive(Debug, Clone)]
 pub struct BillMentionRecord {
     pub sitting_id: Uuid,
     pub house: String,
     pub date: NaiveDate,
-    /// Legislative stage label, e.g. "Second Reading", "Committee Stage".
     pub stage: Option<String>,
-    /// The section or subsection title this mention was found under.
     pub section_title: String,
-    /// Number of contributions in this bill's debate segment.
     pub speech_count: u32,
 }
 
-/// A canonical member of parliament from the member listing API.
+#[derive(Debug, Clone)]
+pub struct TopicRecord {
+    pub sitting_id: Uuid,
+    pub section_type: String,
+    pub title: String,
+    pub speech_count: u32,
+}
+
 #[derive(Debug, Clone)]
 pub struct MemberRecord {
     pub name: String,
-    /// Relative mzalendo profile URL, e.g. "/mps-performance/national-assembly/13th-parliament/slug/"
     pub url: String,
     pub house: String,
     pub parliament: String,
@@ -55,30 +48,54 @@ pub struct MemberRecord {
     pub constituency: Option<String>,
 }
 
-/// Generic async datastore interface.
-///
-/// Implement this trait to plug in any backend (PostgreSQL, SQLite, in-memory,
-/// etc.). Every method is idempotent — calling it multiple times with the same
-/// data must not create duplicates.
+/// Enrichment data fetched from a member's individual profile page.
+#[derive(Debug, Clone)]
+pub struct MemberEnrichment {
+    pub photo_url: Option<String>,
+    pub biography: Option<String>,
+    pub party: Option<String>,
+    pub positions: Vec<String>,
+    pub committees: Vec<String>,
+    pub speeches_last_year: Option<u32>,
+    pub speeches_total: Option<u32>,
+    pub bills_total: Option<u32>,
+}
+
+/// A (bill_mention, speaker) pair that has contribution text but no summary yet.
+#[derive(Debug)]
+pub struct PendingBillSummary {
+    pub bill_mention_id: Uuid,
+    pub speaker_id: Uuid,
+    pub member_name: Option<String>,
+    pub bill_name: String,
+    pub date: NaiveDate,
+    pub house: String,
+    pub stage: Option<String>,
+    pub contributions_text: String,
+}
+
+/// A (topic, speaker) pair that has contribution text but no summary yet.
+#[derive(Debug)]
+pub struct PendingTopicSummary {
+    pub topic_id: Uuid,
+    pub speaker_id: Uuid,
+    pub member_name: Option<String>,
+    pub topic_title: String,
+    pub section_type: String,
+    pub date: NaiveDate,
+    pub house: String,
+    pub contributions_text: String,
+}
+
 #[async_trait]
 pub trait DataStore: Send + Sync {
-    /// Apply schema migrations. Safe to call on every startup.
     async fn migrate(&self) -> Result<()>;
 
-    /// Persist a sitting (upsert on URL). Returns the sitting's UUID.
     async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid>;
-
-    /// Return the URLs of all sittings already in the store (used to skip
-    /// re-ingestion on subsequent pipeline runs).
     async fn list_ingested_urls(&self) -> Result<Vec<String>>;
-
-    /// Attach a pre-computed embedding vector to a sitting.
     async fn store_sitting_embedding(&self, sitting_id: Uuid, embedding: Vec<f32>) -> Result<()>;
 
-    /// Upsert a speaker (on name + url). Returns the speaker's UUID.
     async fn upsert_speaker(&self, speaker: &SpeakerRecord) -> Result<Uuid>;
-
-    /// Record that a speaker was active in a sitting, with a speech count.
     async fn link_speaker_to_sitting(
         &self,
         speaker_id: Uuid,
@@ -86,25 +103,58 @@ pub trait DataStore: Send + Sync {
         speech_count: u32,
     ) -> Result<()>;
 
-    /// Upsert a bill (on name). Returns the bill's UUID.
     async fn upsert_bill(&self, bill: &BillRecord) -> Result<Uuid>;
-
-    /// Record one appearance of a bill in a sitting. Returns the bill_mention UUID.
     async fn upsert_bill_mention(&self, bill_id: Uuid, mention: &BillMentionRecord)
     -> Result<Uuid>;
-
-    /// Record that a speaker contributed to a specific bill mention.
     async fn link_speaker_to_bill_mention(
         &self,
         bill_mention_id: Uuid,
         speaker_id: Uuid,
         speech_count: u32,
+        contributions_text: &str,
     ) -> Result<()>;
 
-    /// Upsert a member (on url). Returns the member's UUID.
-    async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
+    async fn upsert_topic(&self, topic: &TopicRecord) -> Result<Uuid>;
+    async fn link_speaker_to_topic(
+        &self,
+        topic_id: Uuid,
+        speaker_id: Uuid,
+        speech_count: u32,
+        contributions_text: &str,
+    ) -> Result<()>;
 
-    /// Wire speakers to members via URL match, then fuzzy name match.
-    /// Returns the number of new links created.
+    async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
     async fn link_speakers_to_members(&self) -> Result<u64>;
+
+    /// Return all (id, url) pairs for stored members — used by the enrichment pass.
+    async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>>;
+
+    /// Enrich an existing member row with profile-page data.
+    async fn enrich_member(&self, member_id: Uuid, enrichment: &MemberEnrichment) -> Result<()>;
+
+    // ── Enrichment ────────────────────────────────────────────────────────────
+
+    /// Return up to `limit` (bill_mention, speaker) pairs that have
+    /// contributions_text but no summary yet.
+    async fn pending_bill_summaries(&self, limit: u32) -> Result<Vec<PendingBillSummary>>;
+
+    /// Persist an AI-generated summary for a bill mention speaker row.
+    async fn store_bill_mention_summary(
+        &self,
+        bill_mention_id: Uuid,
+        speaker_id: Uuid,
+        summary: &str,
+    ) -> Result<()>;
+
+    /// Return up to `limit` (topic, speaker) pairs that have
+    /// contributions_text but no summary yet.
+    async fn pending_topic_summaries(&self, limit: u32) -> Result<Vec<PendingTopicSummary>>;
+
+    /// Persist an AI-generated summary for a topic speaker row.
+    async fn store_topic_summary(
+        &self,
+        topic_id: Uuid,
+        speaker_id: Uuid,
+        summary: &str,
+    ) -> Result<()>;
 }
