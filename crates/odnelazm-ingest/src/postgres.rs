@@ -478,7 +478,41 @@ impl DataStore for PostgresStore {
             .fetch_one(&self.pool)
             .await?;
 
-        Ok((url_linked.0 + name_linked.0) as u64)
+        // Link NA presiding officers by role. "Hon. Speaker" / "Hon Speaker" are recorded
+        // without a URL and won't fuzzy-match because "Speaker" is too generic. We resolve
+        // them via the role column instead, scoped to NA sittings only.
+        let role_linked = sqlx::query_scalar::<_, i64>(
+            r#"
+            WITH updated AS (
+                UPDATE speakers sp
+                SET    member_id = m.id
+                FROM   members m
+                WHERE  m.parliament = '13th-parliament'
+                  AND  m.house      = 'National Assembly'
+                  AND  sp.member_id IS NULL
+                  AND  (
+                         (m.role = 'Speaker'
+                          AND sp.name ~* '^hon\.?\s+speaker$')
+                         OR
+                         (m.role ILIKE '%deputy speaker%'
+                          AND sp.name ~* '^(the\s+)?deputy\s+speaker$')
+                       )
+                  AND  EXISTS (
+                         SELECT 1
+                         FROM   sitting_speakers ss
+                         JOIN   sittings s ON s.id = ss.sitting_id
+                         WHERE  ss.speaker_id = sp.id
+                           AND  s.house = 'National Assembly'
+                       )
+                RETURNING 1
+            )
+            SELECT count(*)::BIGINT FROM updated
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok((url_linked.0 + name_linked.0 + role_linked) as u64)
     }
 
     async fn link_speaker_to_bill_mention(
