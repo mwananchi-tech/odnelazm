@@ -87,6 +87,55 @@ pub struct PendingTopicSummary {
     pub contributions_text: String,
 }
 
+/// A bill_mention row needing a node-level summary.
+/// Carries the full sitting transcript as JSON for context.
+#[derive(Debug)]
+pub struct PendingBillNodeSummary {
+    pub bill_mention_id: Uuid,
+    pub bill_name: String,
+    pub bill_number: Option<String>,
+    pub stage: Option<String>,
+    pub section_title: String,
+    pub date: NaiveDate,
+    pub house: String,
+    pub session_type: String,
+    pub sitting_raw_json: serde_json::Value,
+}
+
+/// One sitting's context for assembling a bill's full journey summary.
+#[derive(Debug, serde::Deserialize)]
+pub struct BillMentionContext {
+    pub date: NaiveDate,
+    pub house: String,
+    pub stage: Option<String>,
+    pub section_title: String,
+    pub summary: Option<String>,
+    pub speakers_text: Option<String>,
+}
+
+/// A bill row needing a full journey summary.
+#[derive(Debug)]
+pub struct PendingBillJourneySummary {
+    pub bill_id: Uuid,
+    pub bill_name: String,
+    pub bill_number: Option<String>,
+    pub year: Option<i32>,
+    pub sponsor: Option<String>,
+    pub mentions: Vec<BillMentionContext>,
+}
+
+/// A sitting row needing a rich AI-generated summary.
+#[derive(Debug)]
+pub struct PendingSittingSummary {
+    pub sitting_id: Uuid,
+    pub url: String,
+    pub date: NaiveDate,
+    pub house: String,
+    pub session_type: String,
+    pub existing_summary: Option<String>,
+    pub raw_json: serde_json::Value,
+}
+
 #[async_trait]
 pub trait DataStore: Send + Sync {
     async fn migrate(&self) -> Result<()>;
@@ -144,17 +193,45 @@ pub trait DataStore: Send + Sync {
         bill_mention_id: Uuid,
         speaker_id: Uuid,
         summary: &str,
+        model: &str,
     ) -> Result<()>;
 
-    /// Return up to `limit` (topic, speaker) pairs that have
-    /// contributions_text but no summary yet.
     async fn pending_topic_summaries(&self, limit: u32) -> Result<Vec<PendingTopicSummary>>;
 
-    /// Persist an AI-generated summary for a topic speaker row.
     async fn store_topic_summary(
         &self,
         topic_id: Uuid,
         speaker_id: Uuid,
         summary: &str,
+        model: &str,
+    ) -> Result<()>;
+
+    // ── Bill node / journey / sitting enrichment ──────────────────────────────
+
+    async fn pending_bill_node_summaries(&self, limit: u32) -> Result<Vec<PendingBillNodeSummary>>;
+    async fn store_bill_node_summary(
+        &self,
+        bill_mention_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()>;
+
+    async fn pending_bill_journey_summaries(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<PendingBillJourneySummary>>;
+    async fn store_bill_journey_summary(
+        &self,
+        bill_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()>;
+
+    async fn pending_sitting_summaries(&self, limit: u32) -> Result<Vec<PendingSittingSummary>>;
+    async fn store_sitting_generated_summary(
+        &self,
+        sitting_id: Uuid,
+        summary: &str,
+        model: &str,
     ) -> Result<()>;
 }

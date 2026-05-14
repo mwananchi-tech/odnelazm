@@ -333,7 +333,12 @@ impl<S: DataStore> IngestPipeline<S> {
             match summarizer.summarize(&ctx, &p.contributions_text).await {
                 Ok(summary) => {
                     self.store
-                        .store_bill_mention_summary(p.bill_mention_id, p.speaker_id, &summary)
+                        .store_bill_mention_summary(
+                            p.bill_mention_id,
+                            p.speaker_id,
+                            &summary,
+                            "unknown",
+                        )
                         .await?;
                     bill_count += 1;
                 }
@@ -366,7 +371,7 @@ impl<S: DataStore> IngestPipeline<S> {
             match summarizer.summarize(&ctx, &p.contributions_text).await {
                 Ok(summary) => {
                     self.store
-                        .store_topic_summary(p.topic_id, p.speaker_id, &summary)
+                        .store_topic_summary(p.topic_id, p.speaker_id, &summary, "unknown")
                         .await?;
                     topic_count += 1;
                 }
