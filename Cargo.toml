@@ -8,4 +8,4 @@ authors = ["c12i <hello@c12i.xyz>"]
 edition = "2024"
 repository = "https://github.com/mwananchi-tech/odnelazm"
 categories = ["parser-implementations", "command-line-utilities"]
-license = "MIT"
+license = "GPL-3.0-or-later"
