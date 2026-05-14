@@ -8,8 +8,9 @@ use odnelazm::HansardSitting;
 use crate::{
     Result,
     store::{
-        BillMentionRecord, BillRecord, DataStore, MemberEnrichment, MemberRecord,
-        PendingBillSummary, PendingTopicSummary, SpeakerRecord, TopicRecord,
+        BillMentionContext, BillMentionRecord, BillRecord, DataStore, MemberEnrichment,
+        MemberRecord, PendingBillJourneySummary, PendingBillNodeSummary, PendingBillSummary,
+        PendingSittingSummary, PendingTopicSummary, SpeakerRecord, TopicRecord,
     },
 };
 
@@ -29,6 +30,14 @@ const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0008_fix_bill_mentions_unique.sql"),
     "\n",
     include_str!("../migrations/0009_bill_sponsor_id.sql"),
+    "\n",
+    include_str!("../migrations/0010_bill_summary.sql"),
+    "\n",
+    include_str!("../migrations/0011_sitting_youtube.sql"),
+    "\n",
+    include_str!("../migrations/0012_sitting_generated_summary.sql"),
+    "\n",
+    include_str!("../migrations/0013_summary_model.sql"),
 );
 
 #[derive(Debug, Clone)]
@@ -306,11 +315,13 @@ impl DataStore for PostgresStore {
         bill_mention_id: Uuid,
         speaker_id: Uuid,
         summary: &str,
+        model: &str,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE bill_mention_speakers SET summary = $1 WHERE bill_mention_id = $2 AND speaker_id = $3",
+            "UPDATE bill_mention_speakers SET summary = $1, summary_model = $2 WHERE bill_mention_id = $3 AND speaker_id = $4",
         )
         .bind(summary)
+        .bind(model)
         .bind(bill_mention_id)
         .bind(speaker_id)
         .execute(&self.pool)
@@ -383,11 +394,13 @@ impl DataStore for PostgresStore {
         topic_id: Uuid,
         speaker_id: Uuid,
         summary: &str,
+        model: &str,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE topic_speakers SET summary = $1 WHERE topic_id = $2 AND speaker_id = $3",
+            "UPDATE topic_speakers SET summary = $1, summary_model = $2 WHERE topic_id = $3 AND speaker_id = $4",
         )
         .bind(summary)
+        .bind(model)
         .bind(topic_id)
         .bind(speaker_id)
         .execute(&self.pool)
@@ -465,7 +478,41 @@ impl DataStore for PostgresStore {
             .fetch_one(&self.pool)
             .await?;
 
-        Ok((url_linked.0 + name_linked.0) as u64)
+        // Link NA presiding officers by role. "Hon. Speaker" / "Hon Speaker" are recorded
+        // without a URL and won't fuzzy-match because "Speaker" is too generic. We resolve
+        // them via the role column instead, scoped to NA sittings only.
+        let role_linked = sqlx::query_scalar::<_, i64>(
+            r#"
+            WITH updated AS (
+                UPDATE speakers sp
+                SET    member_id = m.id
+                FROM   members m
+                WHERE  m.parliament = '13th-parliament'
+                  AND  m.house      = 'National Assembly'
+                  AND  sp.member_id IS NULL
+                  AND  (
+                         (m.role = 'Speaker'
+                          AND sp.name ~* '^hon\.?\s+speaker$')
+                         OR
+                         (m.role ILIKE '%deputy speaker%'
+                          AND sp.name ~* '^(the\s+)?deputy\s+speaker$')
+                       )
+                  AND  EXISTS (
+                         SELECT 1
+                         FROM   sitting_speakers ss
+                         JOIN   sittings s ON s.id = ss.sitting_id
+                         WHERE  ss.speaker_id = sp.id
+                           AND  s.house = 'National Assembly'
+                       )
+                RETURNING 1
+            )
+            SELECT count(*)::BIGINT FROM updated
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok((url_linked.0 + name_linked.0 + role_linked) as u64)
     }
 
     async fn link_speaker_to_bill_mention(
@@ -490,6 +537,211 @@ impl DataStore for PostgresStore {
         .bind(contributions_text)
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    async fn pending_bill_node_summaries(&self, limit: u32) -> Result<Vec<PendingBillNodeSummary>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                Option<String>,
+                Option<String>,
+                String,
+                NaiveDate,
+                String,
+                String,
+                serde_json::Value,
+            ),
+        >(
+            r#"
+            SELECT bm.id, b.name, b.bill_number, bm.stage, bm.section_title,
+                   bm.date, bm.house, s.session_type, s.raw_json
+            FROM bill_mentions bm
+            JOIN bills b ON b.id = bm.bill_id
+            JOIN sittings s ON s.id = bm.sitting_id
+            WHERE bm.summary IS NULL AND bm.speech_count > 0
+            ORDER BY bm.date DESC
+            LIMIT $1
+            "#,
+        )
+        .bind(limit as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(
+                |(
+                    id,
+                    bill_name,
+                    bill_number,
+                    stage,
+                    section_title,
+                    date,
+                    house,
+                    session_type,
+                    raw_json,
+                )| {
+                    PendingBillNodeSummary {
+                        bill_mention_id: id,
+                        bill_name,
+                        bill_number,
+                        stage,
+                        section_title,
+                        date,
+                        house,
+                        session_type,
+                        sitting_raw_json: raw_json,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    async fn store_bill_node_summary(
+        &self,
+        bill_mention_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()> {
+        sqlx::query("UPDATE bill_mentions SET summary = $1, summary_model = $2 WHERE id = $3")
+            .bind(summary)
+            .bind(model)
+            .bind(bill_mention_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn pending_bill_journey_summaries(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<PendingBillJourneySummary>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                Option<String>,
+                Option<i32>,
+                Option<String>,
+                serde_json::Value,
+            ),
+        >(
+            r#"
+            SELECT b.id, b.name, b.bill_number, b.year, b.sponsor,
+                   json_agg(
+                     json_build_object(
+                       'date',          bm.date,
+                       'house',         bm.house,
+                       'stage',         bm.stage,
+                       'section_title', bm.section_title,
+                       'summary',       bm.summary,
+                       'speakers_text', (
+                         SELECT string_agg(bms.contributions_text, E'\n\n')
+                         FROM bill_mention_speakers bms
+                         WHERE bms.bill_mention_id = bm.id
+                           AND bms.contributions_text IS NOT NULL
+                       )
+                     )
+                     ORDER BY bm.date
+                   ) AS mentions
+            FROM bills b
+            JOIN bill_mentions bm ON bm.bill_id = b.id
+            WHERE b.summary IS NULL
+            GROUP BY b.id
+            LIMIT $1
+            "#,
+        )
+        .bind(limit as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id, name, number, year, sponsor, mentions_json)| {
+                let mentions: Vec<BillMentionContext> =
+                    serde_json::from_value(mentions_json).ok()?;
+                Some(PendingBillJourneySummary {
+                    bill_id: id,
+                    bill_name: name,
+                    bill_number: number,
+                    year,
+                    sponsor,
+                    mentions,
+                })
+            })
+            .collect())
+    }
+
+    async fn store_bill_journey_summary(
+        &self,
+        bill_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()> {
+        sqlx::query("UPDATE bills SET summary = $1, summary_model = $2 WHERE id = $3")
+            .bind(summary)
+            .bind(model)
+            .bind(bill_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    async fn pending_sitting_summaries(&self, limit: u32) -> Result<Vec<PendingSittingSummary>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                NaiveDate,
+                String,
+                String,
+                Option<String>,
+                serde_json::Value,
+            ),
+        >(
+            r#"
+            SELECT id, url, date, house, session_type, summary AS existing_summary, raw_json
+            FROM sittings
+            WHERE generated_summary IS NULL
+            ORDER BY date DESC
+            LIMIT $1
+            "#,
+        )
+        .bind(limit as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(
+                |(id, url, date, house, session_type, existing_summary, raw_json)| {
+                    PendingSittingSummary {
+                        sitting_id: id,
+                        url,
+                        date,
+                        house,
+                        session_type,
+                        existing_summary,
+                        raw_json,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    async fn store_sitting_generated_summary(
+        &self,
+        sitting_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()> {
+        sqlx::query("UPDATE sittings SET generated_summary = $1, generated_summary_model = $2 WHERE id = $3")
+            .bind(summary).bind(model).bind(sitting_id).execute(&self.pool).await?;
         Ok(())
     }
 }
