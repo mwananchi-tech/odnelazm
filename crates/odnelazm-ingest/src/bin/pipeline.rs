@@ -11,7 +11,10 @@ use odnelazm_ingest::{
 use std::process;
 
 #[derive(Parser)]
-#[command(name = "odnelazm-pipeline", about = "odnelazm data pipeline — ingest and enrich hansard data")]
+#[command(
+    name = "odnelazm-pipeline",
+    about = "odnelazm data pipeline — ingest and enrich hansard data"
+)]
 struct Cli {
     #[arg(
         long,
@@ -132,7 +135,20 @@ async fn main() {
             skip_members,
             enrich_members,
             enrich_batch,
-        } => run_ingest(store, start_date, end_date, concurrency, &parliament, skip_sittings, skip_members, enrich_members, enrich_batch).await,
+        } => {
+            run_ingest(
+                store,
+                start_date,
+                end_date,
+                concurrency,
+                &parliament,
+                skip_sittings,
+                skip_members,
+                enrich_members,
+                enrich_batch,
+            )
+            .await
+        }
 
         Command::Enrich {
             target,
@@ -143,13 +159,26 @@ async fn main() {
             concurrency,
         } => {
             let llm = LmStudioSummarizer::new(&llm_url, &model, temperature);
-            log::info!("target={} batch={batch} concurrency={concurrency} model={model}", target.as_str());
+            log::info!(
+                "target={} batch={batch} concurrency={concurrency} model={model}",
+                target.as_str()
+            );
             match target {
-                EnrichTarget::BillMentions => run_bill_mentions(&store, &llm, batch, concurrency, &model).await,
-                EnrichTarget::BillJourneys => run_bill_journeys(&store, &llm, batch, concurrency, &model).await,
-                EnrichTarget::BillSpeakers => run_bill_speakers(&store, &llm, batch, concurrency, &model).await,
-                EnrichTarget::TopicSpeakers => run_topic_speakers(&store, &llm, batch, concurrency, &model).await,
-                EnrichTarget::Sittings => run_sittings(&store, &llm, batch, concurrency, &model).await,
+                EnrichTarget::BillMentions => {
+                    run_bill_mentions(&store, &llm, batch, concurrency, &model).await
+                }
+                EnrichTarget::BillJourneys => {
+                    run_bill_journeys(&store, &llm, batch, concurrency, &model).await
+                }
+                EnrichTarget::BillSpeakers => {
+                    run_bill_speakers(&store, &llm, batch, concurrency, &model).await
+                }
+                EnrichTarget::TopicSpeakers => {
+                    run_topic_speakers(&store, &llm, batch, concurrency, &model).await
+                }
+                EnrichTarget::Sittings => {
+                    run_sittings(&store, &llm, batch, concurrency, &model).await
+                }
             }
         }
     }
@@ -248,10 +277,13 @@ async fn run_bill_mentions(
 ) {
     let mut total = 0u64;
     loop {
-        let pending = store.pending_bill_node_summaries(batch).await.unwrap_or_else(|e| {
-            log::error!("{e}");
-            vec![]
-        });
+        let pending = store
+            .pending_bill_node_summaries(batch)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!("{e}");
+                vec![]
+            });
         if pending.is_empty() {
             break;
         }
@@ -288,10 +320,13 @@ async fn run_bill_journeys(
 ) {
     let mut total = 0u64;
     loop {
-        let pending = store.pending_bill_journey_summaries(batch).await.unwrap_or_else(|e| {
-            log::error!("{e}");
-            vec![]
-        });
+        let pending = store
+            .pending_bill_journey_summaries(batch)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!("{e}");
+                vec![]
+            });
         if pending.is_empty() {
             break;
         }
@@ -328,10 +363,13 @@ async fn run_bill_speakers(
 ) {
     let mut total = 0u64;
     loop {
-        let pending = store.pending_bill_summaries(batch).await.unwrap_or_else(|e| {
-            log::error!("{e}");
-            vec![]
-        });
+        let pending = store
+            .pending_bill_summaries(batch)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!("{e}");
+                vec![]
+            });
         if pending.is_empty() {
             break;
         }
@@ -348,14 +386,21 @@ async fn run_bill_speakers(
                         house: p.house.clone(),
                     };
                     async move {
-                        (p.bill_mention_id, p.speaker_id, llm.summarize(&ctx, &p.contributions_text).await)
+                        (
+                            p.bill_mention_id,
+                            p.speaker_id,
+                            llm.summarize(&ctx, &p.contributions_text).await,
+                        )
                     }
                 })
                 .collect();
             for (mention_id, speaker_id, result) in future::join_all(tasks).await {
                 match result {
                     Ok(s) => {
-                        store.store_bill_mention_summary(mention_id, speaker_id, &s, model).await.ok();
+                        store
+                            .store_bill_mention_summary(mention_id, speaker_id, &s, model)
+                            .await
+                            .ok();
                         total += 1;
                     }
                     Err(e) => log::warn!("bill-speaker summary failed: {e}"),
@@ -376,10 +421,13 @@ async fn run_topic_speakers(
 ) {
     let mut total = 0u64;
     loop {
-        let pending = store.pending_topic_summaries(batch).await.unwrap_or_else(|e| {
-            log::error!("{e}");
-            vec![]
-        });
+        let pending = store
+            .pending_topic_summaries(batch)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!("{e}");
+                vec![]
+            });
         if pending.is_empty() {
             break;
         }
@@ -396,14 +444,21 @@ async fn run_topic_speakers(
                         house: p.house.clone(),
                     };
                     async move {
-                        (p.topic_id, p.speaker_id, llm.summarize(&ctx, &p.contributions_text).await)
+                        (
+                            p.topic_id,
+                            p.speaker_id,
+                            llm.summarize(&ctx, &p.contributions_text).await,
+                        )
                     }
                 })
                 .collect();
             for (topic_id, speaker_id, result) in future::join_all(tasks).await {
                 match result {
                     Ok(s) => {
-                        store.store_topic_summary(topic_id, speaker_id, &s, model).await.ok();
+                        store
+                            .store_topic_summary(topic_id, speaker_id, &s, model)
+                            .await
+                            .ok();
                         total += 1;
                     }
                     Err(e) => log::warn!("topic-speaker summary failed: {e}"),
@@ -424,10 +479,13 @@ async fn run_sittings(
 ) {
     let mut total = 0u64;
     loop {
-        let pending = store.pending_sitting_summaries(batch).await.unwrap_or_else(|e| {
-            log::error!("{e}");
-            vec![]
-        });
+        let pending = store
+            .pending_sitting_summaries(batch)
+            .await
+            .unwrap_or_else(|e| {
+                log::error!("{e}");
+                vec![]
+            });
         if pending.is_empty() {
             break;
         }
@@ -443,7 +501,10 @@ async fn run_sittings(
             for (id, date, house, result) in future::join_all(tasks).await {
                 match result {
                     Ok(s) => {
-                        store.store_sitting_generated_summary(id, &s, model).await.ok();
+                        store
+                            .store_sitting_generated_summary(id, &s, model)
+                            .await
+                            .ok();
                         total += 1;
                         log::info!("sitting done: {date} {house}");
                     }
