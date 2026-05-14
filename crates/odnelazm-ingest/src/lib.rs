@@ -1,4 +1,5 @@
 pub mod embed;
+pub mod enricher;
 pub mod error;
 pub mod extract;
 pub mod pipeline;
