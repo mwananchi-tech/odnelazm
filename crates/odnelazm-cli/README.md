@@ -1,6 +1,6 @@
 # odnelazm-cli
 
-Run the `odnelazm` web scraper and parser from the command line.
+Run the `odnelazm` web scraper and parser from the command line. Source routing is automatic: archive (`info.mzalendo.com`) is used for sittings before 2013-03-28, current (`mzalendo.com`) for those after, and both are merged in parallel for ranges that span the cutoff.
 
 ## Installation
 
@@ -10,105 +10,92 @@ cargo install --git https://github.com/mwananchi-tech/odnelazm odnelazm-cli
 
 ## Global flags
 
-| Flag              | Description                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------- |
+| Flag              | Description                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------- |
 | `-l, --log-level` | Set log verbosity: `off`, `error`, `warn`, `info`, `debug`, `trace` (default: `info`) |
 
 ---
 
-## archive
+## sittings
 
-Archival Hansard data from `info.mzalendo.com`.
+List parliamentary sittings. Routing is determined automatically by date range.
 
-### archive list
+| Scenario                          | Source used                          |
+| --------------------------------- | ------------------------------------ |
+| No dates                          | Current source, paged                |
+| `--end-date` before 2013-03-28    | Archive only                         |
+| `--start-date` on/after 2013-03-28 | Current only, paged                 |
+| Range spans the cutoff            | Both sources merged in parallel; `--page` and `--all` are ignored, use `--limit` / `--offset` |
 
-Browse available sittings with optional filtering and pagination.
-
-| Flag                                    | Description                            |
-| --------------------------------------- | -------------------------------------- |
-| `--start-date YYYY-MM-DD`               | Filter sittings from this date onwards |
-| `--end-date YYYY-MM-DD`                 | Filter sittings up to this date        |
-| `--house senate\|national_assembly\|na` | Filter by house                        |
-| `--limit N`                             | Maximum number of results to return    |
-| `--offset N`                            | Number of results to skip              |
-| `-o, --output json\|csv\|parquet`       | Output format (default: `json`)        |
-
-```bash
-odnelazm archive list
-odnelazm archive list --house senate --start-date 2020-01-01 --end-date 2020-12-31 --limit 10
-odnelazm archive list -o json | jq '.[] | select(.house == "senate")'
-odnelazm archive list -o csv > sittings.csv
-```
-
-### archive sitting
-
-Fetch the full transcript of a sitting including sections, contributions, and procedural notes.
-
-| Flag                                | Description                                                     |
-| ----------------------------------- | --------------------------------------------------------------- |
-| `--fetch-speakers`                  | Fetch full profile for each speaker (makes additional requests) |
-| `-o, --output json\|csv\|parquet`   | Output format (default: `json`)                                 |
+| Flag                                    | Description                                                        |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| `--start-date YYYY-MM-DD`               | Start of date range                                                |
+| `--end-date YYYY-MM-DD`                 | End of date range                                                  |
+| `--house senate\|national_assembly\|na` | Filter by house                                                    |
+| `--page N`                              | Page to fetch from the current source (default: 1)                |
+| `--all`                                 | Fetch all pages at once (current source; conflicts with `--page`)  |
+| `--limit N`                             | Maximum results to return, applied after merging                   |
+| `--offset N`                            | Results to skip, applied after merging                             |
+| `-o, --output json\|csv\|parquet`       | Output format (default: `json`)                                    |
 
 ```bash
-odnelazm archive sitting https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00
-odnelazm archive sitting https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00 --fetch-speakers -o json
+# Recent sittings (current source, page 1)
+odnelazm sittings
+
+# Archive sittings from 2010
+odnelazm sittings --start-date 2010-01-01 --end-date 2010-12-31
+
+# Cross-era range: archive and current merged
+odnelazm sittings --start-date 2012-01-01 --end-date 2014-12-31 --limit 50
+
+# Filter by house, all pages
+odnelazm sittings --house senate --all -o json
 ```
 
 ---
 
-## current
+## sitting
 
-Up to date Hansard data from `mzalendo.com/democracy-tools`.
-
-### current sittings
-
-List available sittings, paged or all at once.
-
-| Flag                                    | Description                                     |
-| --------------------------------------- | ----------------------------------------------- |
-| `--page N`                              | Page number to fetch (default: 1)               |
-| `--all`                                 | Fetch all pages at once (conflicts with `--page`) |
-| `--house senate\|national_assembly\|na` | Filter by house                                 |
-| `-o, --output json\|csv\|parquet`       | Output format (default: `json`)                 |
-
-```bash
-odnelazm current sittings
-odnelazm current sittings --page 2 --house senate
-odnelazm current sittings --all -o json
-```
-
-### current sitting
-
-Fetch the full transcript of a sitting.
+Fetch the full transcript of a sitting. The source is detected automatically from the URL.
 
 | Flag                              | Description                     |
 | --------------------------------- | ------------------------------- |
+| `<url_or_slug>`                   | Full URL or slug of the sitting |
 | `-o, --output json\|csv\|parquet` | Output format (default: `json`) |
 
 ```bash
-odnelazm current sitting thursday-12th-february-2026-afternoon-sitting-2438
-odnelazm current sitting https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/ -o json
+# Current sitting by slug
+odnelazm sitting thursday-12th-february-2026-afternoon-sitting-2438
+
+# Archive sitting by URL
+odnelazm sitting https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00 -o json
 ```
 
-### current members
+---
 
-List members of parliament.
+## members
+
+List members of parliament (current source only).
 
 | Flag                              | Description                                       |
 | --------------------------------- | ------------------------------------------------- |
+| `<house>`                         | `senate`, `national_assembly`, or `na`            |
+| `<parliament>`                    | Parliament session, e.g. `13th-parliament`        |
 | `--page N`                        | Page number (default: 1)                          |
 | `--all`                           | Fetch all pages at once (conflicts with `--page`) |
 | `-o, --output json\|csv\|parquet` | Output format (default: `json`)                   |
 
 ```bash
-odnelazm current members na 13th-parliament
-odnelazm current members senate 13th-parliament --page 2 -o json
-odnelazm current members na 13th-parliament --all -o csv > members.csv
+odnelazm members na 13th-parliament
+odnelazm members senate 13th-parliament --all -o json
+odnelazm members na 12th-parliament --page 2 -o csv
 ```
 
-### current all-members
+---
 
-List all members from both houses in parallel for a given parliament session.
+## all-members
+
+Fetch all members from both houses in parallel for a given parliament session (current source only).
 
 | Flag                              | Description                                     |
 | --------------------------------- | ----------------------------------------------- |
@@ -116,21 +103,24 @@ List all members from both houses in parallel for a given parliament session.
 | `-o, --output json\|csv\|parquet` | Output format (default: `json`)                 |
 
 ```bash
-odnelazm current all-members
-odnelazm current all-members 12th-parliament -o json
+odnelazm all-members
+odnelazm all-members 12th-parliament -o json
 ```
 
-### current profile
+---
 
-Fetch a member's full profile including speeches, bills, and voting record.
+## profile
+
+Fetch a member's full profile including speeches, bills, and voting record (current source only).
 
 | Flag                              | Description                               |
 | --------------------------------- | ----------------------------------------- |
+| `<url_or_slug>`                   | Full URL or slug of the member profile    |
 | `--all-activity`                  | Fetch all pages of parliamentary activity |
 | `--all-bills`                     | Fetch all pages of sponsored bills        |
 | `-o, --output json\|csv\|parquet` | Output format (default: `json`)           |
 
 ```bash
-odnelazm current profile https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/
-odnelazm current profile https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/ --all-activity --all-bills -o json
+odnelazm profile https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/
+odnelazm profile https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/ --all-activity --all-bills -o json
 ```
