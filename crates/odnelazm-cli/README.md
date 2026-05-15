@@ -5,7 +5,7 @@ Run the `odnelazm` web scraper and parser from the command line.
 ## Installation
 
 ```bash
-cargo install odnelazm-cli
+cargo install --git https://github.com/mwananchi-tech/odnelazm odnelazm-cli
 ```
 
 ## Global flags
@@ -31,22 +31,23 @@ Browse available sittings with optional filtering and pagination.
 | `--house senate\|national_assembly\|na` | Filter by house                        |
 | `--limit N`                             | Maximum number of results to return    |
 | `--offset N`                            | Number of results to skip              |
-| `-o, --output text\|json`               | Output format (default: text)          |
+| `-o, --output json\|csv\|parquet`       | Output format (default: `json`)        |
 
 ```bash
 odnelazm archive list
 odnelazm archive list --house senate --start-date 2020-01-01 --end-date 2020-12-31 --limit 10
 odnelazm archive list -o json | jq '.[] | select(.house == "senate")'
+odnelazm archive list -o csv > sittings.csv
 ```
 
 ### archive sitting
 
 Fetch the full transcript of a sitting including sections, contributions, and procedural notes.
 
-| Flag                      | Description                                                     |
-| ------------------------- | --------------------------------------------------------------- |
-| `--fetch-speakers`        | Fetch full profile for each speaker (makes additional requests) |
-| `-o, --output text\|json` | Output format (default: text)                                   |
+| Flag                                | Description                                                     |
+| ----------------------------------- | --------------------------------------------------------------- |
+| `--fetch-speakers`                  | Fetch full profile for each speaker (makes additional requests) |
+| `-o, --output json\|csv\|parquet`   | Output format (default: `json`)                                 |
 
 ```bash
 odnelazm archive sitting https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00
@@ -66,9 +67,9 @@ List available sittings, paged or all at once.
 | Flag                                    | Description                                     |
 | --------------------------------------- | ----------------------------------------------- |
 | `--page N`                              | Page number to fetch (default: 1)               |
-| `--all`                                 | Fetch all pages at once (conflicts with --page) |
+| `--all`                                 | Fetch all pages at once (conflicts with `--page`) |
 | `--house senate\|national_assembly\|na` | Filter by house                                 |
-| `-o, --output text\|json`               | Output format (default: text)                   |
+| `-o, --output json\|csv\|parquet`       | Output format (default: `json`)                 |
 
 ```bash
 odnelazm current sittings
@@ -80,9 +81,9 @@ odnelazm current sittings --all -o json
 
 Fetch the full transcript of a sitting.
 
-| Flag                      | Description                   |
-| ------------------------- | ----------------------------- |
-| `-o, --output text\|json` | Output format (default: text) |
+| Flag                              | Description                     |
+| --------------------------------- | ------------------------------- |
+| `-o, --output json\|csv\|parquet` | Output format (default: `json`) |
 
 ```bash
 odnelazm current sitting thursday-12th-february-2026-afternoon-sitting-2438
@@ -93,26 +94,26 @@ odnelazm current sitting https://mzalendo.com/democracy-tools/hansard/thursday-1
 
 List members of parliament.
 
-| Flag                      | Description                                     |
-| ------------------------- | ----------------------------------------------- |
-| `--page N`                | Page number (default: 1)                        |
-| `--all`                   | Fetch all pages at once (conflicts with --page) |
-| `-o, --output text\|json` | Output format (default: text)                   |
+| Flag                              | Description                                       |
+| --------------------------------- | ------------------------------------------------- |
+| `--page N`                        | Page number (default: 1)                          |
+| `--all`                           | Fetch all pages at once (conflicts with `--page`) |
+| `-o, --output json\|csv\|parquet` | Output format (default: `json`)                   |
 
 ```bash
 odnelazm current members na 13th-parliament
 odnelazm current members senate 13th-parliament --page 2 -o json
-odnelazm current members na 13th-parliament --all -o json
+odnelazm current members na 13th-parliament --all -o csv > members.csv
 ```
 
 ### current all-members
 
 List all members from both houses in parallel for a given parliament session.
 
-| Flag                      | Description                                                              |
-| ------------------------- | ------------------------------------------------------------------------ |
-| `[parliament]`            | Parliament session (default: `13th-parliament`)                          |
-| `-o, --output text\|json` | Output format (default: text)                                            |
+| Flag                              | Description                                     |
+| --------------------------------- | ----------------------------------------------- |
+| `[parliament]`                    | Parliament session (default: `13th-parliament`) |
+| `-o, --output json\|csv\|parquet` | Output format (default: `json`)                 |
 
 ```bash
 odnelazm current all-members
@@ -123,11 +124,11 @@ odnelazm current all-members 12th-parliament -o json
 
 Fetch a member's full profile including speeches, bills, and voting record.
 
-| Flag                      | Description                               |
-| ------------------------- | ----------------------------------------- |
-| `--all-activity`          | Fetch all pages of parliamentary activity |
-| `--all-bills`             | Fetch all pages of sponsored bills        |
-| `-o, --output text\|json` | Output format (default: text)             |
+| Flag                              | Description                               |
+| --------------------------------- | ----------------------------------------- |
+| `--all-activity`                  | Fetch all pages of parliamentary activity |
+| `--all-bills`                     | Fetch all pages of sponsored bills        |
+| `-o, --output json\|csv\|parquet` | Output format (default: `json`)           |
 
 ```bash
 odnelazm current profile https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/
