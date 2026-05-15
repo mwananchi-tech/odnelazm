@@ -1,35 +1,37 @@
 # odnelazm-mcp
 
-MCP server for accessing Kenyan Parliament hansard data. Provides tools to list parliamentary sittings, fetch transcripts, and look up speaker details.
+MCP server for accessing Kenyan Parliament hansard data. Exposes tools to list sittings, fetch transcripts, and look up member profiles for use with any MCP-compatible LLM client.
 
 ## Tools
 
 ### Archive (info.mzalendo.com — pre-2013)
 
-**archive_list_sittings** - List archived sittings. Filter by date range, house, limit, and offset.
-
-**archive_get_sitting** - Fetch the full transcript of an archived sitting. Optionally fetch speaker profiles inline.
-
-**archive_get_person** - Fetch a speaker's archived profile including party, constituency, and contact info.
+| Tool                    | Description                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `archive_list_sittings` | List archived sittings. Filter by date range, house, limit, and offset.                 |
+| `archive_get_sitting`   | Fetch the full transcript of an archived sitting. Optionally fetch speaker profiles inline. |
+| `archive_get_person`    | Fetch a speaker's archived profile: party, constituency, and contact info.              |
 
 ### Current (mzalendo.com — 2013 to present)
 
-**current_list_sittings** - List recent sittings. Filter by house. Use `all: true` to fetch all pages at once.
-
-**current_get_sitting** - Fetch the full transcript of a current sitting.
-
-**current_list_members** - List MPs by house and parliament session. Use `all: true` to fetch all pages at once.
-
-**current_get_all_members** - Fetch all members from both houses in parallel for a given parliament session. `parliament` defaults to `"13th-parliament"`.
-
-**current_get_member_profile** - Fetch a member's full profile including biography, committees, voting patterns, and sponsored bills.
+| Tool                        | Description                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `current_list_sittings`     | List recent sittings. Filter by house. Set `all: true` to fetch all pages at once.            |
+| `current_get_sitting`       | Fetch the full transcript of a sitting by URL or slug.                                         |
+| `current_list_members`      | List MPs by house and parliament session. Set `all: true` to fetch all pages at once.          |
+| `current_get_all_members`   | Fetch all members from both houses in parallel. `parliament` defaults to `"13th-parliament"`. |
+| `current_get_member_profile`| Fetch a member's full profile: biography, committees, voting patterns, and sponsored bills.    |
 
 ## Installation
 
-With `cargo`
+```bash
+cargo install --git https://github.com/mwananchi-tech/odnelazm odnelazm-mcp-local
+```
+
+For the HTTP/SSE server:
 
 ```bash
-cargo install odnelazm-mcp
+cargo install --git https://github.com/mwananchi-tech/odnelazm odnelazm-mcp-web
 ```
 
 ## Usage
@@ -49,7 +51,7 @@ odnelazm-mcp-web
 The server listens on `127.0.0.1:8055` by default. Override with `BIND_ADDRESS`:
 
 ```bash
-BIND_ADDRESS=0.0.0.0:8080 cargo run --bin odnelazm-mcp-web
+BIND_ADDRESS=0.0.0.0:8080 odnelazm-mcp-web
 ```
 
 The SSE endpoint is available at `/sse`.
@@ -83,25 +85,32 @@ Restart Claude Desktop after saving.
 
 ### Claude Web (claude.ai)
 
-Uses the HTTP/SSE transport. Claude Web does not allow localhost, so the server must be publicly hosted. The easiest way is via the provided Docker image — deploy it to any cloud host, then:
+A hosted instance of `odnelazm-mcp-web` is available at:
+
+```
+https://odnelazm.c12i.xyz/sse
+```
+
+To connect:
 
 1. Go to **Settings > Connectors > Add Custom Connector**
-2. Enter your SSE endpoint: `https://your-host/sse`
+2. Enter the SSE endpoint: `https://odnelazm.c12i.xyz/sse`
+
+If you prefer to self-host, build the Docker image and deploy it to any cloud host, then point your connector at your own `/sse` endpoint.
 
 ### Other clients
 
-Most MCP-compatible clients (Cursor, Windsurf, Zed, etc.) support either stdio or SSE — refer to their documentation for setup details. For clients with their own tool/plugin ecosystems (e.g. ChatGPT), check their respective docs as integration steps vary.
+Most MCP-compatible clients (Cursor, Windsurf, Zed, etc.) support either stdio or SSE. For stdio, point to the `odnelazm-mcp-local` binary. For SSE, use the hosted endpoint above or your own deployment.
 
 ## Context window considerations
 
-Hansard transcripts and member profiles are large. Fetching multiple sittings or the full member list in a single conversation can easily exceed the context window of most LLMs.
+Hansard transcripts and member profiles are large. Fetching multiple sittings or the full member list in a single conversation can easily exceed the context window of most models.
 
 - Prefer narrow date ranges when listing sittings rather than fetching all at once.
 - Fetch one sitting transcript at a time when analysing debate content.
-- Querying for specific information (e.g. bill mentions) across a broad date range will likely exceed the context window — narrow the scope to a specific sitting or short range first.
-- `all_activity: true` and `all_bills: true` on member profiles can return a large volume of data — only use these when exhaustive detail is necessary.
+- `all_activity: true` and `all_bills: true` on member profiles can return a large volume of data. Only use these when exhaustive detail is necessary.
 
-For broad cross-sitting queries, consider running against a local LLM client with a much larger context window (1 million tokens or more).
+For broad cross-sitting queries, a local model with a large context window (1M+ tokens) handles it significantly better than a standard cloud model.
 
 ## Configuration
 
