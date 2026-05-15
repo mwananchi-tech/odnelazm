@@ -2,25 +2,17 @@
 
 MCP server for accessing Kenyan Parliament hansard data. Exposes tools to list sittings, fetch transcripts, and look up member profiles for use with any MCP-compatible LLM client.
 
+Source routing is automatic: archive (`info.mzalendo.com`) is used for sittings before 2013-03-28, current (`mzalendo.com`) for those after, and both are merged in parallel for ranges that span the cutoff.
+
 ## Tools
 
-### Archive (info.mzalendo.com — pre-2013)
-
-| Tool                    | Description                                                                              |
-| ----------------------- | ---------------------------------------------------------------------------------------- |
-| `archive_list_sittings` | List archived sittings. Filter by date range, house, limit, and offset.                 |
-| `archive_get_sitting`   | Fetch the full transcript of an archived sitting. Optionally fetch speaker profiles inline. |
-| `archive_get_person`    | Fetch a speaker's archived profile: party, constituency, and contact info.              |
-
-### Current (mzalendo.com — 2013 to present)
-
-| Tool                        | Description                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
-| `current_list_sittings`     | List recent sittings. Filter by house. Set `all: true` to fetch all pages at once.            |
-| `current_get_sitting`       | Fetch the full transcript of a sitting by URL or slug.                                         |
-| `current_list_members`      | List MPs by house and parliament session. Set `all: true` to fetch all pages at once.          |
-| `current_get_all_members`   | Fetch all members from both houses in parallel. `parliament` defaults to `"13th-parliament"`. |
-| `current_get_member_profile`| Fetch a member's full profile: biography, committees, voting patterns, and sponsored bills.    |
+| Tool                 | Description                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_sittings`      | List parliamentary sittings with automatic source routing. Supports date range filtering, house filtering, and pagination. Cross-era ranges merge both sources in parallel. |
+| `get_sitting`        | Fetch the full transcript of a sitting including sections, contributions, and procedural notes. Source is detected automatically from the URL.                            |
+| `list_members`       | List MPs by house and parliament session. Set `all: true` to fetch all pages at once.                                                                                    |
+| `get_all_members`    | Fetch all members from both houses in parallel for a given parliament session. `parliament` defaults to `"13th-parliament"`.                                              |
+| `get_member_profile` | Fetch a member's full profile: biography, positions, committees, voting patterns, and sponsored bills. Set `all_activity` or `all_bills` to paginate fully.               |
 
 ## Installation
 
@@ -85,7 +77,7 @@ Restart Claude Desktop after saving.
 
 ### Claude Web (claude.ai)
 
-A hosted instance of `odnelazm-mcp-web` is available at:
+A hosted instance is available at:
 
 ```
 https://odnelazm.c12i.xyz/sse
@@ -96,7 +88,7 @@ To connect:
 1. Go to **Settings > Connectors > Add Custom Connector**
 2. Enter the SSE endpoint: `https://odnelazm.c12i.xyz/sse`
 
-If you prefer to self-host, build the Docker image and deploy it to any cloud host, then point your connector at your own `/sse` endpoint.
+To self-host instead, build the Docker image and deploy it to any cloud host, then point your connector at your own `/sse` endpoint.
 
 ### Other clients
 
