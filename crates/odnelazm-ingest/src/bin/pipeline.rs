@@ -6,7 +6,7 @@ use odnelazm_ingest::{
     DataStore, IngestPipeline,
     enricher::{LmStudioSummarizer, prompts},
     postgres::PostgresStore,
-    summarize::{Summarizer, SummaryContext, build_prompt},
+    summarize::{Summarizer, SummaryContext},
 };
 use std::{fmt::Display, process};
 
@@ -288,7 +288,8 @@ impl EnrichCmd {
                             date: p.date,
                             house: p.house.clone(),
                         };
-                        let prompt = build_prompt(&ctx, &p.contributions_text);
+                        let prompt =
+                            prompts::member_contribution_prompt(&ctx, &p.contributions_text);
                         async move {
                             (
                                 p.bill_mention_id,
@@ -339,7 +340,8 @@ impl EnrichCmd {
                             date: p.date,
                             house: p.house.clone(),
                         };
-                        let prompt = build_prompt(&ctx, &p.contributions_text);
+                        let prompt =
+                            prompts::member_contribution_prompt(&ctx, &p.contributions_text);
                         async move {
                             (
                                 p.topic_id,
