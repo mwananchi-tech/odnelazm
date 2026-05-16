@@ -180,6 +180,7 @@ impl EnrichCmd {
             EnrichTarget::BillMentions => self.run_bill_mentions(store, summarizer).await,
             EnrichTarget::BillJourneys => self.run_bill_journeys(store, summarizer).await,
             EnrichTarget::BillSpeakers => self.run_bill_speakers(store, summarizer).await,
+            EnrichTarget::Topics => self.run_topics(store, summarizer).await,
             EnrichTarget::TopicSpeakers => self.run_topic_speakers(store, summarizer).await,
             EnrichTarget::Sittings => self.run_sittings(store, summarizer).await,
         }
@@ -189,7 +190,7 @@ impl EnrichCmd {
         let mut total = 0u64;
         loop {
             let pending = store
-                .pending_bill_node_summaries(self.batch)
+                .pending_bill_appearance_summaries(self.batch)
                 .await
                 .inspect_err(|e| log::error!("{e}"))
                 .unwrap_or_default();
@@ -200,7 +201,7 @@ impl EnrichCmd {
                 let tasks: Vec<_> = chunk
                     .iter()
                     .map(|p| async move {
-                        let prompt = prompts::bill_node_prompt(p);
+                        let prompt = prompts::bill_appearance_prompt(p);
                         (
                             p.bill_mention_id,
                             &p.bill_name,
@@ -212,7 +213,7 @@ impl EnrichCmd {
                     match result {
                         Ok(s) => {
                             store
-                                .store_bill_node_summary(id, &s, &self.model)
+                                .store_bill_appearance_summary(id, &s, &self.model)
                                 .await
                                 .ok();
                             total += 1;
@@ -317,6 +318,44 @@ impl EnrichCmd {
         log::info!("bill-speakers complete: {total} summaries written");
     }
 
+    async fn run_topics(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+        let mut total = 0u64;
+        loop {
+            let pending = store
+                .pending_topic_appearance_summaries(self.batch)
+                .await
+                .inspect_err(|e| log::error!("{e}"))
+                .unwrap_or_default();
+            if pending.is_empty() {
+                break;
+            }
+            for chunk in pending.chunks(self.concurrency) {
+                let tasks: Vec<_> = chunk
+                    .iter()
+                    .map(|p| async move {
+                        let prompt = prompts::topic_appearance_prompt(p);
+                        (p.topic_id, &p.title, summarizer.summarize(&prompt).await)
+                    })
+                    .collect();
+                for (id, title, result) in future::join_all(tasks).await {
+                    match result {
+                        Ok(s) => {
+                            store
+                                .store_topic_appearance_summary(id, &s, &self.model)
+                                .await
+                                .ok();
+                            total += 1;
+                            log::info!("topic-node done: {title}");
+                        }
+                        Err(e) => log::warn!("topic-node failed ({title}): {e}"),
+                    }
+                }
+            }
+            log::info!("topics: {total} done so far");
+        }
+        log::info!("topics complete: {total} summaries written");
+    }
+
     async fn run_topic_speakers(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
         let mut total = 0u64;
         loop {
@@ -419,6 +458,7 @@ enum EnrichTarget {
     BillMentions,
     BillJourneys,
     BillSpeakers,
+    Topics,
     TopicSpeakers,
     Sittings,
 }
@@ -429,6 +469,7 @@ impl Display for EnrichTarget {
             Self::BillMentions => write!(f, "bill-mentions"),
             Self::BillJourneys => write!(f, "bill-journeys"),
             Self::BillSpeakers => write!(f, "bill-speakers"),
+            Self::Topics => write!(f, "topics"),
             Self::TopicSpeakers => write!(f, "topic-speakers"),
             Self::Sittings => write!(f, "sittings"),
         }

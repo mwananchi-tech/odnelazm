@@ -87,10 +87,23 @@ pub struct PendingTopicSummary {
     pub contributions_text: String,
 }
 
+/// A topic row needing a topic-level summary across all contributors.
+/// Carries the full sitting transcript as JSON for context.
+#[derive(Debug)]
+pub struct PendingTopicAppearanceSummary {
+    pub topic_id: Uuid,
+    pub title: String,
+    pub section_type: String,
+    pub date: NaiveDate,
+    pub house: String,
+    pub session_type: String,
+    pub sitting_raw_json: serde_json::Value,
+}
+
 /// A bill_mention row needing a node-level summary.
 /// Carries the full sitting transcript as JSON for context.
 #[derive(Debug)]
-pub struct PendingBillNodeSummary {
+pub struct PendingBillAppearanceSummary {
     pub bill_mention_id: Uuid,
     pub bill_name: String,
     pub bill_number: Option<String>,
@@ -206,10 +219,25 @@ pub trait DataStore: Send + Sync {
         model: &str,
     ) -> Result<()>;
 
+    async fn pending_topic_appearance_summaries(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<PendingTopicAppearanceSummary>>;
+
+    async fn store_topic_appearance_summary(
+        &self,
+        topic_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()>;
+
     /* Bill node / journey / sitting enrichment */
 
-    async fn pending_bill_node_summaries(&self, limit: u32) -> Result<Vec<PendingBillNodeSummary>>;
-    async fn store_bill_node_summary(
+    async fn pending_bill_appearance_summaries(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<PendingBillAppearanceSummary>>;
+    async fn store_bill_appearance_summary(
         &self,
         bill_mention_id: Uuid,
         summary: &str,

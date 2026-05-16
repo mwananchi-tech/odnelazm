@@ -1,5 +1,8 @@
 use crate::{
-    store::{PendingBillJourneySummary, PendingBillNodeSummary, PendingSittingSummary},
+    store::{
+        PendingBillAppearanceSummary, PendingBillJourneySummary, PendingSittingSummary,
+        PendingTopicAppearanceSummary,
+    },
     summarize::SummaryContext,
 };
 
@@ -80,7 +83,39 @@ pub fn member_contribution_prompt(ctx: &SummaryContext, contributions_text: &str
     )
 }
 
-pub fn bill_node_prompt(p: &PendingBillNodeSummary) -> String {
+pub fn topic_appearance_prompt(p: &PendingTopicAppearanceSummary) -> String {
+    let transcript = transcript_to_text(&p.sitting_raw_json);
+
+    format!(
+        "You are analysing a sitting of the Kenya Parliament.\n\
+         \n\
+         House: {house} | Date: {date} | Session: {session}\n\
+         \n\
+         Full sitting transcript:\n\
+         ---\n\
+         {transcript}\n\
+         ---\n\
+         \n\
+         Focus only on the section titled: \"{title}\"\n\
+         This is a {section_type} item.\n\
+         \n\
+         Summarise only that section in 3 to 5 sentences covering:\n\
+         - What was raised, asked, or stated\n\
+         - Key positions or responses from members or the government\n\
+         - Any notable controversy, strong reaction, or follow-up action\n\
+         - The outcome or resolution, if any\n\
+         \n\
+         Reply in markdown. If the section was procedural with no substantive discussion, say so briefly.",
+        house = p.house,
+        date = p.date,
+        session = p.session_type,
+        transcript = transcript,
+        title = p.title,
+        section_type = p.section_type,
+    )
+}
+
+pub fn bill_appearance_prompt(p: &PendingBillAppearanceSummary) -> String {
     let transcript = transcript_to_text(&p.sitting_raw_json);
 
     let stage_line = p

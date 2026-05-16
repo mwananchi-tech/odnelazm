@@ -9,8 +9,9 @@ use crate::{
     Result,
     store::{
         BillMentionContext, BillMentionRecord, BillRecord, DataStore, MemberEnrichment,
-        MemberRecord, PendingBillJourneySummary, PendingBillNodeSummary, PendingBillSummary,
-        PendingSittingSummary, PendingTopicSummary, SpeakerRecord, TopicRecord,
+        MemberRecord, PendingBillAppearanceSummary, PendingBillJourneySummary, PendingBillSummary,
+        PendingSittingSummary, PendingTopicAppearanceSummary, PendingTopicSummary, SpeakerRecord,
+        TopicRecord,
     },
 };
 
@@ -38,6 +39,8 @@ const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0012_sitting_generated_summary.sql"),
     "\n",
     include_str!("../migrations/0013_summary_model.sql"),
+    "\n",
+    include_str!("../migrations/0014_topic_summary.sql"),
 );
 
 #[derive(Debug, Clone)]
@@ -408,6 +411,68 @@ impl DataStore for PostgresStore {
         Ok(())
     }
 
+    async fn pending_topic_appearance_summaries(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<PendingTopicAppearanceSummary>> {
+        let rows = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                String,
+                NaiveDate,
+                String,
+                String,
+                serde_json::Value,
+            ),
+        >(
+            r#"
+            SELECT t.id, t.title, t.section_type, s.date, s.house, s.session_type, s.raw_json
+            FROM topics t
+            JOIN sittings s ON s.id = t.sitting_id
+            WHERE t.summary IS NULL AND t.speech_count > 0
+            ORDER BY s.date DESC
+            LIMIT $1
+            "#,
+        )
+        .bind(limit as i32)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(
+                |(id, title, section_type, date, house, session_type, raw_json)| {
+                    PendingTopicAppearanceSummary {
+                        topic_id: id,
+                        title,
+                        section_type,
+                        date,
+                        house,
+                        session_type,
+                        sitting_raw_json: raw_json,
+                    }
+                },
+            )
+            .collect())
+    }
+
+    async fn store_topic_appearance_summary(
+        &self,
+        topic_id: Uuid,
+        summary: &str,
+        model: &str,
+    ) -> Result<()> {
+        sqlx::query("UPDATE topics SET summary = $1, summary_model = $2 WHERE id = $3")
+            .bind(summary)
+            .bind(model)
+            .bind(topic_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid> {
         let row: (Uuid,) = sqlx::query_as(
             r#"
@@ -540,7 +605,10 @@ impl DataStore for PostgresStore {
         Ok(())
     }
 
-    async fn pending_bill_node_summaries(&self, limit: u32) -> Result<Vec<PendingBillNodeSummary>> {
+    async fn pending_bill_appearance_summaries(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<PendingBillAppearanceSummary>> {
         let rows = sqlx::query_as::<
             _,
             (
@@ -584,7 +652,7 @@ impl DataStore for PostgresStore {
                     session_type,
                     raw_json,
                 )| {
-                    PendingBillNodeSummary {
+                    PendingBillAppearanceSummary {
                         bill_mention_id: id,
                         bill_name,
                         bill_number,
@@ -600,7 +668,7 @@ impl DataStore for PostgresStore {
             .collect())
     }
 
-    async fn store_bill_node_summary(
+    async fn store_bill_appearance_summary(
         &self,
         bill_mention_id: Uuid,
         summary: &str,
