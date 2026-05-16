@@ -5,9 +5,10 @@ use odnelazm::{HansardScraper, HansardSitting, SittingListOptions};
 use crate::{
     Result,
     embed::{Embedder, sitting_text},
+    enricher::prompts::member_contribution_prompt,
     extract::{extract_bills, extract_speakers, extract_topics},
     store::{BillMentionRecord, DataStore, MemberEnrichment, MemberRecord, TopicRecord},
-    summarize::{Summarizer, SummaryContext, build_prompt},
+    summarize::{Summarizer, SummaryContext},
 };
 
 /// Orchestrates scraping → extraction → storage for a stream of sittings.
@@ -309,7 +310,7 @@ impl<S: DataStore> IngestPipeline<S> {
                 date: p.date,
                 house: p.house.clone(),
             };
-            let prompt = build_prompt(&ctx, &p.contributions_text);
+            let prompt = member_contribution_prompt(&ctx, &p.contributions_text);
             match summarizer.summarize(&prompt).await {
                 Ok(summary) => {
                     self.store
@@ -348,7 +349,7 @@ impl<S: DataStore> IngestPipeline<S> {
                 date: p.date,
                 house: p.house.clone(),
             };
-            let prompt = build_prompt(&ctx, &p.contributions_text);
+            let prompt = member_contribution_prompt(&ctx, &p.contributions_text);
             match summarizer.summarize(&prompt).await {
                 Ok(summary) => {
                     self.store

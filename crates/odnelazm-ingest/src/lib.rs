@@ -12,4 +12,4 @@ pub use error::{IngestError, Result};
 pub use pipeline::{IngestPipeline, IngestStats};
 pub use postgres::PostgresStore;
 pub use store::DataStore;
-pub use summarize::{Summarizer, SummaryContext, build_prompt};
+pub use summarize::{Summarizer, SummaryContext};

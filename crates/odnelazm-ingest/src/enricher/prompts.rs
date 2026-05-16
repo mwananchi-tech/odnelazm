@@ -1,4 +1,7 @@
-use crate::store::{PendingBillJourneySummary, PendingBillNodeSummary, PendingSittingSummary};
+use crate::{
+    store::{PendingBillJourneySummary, PendingBillNodeSummary, PendingSittingSummary},
+    summarize::SummaryContext,
+};
 
 /// Convert a sitting's raw_json to a human-readable transcript string.
 /// The JSON uses camelCase keys (postgres.js transform).
@@ -40,7 +43,42 @@ fn push_contribution(out: &mut String, c: &serde_json::Value) {
     }
 }
 
-// ── Prompt builders ───────────────────────────────────────────────────────────
+pub fn member_contribution_prompt(ctx: &SummaryContext, contributions_text: &str) -> String {
+    let stage_line = ctx
+        .stage
+        .as_deref()
+        .map(|s| format!("Stage: {s}\n"))
+        .unwrap_or_default();
+
+    format!(
+        "You are analysing parliamentary contributions from the Parliament of Kenya.\n\
+         \n\
+         Member: {member}\n\
+         {item_type_label}: {title}\n\
+         {stage_line}\
+         House: {house}\n\
+         Date: {date}\n\
+         \n\
+         The member's contributions during this debate:\n\
+         ---\n\
+         {text}\n\
+         ---\n\
+         \n\
+         In 2 to 3 sentences, summarise this member's position, key arguments, and any \
+         notable statements. Be factual and concise. Do not invent details.",
+        member = ctx.member_name,
+        item_type_label = if ctx.item_type == "bill" {
+            "Bill"
+        } else {
+            "Topic"
+        },
+        title = ctx.title,
+        stage_line = stage_line,
+        house = ctx.house,
+        date = ctx.date,
+        text = contributions_text,
+    )
+}
 
 pub fn bill_node_prompt(p: &PendingBillNodeSummary) -> String {
     let transcript = transcript_to_text(&p.sitting_raw_json);
