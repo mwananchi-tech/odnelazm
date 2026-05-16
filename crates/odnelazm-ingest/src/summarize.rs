@@ -24,7 +24,9 @@ pub struct SummaryContext {
 /// `contributions_text` but no `summary` yet.
 #[async_trait]
 pub trait Summarizer: Send + Sync {
-    async fn summarize(&self, ctx: &SummaryContext, contributions_text: &str) -> Result<String>;
+    /// Send a prompt and return the model's response.
+    /// The caller is responsible for building the full prompt with all relevant context.
+    async fn summarize(&self, prompt: &str) -> Result<String>;
 }
 
 /// Build a ready-to-send prompt from the context and contribution text.
