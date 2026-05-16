@@ -78,13 +78,14 @@ odnelazm-pipeline enrich <TARGET> [OPTIONS]
 
 **Targets**
 
-| Target           | What it summarises                                              |
-| ---------------- | --------------------------------------------------------------- |
-| `bill-mentions`  | Each bill appearance in a sitting (one summary per node)        |
-| `bill-journeys`  | A bill's full legislative journey across all sittings           |
-| `bill-speakers`  | Each speaker's contributions to a bill debate                   |
-| `topic-speakers` | Each speaker's contributions to a question or statement topic   |
-| `sittings`       | Full structured summary of a sitting                            |
+| Target           | What it summarises                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `bill-mentions`  | Each bill's appearance in a sitting: what was argued and the outcome                  |
+| `bill-journeys`  | A bill's full legislative journey across all sittings                                 |
+| `bill-speakers`  | Each speaker's individual contributions to a bill debate                              |
+| `topics`         | Each topic's appearance in a sitting: all contributions across speakers, full context |
+| `topic-speakers` | Each speaker's individual contributions to a question or statement topic              |
+| `sittings`       | Full structured summary of a sitting                                                  |
 
 | Flag              | Description                                     | Default                  |
 | ----------------- | ----------------------------------------------- | ------------------------ |
@@ -103,6 +104,9 @@ odnelazm-pipeline enrich bill-journeys --model qwen/qwen3.5-9b --concurrency 2
 
 # Summarise sittings (large context, concurrency capped at 2 internally)
 odnelazm-pipeline enrich sittings --model qwen/qwen3.5-9b --batch 5
+
+# Summarise topics (full transcript context, all speakers combined)
+odnelazm-pipeline enrich topics --model qwen/qwen3.5-9b --concurrency 2
 
 # Point at a different LM Studio instance
 odnelazm-pipeline enrich topic-speakers --llm-url http://192.168.1.10:1234 --model some/model
