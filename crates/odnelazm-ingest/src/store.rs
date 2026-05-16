@@ -175,13 +175,13 @@ pub trait DataStore: Send + Sync {
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
     async fn link_speakers_to_members(&self) -> Result<u64>;
 
-    /// Return all (id, url) pairs for stored members — used by the enrichment pass.
+    /// Return all (id, url) pairs for stored members: used by the enrichment pass.
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>>;
 
     /// Enrich an existing member row with profile-page data.
     async fn enrich_member(&self, member_id: Uuid, enrichment: &MemberEnrichment) -> Result<()>;
 
-    // ── Enrichment ────────────────────────────────────────────────────────────
+    /*  Enrichment */
 
     /// Return up to `limit` (bill_mention, speaker) pairs that have
     /// contributions_text but no summary yet.
@@ -206,7 +206,7 @@ pub trait DataStore: Send + Sync {
         model: &str,
     ) -> Result<()>;
 
-    // ── Bill node / journey / sitting enrichment ──────────────────────────────
+    /* Bill node / journey / sitting enrichment */
 
     async fn pending_bill_node_summaries(&self, limit: u32) -> Result<Vec<PendingBillNodeSummary>>;
     async fn store_bill_node_summary(

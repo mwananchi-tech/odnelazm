@@ -86,7 +86,7 @@ fn tally_speakers<'a>(
 /// Extract questions, statements, and other non-bill discussion topics from a sitting.
 ///
 /// Only subsections with at least one non-noise contribution are returned.
-/// Bill-related subsections (title ends with BILL or ACT) are skipped — those
+/// Bill-related subsections (title ends with BILL or ACT) are skipped: those
 /// are already captured by the bill extractor.
 pub fn extract_topics(sitting: &HansardSitting) -> Vec<ExtractedTopic> {
     let mut topics: Vec<ExtractedTopic> = Vec::new();

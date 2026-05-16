@@ -256,7 +256,7 @@ pub fn extract_bills(sitting: &HansardSitting) -> Vec<ExtractedBillMention> {
             });
 
             let sponsor = subsection.contributions.iter().find_map(|c| {
-                if c.content.contains("I beg to move") {
+                if c.content.to_lowercase().contains("i beg to move") {
                     Some(c.speaker_name.clone())
                 } else {
                     None
@@ -374,7 +374,7 @@ mod tests {
         let speakers = extract_speakers(&sitting);
         println!("── Speakers found: {} ──", speakers.len());
         let mut sorted = speakers.clone();
-        sorted.sort_by(|a, b| b.1.cmp(&a.1));
+        sorted.sort_by_key(|s| s.1);
         for (sp, count) in sorted.iter().take(10) {
             println!(
                 "  {:>3} speech(es)  {}{}",

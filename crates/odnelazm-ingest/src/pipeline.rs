@@ -10,31 +10,6 @@ use crate::{
     summarize::{Summarizer, SummaryContext},
 };
 
-#[derive(Debug, Default)]
-pub struct IngestStats {
-    pub ingested: u32,
-    pub skipped: u32,
-    pub failed: u32,
-    pub bills_found: u32,
-    pub topics_found: u32,
-    pub speakers_found: u32,
-}
-
-impl std::fmt::Display for IngestStats {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ingested={} skipped={} failed={} bills={} topics={} speakers={}",
-            self.ingested,
-            self.skipped,
-            self.failed,
-            self.bills_found,
-            self.topics_found,
-            self.speakers_found
-        )
-    }
-}
-
 /// Orchestrates scraping → extraction → storage for a stream of sittings.
 ///
 /// `S` is any [`DataStore`] implementation. An optional [`Embedder`] can be
@@ -44,7 +19,7 @@ pub struct IngestPipeline<S: DataStore> {
     scraper: HansardScraper,
     store: S,
     embedder: Option<Arc<dyn Embedder>>,
-    summarizer: Option<Arc<dyn Summarizer>>,
+    pub summarizer: Option<Arc<dyn Summarizer>>,
 }
 
 impl<S: DataStore> IngestPipeline<S> {
@@ -305,7 +280,7 @@ impl<S: DataStore> IngestPipeline<S> {
     /// Generate and store AI summaries for pending (member, bill) and (member, topic) pairs.
     ///
     /// Requires a [`Summarizer`] attached via [`IngestPipeline::with_summarizer`].
-    /// Safe to call incrementally — only rows with `contributions_text IS NOT NULL
+    /// Safe to call incrementally; only rows with `contributions_text IS NOT NULL
     /// AND summary IS NULL` are processed.
     ///
     /// Returns `(bill_summaries, topic_summaries)` generated in this run.
@@ -386,6 +361,7 @@ impl<S: DataStore> IngestPipeline<S> {
         Ok((bill_count, topic_count))
     }
 
+    // XXX: limited to 2013-current (mzalendo.com)
     pub async fn import_members(&self, parliament: &str) -> Result<u64> {
         let members = self.scraper.list_all_members_all_houses(parliament).await?;
         log::info!("Importing {} members for {parliament}...", members.len());
@@ -411,7 +387,7 @@ impl<S: DataStore> IngestPipeline<S> {
 
     /// Fetch individual profile pages for all stored members and enrich the DB
     /// with photo, biography, party, committees, and speech statistics.
-    /// Safe to re-run — uses COALESCE so existing values are not overwritten.
+    /// Safe to re-run since it uses COALESCE so existing values are not overwritten.
     pub async fn enrich_member_profiles(&self, concurrency: usize) -> Result<u64> {
         let members = self.store.list_member_urls().await?;
         log::info!("Enriching {} member profiles...", members.len());
@@ -459,6 +435,31 @@ impl<S: DataStore> IngestPipeline<S> {
         }
 
         Ok(enriched)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct IngestStats {
+    pub ingested: u32,
+    pub skipped: u32,
+    pub failed: u32,
+    pub bills_found: u32,
+    pub topics_found: u32,
+    pub speakers_found: u32,
+}
+
+impl std::fmt::Display for IngestStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ingested={} skipped={} failed={} bills={} topics={} speakers={}",
+            self.ingested,
+            self.skipped,
+            self.failed,
+            self.bills_found,
+            self.topics_found,
+            self.speakers_found
+        )
     }
 }
 

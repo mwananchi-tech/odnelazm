@@ -8,12 +8,12 @@ use odnelazm_ingest::{
     postgres::PostgresStore,
     summarize::{Summarizer, SummaryContext},
 };
-use std::process;
+use std::{fmt::Display, process};
 
 #[derive(Parser)]
 #[command(
     name = "odnelazm-pipeline",
-    about = "odnelazm data pipeline — ingest and enrich hansard data"
+    about = "odnelazm data pipeline for ingesting and enriching hansard data"
 )]
 struct Cli {
     #[arg(
@@ -101,6 +101,18 @@ enum EnrichTarget {
     Sittings,
 }
 
+impl Display for EnrichTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BillMentions => write!(f, "bill-mentions"),
+            Self::BillJourneys => write!(f, "bill-journeys"),
+            Self::BillSpeakers => write!(f, "bill-speakers"),
+            Self::TopicSpeakers => write!(f, "topic-speakers"),
+            Self::Sittings => write!(f, "sittings"),
+        }
+    }
+}
+
 fn parse_date(s: &str) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|_| format!("expected YYYY-MM-DD, got '{s}'"))
 }
@@ -159,10 +171,7 @@ async fn main() {
             concurrency,
         } => {
             let llm = LmStudioSummarizer::new(&llm_url, &model, temperature);
-            log::info!(
-                "target={} batch={batch} concurrency={concurrency} model={model}",
-                target.as_str()
-            );
+            log::info!("target={target} batch={batch} concurrency={concurrency} model={model}",);
             match target {
                 EnrichTarget::BillMentions => {
                     run_bill_mentions(&store, &llm, batch, concurrency, &model).await
@@ -180,18 +189,6 @@ async fn main() {
                     run_sittings(&store, &llm, batch, concurrency, &model).await
                 }
             }
-        }
-    }
-}
-
-impl EnrichTarget {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::BillMentions => "bill-mentions",
-            Self::BillJourneys => "bill-journeys",
-            Self::BillSpeakers => "bill-speakers",
-            Self::TopicSpeakers => "topic-speakers",
-            Self::Sittings => "sittings",
         }
     }
 }
@@ -280,10 +277,8 @@ async fn run_bill_mentions(
         let pending = store
             .pending_bill_node_summaries(batch)
             .await
-            .unwrap_or_else(|e| {
-                log::error!("{e}");
-                vec![]
-            });
+            .inspect_err(|e| log::error!("{e}"))
+            .unwrap_or_default();
         if pending.is_empty() {
             break;
         }
@@ -323,10 +318,8 @@ async fn run_bill_journeys(
         let pending = store
             .pending_bill_journey_summaries(batch)
             .await
-            .unwrap_or_else(|e| {
-                log::error!("{e}");
-                vec![]
-            });
+            .inspect_err(|e| log::error!("{e}"))
+            .unwrap_or_default();
         if pending.is_empty() {
             break;
         }
@@ -366,10 +359,8 @@ async fn run_bill_speakers(
         let pending = store
             .pending_bill_summaries(batch)
             .await
-            .unwrap_or_else(|e| {
-                log::error!("{e}");
-                vec![]
-            });
+            .inspect_err(|e| log::error!("{e}"))
+            .unwrap_or_default();
         if pending.is_empty() {
             break;
         }
@@ -424,10 +415,8 @@ async fn run_topic_speakers(
         let pending = store
             .pending_topic_summaries(batch)
             .await
-            .unwrap_or_else(|e| {
-                log::error!("{e}");
-                vec![]
-            });
+            .inspect_err(|e| log::error!("{e}"))
+            .unwrap_or_default();
         if pending.is_empty() {
             break;
         }
@@ -482,10 +471,8 @@ async fn run_sittings(
         let pending = store
             .pending_sitting_summaries(batch)
             .await
-            .unwrap_or_else(|e| {
-                log::error!("{e}");
-                vec![]
-            });
+            .inspect_err(|e| log::error!("{e}"))
+            .unwrap_or_default();
         if pending.is_empty() {
             break;
         }
