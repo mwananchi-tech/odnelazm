@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::summarize::{Summarizer, SummaryContext, build_prompt};
+use crate::summarize::Summarizer;
 use crate::{IngestError, Result};
 
 #[derive(Serialize)]
@@ -82,8 +82,7 @@ impl LmStudioSummarizer {
 
 #[async_trait]
 impl Summarizer for LmStudioSummarizer {
-    async fn summarize(&self, ctx: &SummaryContext, contributions_text: &str) -> Result<String> {
-        let prompt = build_prompt(ctx, contributions_text);
-        self.complete(&prompt).await
+    async fn summarize(&self, prompt: &str) -> Result<String> {
+        self.complete(prompt).await
     }
 }

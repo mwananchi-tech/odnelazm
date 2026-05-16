@@ -7,7 +7,7 @@ use crate::{
     embed::{Embedder, sitting_text},
     extract::{extract_bills, extract_speakers, extract_topics},
     store::{BillMentionRecord, DataStore, MemberEnrichment, MemberRecord, TopicRecord},
-    summarize::{Summarizer, SummaryContext},
+    summarize::{Summarizer, SummaryContext, build_prompt},
 };
 
 /// Orchestrates scraping → extraction → storage for a stream of sittings.
@@ -40,6 +40,10 @@ impl<S: DataStore> IngestPipeline<S> {
     pub fn with_summarizer(mut self, summarizer: impl Summarizer + 'static) -> Self {
         self.summarizer = Some(Arc::new(summarizer));
         self
+    }
+
+    pub fn store(&self) -> &S {
+        &self.store
     }
 
     /// Ingest a single fully-fetched sitting. This is the core unit of work;
@@ -305,7 +309,8 @@ impl<S: DataStore> IngestPipeline<S> {
                 date: p.date,
                 house: p.house.clone(),
             };
-            match summarizer.summarize(&ctx, &p.contributions_text).await {
+            let prompt = build_prompt(&ctx, &p.contributions_text);
+            match summarizer.summarize(&prompt).await {
                 Ok(summary) => {
                     self.store
                         .store_bill_mention_summary(
@@ -343,7 +348,8 @@ impl<S: DataStore> IngestPipeline<S> {
                 date: p.date,
                 house: p.house.clone(),
             };
-            match summarizer.summarize(&ctx, &p.contributions_text).await {
+            let prompt = build_prompt(&ctx, &p.contributions_text);
+            match summarizer.summarize(&prompt).await {
                 Ok(summary) => {
                     self.store
                         .store_topic_summary(p.topic_id, p.speaker_id, &summary, "unknown")
