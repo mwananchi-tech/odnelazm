@@ -389,6 +389,10 @@ impl<S: DataStore> IngestPipeline<S> {
         log::info!("Members stored — running speaker linkage...");
         let linked = self.store.link_speakers_to_members().await?;
         log::info!("{linked} speaker rows linked to members");
+
+        let bill_sponsors = self.store.link_bill_sponsors_to_members().await?;
+        log::info!("{bill_sponsors} bill sponsor rows linked to members");
+
         Ok(linked)
     }
 

@@ -1,9 +1,19 @@
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use odnelazm::HansardSitting;
+use regex::Regex;
 
 use crate::extract::speakers::is_noise_speaker;
 use crate::store::SpeakerRecord;
+
+// Matches bill citation patterns used in Senate announcements, with or without
+// the opening parenthesis (some entries in the Hansard are malformed).
+// e.g. "(Senate Bills No. 12 Of 2025)" or "National Assembly Bills No. 4 Of 2024)"
+static RE_BILL_CITATION: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(Senates?|National Assembly) Bills? No\.?\s*\d+\s+Of\s+\d{4}")
+        .expect("invalid bill citation regex")
+});
 
 pub struct TopicContributor {
     pub speaker: SpeakerRecord,
@@ -103,9 +113,14 @@ pub fn extract_topics(sitting: &HansardSitting) -> Vec<ExtractedTopic> {
                 continue;
             }
 
-            // Skip bill/act debates — handled by the bill extractor
+            // Skip bill/act debates — handled by the bill extractor.
+            // Also skip Senate "Communication From The Chair" entries that announce bills
+            // using the pattern "The X Bill (Senate/National Assembly Bills No. Y of YYYY)".
             let upper = title.to_uppercase();
-            if upper.ends_with("BILL") || upper.ends_with(" ACT") {
+            if upper.ends_with("BILL")
+                || upper.ends_with(" ACT")
+                || RE_BILL_CITATION.is_match(title)
+            {
                 continue;
             }
 
