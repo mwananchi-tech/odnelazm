@@ -2,6 +2,7 @@ pub mod embed;
 pub mod enricher;
 pub mod error;
 pub mod extract;
+pub mod metrics;
 pub mod pipeline;
 pub mod postgres;
 pub mod store;
