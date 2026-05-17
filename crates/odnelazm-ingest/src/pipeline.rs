@@ -7,6 +7,7 @@ use crate::{
     embed::{Embedder, sitting_text},
     enricher::prompts::member_contribution_prompt,
     extract::{extract_bills, extract_speakers, extract_topics},
+    metrics::MetricsSink,
     store::{BillMentionRecord, DataStore, MemberEnrichment, MemberRecord, TopicRecord},
     summarize::{Summarizer, SummaryContext},
 };
@@ -21,6 +22,7 @@ pub struct IngestPipeline<S: DataStore> {
     store: S,
     embedder: Option<Arc<dyn Embedder>>,
     pub summarizer: Option<Arc<dyn Summarizer>>,
+    pub metrics: Option<Arc<dyn MetricsSink>>,
 }
 
 impl<S: DataStore> IngestPipeline<S> {
@@ -30,6 +32,7 @@ impl<S: DataStore> IngestPipeline<S> {
             store,
             embedder: None,
             summarizer: None,
+            metrics: None,
         }
     }
 
@@ -40,6 +43,11 @@ impl<S: DataStore> IngestPipeline<S> {
 
     pub fn with_summarizer(mut self, summarizer: impl Summarizer + 'static) -> Self {
         self.summarizer = Some(Arc::new(summarizer));
+        self
+    }
+
+    pub fn with_metrics(mut self, sink: impl MetricsSink + 'static) -> Self {
+        self.metrics = Some(Arc::new(sink));
         self
     }
 

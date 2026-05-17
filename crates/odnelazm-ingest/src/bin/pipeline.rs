@@ -5,6 +5,7 @@ use odnelazm::HansardScraper;
 use odnelazm_ingest::{
     DataStore, IngestPipeline,
     enricher::{LmStudioSummarizer, prompts},
+    metrics::{MetricsSink, NoopSink, prometheus::PrometheusPushSink},
     postgres::PostgresStore,
     summarize::{Summarizer, SummaryContext},
 };
@@ -23,6 +24,11 @@ struct Cli {
         help = "PostgreSQL connection string"
     )]
     database_url: String,
+
+    /// Prometheus pushgateway URL. When set, pipeline metrics are pushed after
+    /// each batch. Omitting this flag disables metrics — ingestion is unaffected.
+    #[arg(long, env = "METRICS_URL")]
+    metrics_url: Option<String>,
 
     #[command(subcommand)]
     command: Command,
@@ -167,6 +173,8 @@ impl EnrichCmd {
             log::error!("No summarizer configured");
             process::exit(1);
         });
+        let noop = NoopSink;
+        let metrics: &dyn MetricsSink = pipeline.metrics.as_deref().unwrap_or(&noop);
 
         log::info!(
             "target={} batch={} concurrency={} model={}",
@@ -177,16 +185,23 @@ impl EnrichCmd {
         );
 
         match self.target {
-            EnrichTarget::BillMentions => self.run_bill_mentions(store, summarizer).await,
-            EnrichTarget::BillJourneys => self.run_bill_journeys(store, summarizer).await,
-            EnrichTarget::BillSpeakers => self.run_bill_speakers(store, summarizer).await,
-            EnrichTarget::Topics => self.run_topics(store, summarizer).await,
-            EnrichTarget::TopicSpeakers => self.run_topic_speakers(store, summarizer).await,
-            EnrichTarget::Sittings => self.run_sittings(store, summarizer).await,
+            EnrichTarget::BillMentions => self.run_bill_mentions(store, summarizer, metrics).await,
+            EnrichTarget::BillJourneys => self.run_bill_journeys(store, summarizer, metrics).await,
+            EnrichTarget::BillSpeakers => self.run_bill_speakers(store, summarizer, metrics).await,
+            EnrichTarget::Topics => self.run_topics(store, summarizer, metrics).await,
+            EnrichTarget::TopicSpeakers => {
+                self.run_topic_speakers(store, summarizer, metrics).await
+            }
+            EnrichTarget::Sittings => self.run_sittings(store, summarizer, metrics).await,
         }
     }
 
-    async fn run_bill_mentions(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+    async fn run_bill_mentions(
+        &self,
+        store: &PostgresStore,
+        summarizer: &dyn Summarizer,
+        metrics: &dyn MetricsSink,
+    ) {
         let mut total = 0u64;
         loop {
             let pending = store
@@ -217,18 +232,33 @@ impl EnrichCmd {
                                 .await
                                 .ok();
                             total += 1;
+                            metrics.counter(
+                                "summaries_written",
+                                1,
+                                &[("target", "bill-mentions"), ("model", &self.model)],
+                            );
                             log::info!("bill-mention done: {name}");
                         }
-                        Err(e) => log::warn!("bill-mention failed ({name}): {e}"),
+                        Err(e) => {
+                            metrics.counter("summary_failures", 1, &[("target", "bill-mentions")]);
+                            log::warn!("bill-mention failed ({name}): {e}");
+                        }
                     }
                 }
             }
+            metrics.gauge("summaries_pending", 0.0, &[("target", "bill-mentions")]);
+            metrics.flush().await;
             log::info!("bill-mentions: {total} done so far");
         }
         log::info!("bill-mentions complete: {total} summaries written");
     }
 
-    async fn run_bill_journeys(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+    async fn run_bill_journeys(
+        &self,
+        store: &PostgresStore,
+        summarizer: &dyn Summarizer,
+        metrics: &dyn MetricsSink,
+    ) {
         let mut total = 0u64;
         loop {
             let pending = store
@@ -255,18 +285,32 @@ impl EnrichCmd {
                                 .await
                                 .ok();
                             total += 1;
+                            metrics.counter(
+                                "summaries_written",
+                                1,
+                                &[("target", "bill-journeys"), ("model", &self.model)],
+                            );
                             log::info!("bill-journey done: {name}");
                         }
-                        Err(e) => log::warn!("bill-journey failed ({name}): {e}"),
+                        Err(e) => {
+                            metrics.counter("summary_failures", 1, &[("target", "bill-journeys")]);
+                            log::warn!("bill-journey failed ({name}): {e}");
+                        }
                     }
                 }
             }
+            metrics.flush().await;
             log::info!("bill-journeys: {total} done so far");
         }
         log::info!("bill-journeys complete: {total} summaries written");
     }
 
-    async fn run_bill_speakers(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+    async fn run_bill_speakers(
+        &self,
+        store: &PostgresStore,
+        summarizer: &dyn Summarizer,
+        metrics: &dyn MetricsSink,
+    ) {
         let mut total = 0u64;
         loop {
             let pending = store
@@ -308,17 +352,31 @@ impl EnrichCmd {
                                 .await
                                 .ok();
                             total += 1;
+                            metrics.counter(
+                                "summaries_written",
+                                1,
+                                &[("target", "bill-speakers"), ("model", &self.model)],
+                            );
                         }
-                        Err(e) => log::warn!("bill-speaker summary failed: {e}"),
+                        Err(e) => {
+                            metrics.counter("summary_failures", 1, &[("target", "bill-speakers")]);
+                            log::warn!("bill-speaker summary failed: {e}");
+                        }
                     }
                 }
             }
+            metrics.flush().await;
             log::info!("bill-speakers: {total} done so far");
         }
         log::info!("bill-speakers complete: {total} summaries written");
     }
 
-    async fn run_topics(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+    async fn run_topics(
+        &self,
+        store: &PostgresStore,
+        summarizer: &dyn Summarizer,
+        metrics: &dyn MetricsSink,
+    ) {
         let mut total = 0u64;
         loop {
             let pending = store
@@ -345,18 +403,32 @@ impl EnrichCmd {
                                 .await
                                 .ok();
                             total += 1;
-                            log::info!("topic-node done: {title}");
+                            metrics.counter(
+                                "summaries_written",
+                                1,
+                                &[("target", "topics"), ("model", &self.model)],
+                            );
+                            log::info!("topic done: {title}");
                         }
-                        Err(e) => log::warn!("topic-node failed ({title}): {e}"),
+                        Err(e) => {
+                            metrics.counter("summary_failures", 1, &[("target", "topics")]);
+                            log::warn!("topic failed ({title}): {e}");
+                        }
                     }
                 }
             }
+            metrics.flush().await;
             log::info!("topics: {total} done so far");
         }
         log::info!("topics complete: {total} summaries written");
     }
 
-    async fn run_topic_speakers(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+    async fn run_topic_speakers(
+        &self,
+        store: &PostgresStore,
+        summarizer: &dyn Summarizer,
+        metrics: &dyn MetricsSink,
+    ) {
         let mut total = 0u64;
         loop {
             let pending = store
@@ -398,17 +470,31 @@ impl EnrichCmd {
                                 .await
                                 .ok();
                             total += 1;
+                            metrics.counter(
+                                "summaries_written",
+                                1,
+                                &[("target", "topic-speakers"), ("model", &self.model)],
+                            );
                         }
-                        Err(e) => log::warn!("topic-speaker summary failed: {e}"),
+                        Err(e) => {
+                            metrics.counter("summary_failures", 1, &[("target", "topic-speakers")]);
+                            log::warn!("topic-speaker summary failed: {e}");
+                        }
                     }
                 }
             }
+            metrics.flush().await;
             log::info!("topic-speakers: {total} done so far");
         }
         log::info!("topic-speakers complete: {total} summaries written");
     }
 
-    async fn run_sittings(&self, store: &PostgresStore, summarizer: &dyn Summarizer) {
+    async fn run_sittings(
+        &self,
+        store: &PostgresStore,
+        summarizer: &dyn Summarizer,
+        metrics: &dyn MetricsSink,
+    ) {
         let mut total = 0u64;
         loop {
             let pending = store
@@ -441,12 +527,21 @@ impl EnrichCmd {
                                 .await
                                 .ok();
                             total += 1;
+                            metrics.counter(
+                                "summaries_written",
+                                1,
+                                &[("target", "sittings"), ("model", &self.model)],
+                            );
                             log::info!("sitting done: {date} {house}");
                         }
-                        Err(e) => log::warn!("sitting failed ({date} {house}): {e}"),
+                        Err(e) => {
+                            metrics.counter("summary_failures", 1, &[("target", "sittings")]);
+                            log::warn!("sitting failed ({date} {house}): {e}");
+                        }
                     }
                 }
             }
+            metrics.flush().await;
             log::info!("sittings: {total} done so far");
         }
         log::info!("sittings complete: {total} summaries written");
@@ -507,12 +602,29 @@ async fn main() {
 
     match cli.command {
         Command::Ingest(cmd) => {
-            let pipeline = IngestPipeline::new(scraper, store);
+            let pipeline = match &cli.metrics_url {
+                Some(url) => {
+                    log::info!("Metrics: pushing to {url}");
+                    IngestPipeline::new(scraper, store)
+                        .with_metrics(PrometheusPushSink::new(url, "odnelazm-pipeline"))
+                }
+                None => IngestPipeline::new(scraper, store).with_metrics(NoopSink),
+            };
             cmd.run(&pipeline).await;
         }
         Command::Enrich(cmd) => {
             let llm = LmStudioSummarizer::new(&cmd.llm_url, &cmd.model, cmd.temperature);
-            let pipeline = IngestPipeline::new(scraper, store).with_summarizer(llm);
+            let pipeline = match &cli.metrics_url {
+                Some(url) => {
+                    log::info!("Metrics: pushing to {url}");
+                    IngestPipeline::new(scraper, store)
+                        .with_summarizer(llm)
+                        .with_metrics(PrometheusPushSink::new(url, "odnelazm-pipeline"))
+                }
+                None => IngestPipeline::new(scraper, store)
+                    .with_summarizer(llm)
+                    .with_metrics(NoopSink),
+            };
             cmd.run(&pipeline).await;
         }
     }
