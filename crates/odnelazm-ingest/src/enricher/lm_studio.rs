@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::metrics::MetricsSink;
 use crate::summarize::Summarizer;
 use crate::{IngestError, Result};
 
@@ -18,6 +21,8 @@ struct ChatRequest {
 #[derive(Deserialize)]
 struct ChatResponse {
     output: Vec<OutputItem>,
+    #[serde(default)]
+    stats: Option<ResponseStats>,
 }
 
 #[derive(Deserialize)]
@@ -27,12 +32,21 @@ struct OutputItem {
     content: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Deserialize)]
+struct ResponseStats {
+    input_tokens: Option<u64>,
+    total_output_tokens: Option<u64>,
+    reasoning_output_tokens: Option<u64>,
+    tokens_per_second: Option<f64>,
+    time_to_first_token_seconds: Option<f64>,
+}
+
 pub struct LmStudioSummarizer {
     client: Client,
     base_url: String,
     model: String,
     temperature: Option<f32>,
+    metrics: Option<Arc<dyn MetricsSink>>,
 }
 
 impl LmStudioSummarizer {
@@ -45,6 +59,32 @@ impl LmStudioSummarizer {
             base_url: base_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
             temperature: Some(temperature),
+            metrics: None,
+        }
+    }
+
+    pub fn with_metrics(mut self, sink: Arc<dyn MetricsSink>) -> Self {
+        self.metrics = Some(sink);
+        self
+    }
+
+    fn emit_stats(&self, stats: &ResponseStats) {
+        let Some(metrics) = &self.metrics else { return };
+        let labels: &[(&str, &str)] = &[("model", &self.model)];
+        if let Some(v) = stats.input_tokens {
+            metrics.counter("llm_input_tokens", v, labels);
+        }
+        if let Some(v) = stats.total_output_tokens {
+            metrics.counter("llm_output_tokens", v, labels);
+        }
+        if let Some(v) = stats.reasoning_output_tokens {
+            metrics.counter("llm_reasoning_tokens", v, labels);
+        }
+        if let Some(v) = stats.tokens_per_second {
+            metrics.gauge("llm_tokens_per_second", v, labels);
+        }
+        if let Some(v) = stats.time_to_first_token_seconds {
+            metrics.gauge("llm_time_to_first_token_seconds", v, labels);
         }
     }
 
@@ -69,6 +109,10 @@ impl LmStudioSummarizer {
             .json::<ChatResponse>()
             .await
             .map_err(|e| IngestError::Embed(e.to_string()))?;
+
+        if let Some(stats) = &resp.stats {
+            self.emit_stats(stats);
+        }
 
         // Qwen3 returns a reasoning block followed by the actual message.
         // Always use the last item with type "message".

@@ -51,6 +51,11 @@ impl<S: DataStore> IngestPipeline<S> {
         self
     }
 
+    pub fn with_metrics_arc(mut self, sink: Arc<dyn MetricsSink>) -> Self {
+        self.metrics = Some(sink);
+        self
+    }
+
     pub fn store(&self) -> &S {
         &self.store
     }
