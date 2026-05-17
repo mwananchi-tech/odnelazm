@@ -187,6 +187,7 @@ pub trait DataStore: Send + Sync {
 
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
     async fn link_speakers_to_members(&self) -> Result<u64>;
+    async fn link_bill_sponsors_to_members(&self) -> Result<u64>;
 
     /// Return all (id, url) pairs for stored members: used by the enrichment pass.
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>>;

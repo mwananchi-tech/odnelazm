@@ -580,6 +580,28 @@ impl DataStore for PostgresStore {
         Ok((url_linked.0 + name_linked.0 + role_linked) as u64)
     }
 
+    async fn link_bill_sponsors_to_members(&self) -> Result<u64> {
+        let linked = sqlx::query_scalar::<_, i64>(
+            r#"
+            WITH updated AS (
+                UPDATE bills b
+                SET sponsor_id = (
+                    SELECT id FROM match_member(b.sponsor, 0.4)
+                    ORDER BY score DESC
+                    LIMIT 1
+                )
+                WHERE b.sponsor IS NOT NULL
+                  AND b.sponsor_id IS NULL
+                RETURNING 1
+            )
+            SELECT count(*)::BIGINT FROM updated
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(linked as u64)
+    }
+
     async fn link_speaker_to_bill_mention(
         &self,
         bill_mention_id: Uuid,
