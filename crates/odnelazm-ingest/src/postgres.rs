@@ -51,11 +51,17 @@ pub struct PostgresStore {
 impl PostgresStore {
     pub async fn connect(database_url: &str) -> Result<Self> {
         let pool = PgPool::connect(database_url).await?;
+        // Clear any prepared statements left on pooled connections from previous runs.
+        sqlx::query("DEALLOCATE ALL").execute(&pool).await.ok();
         Ok(Self { pool })
     }
 
     pub fn from_pool(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    async fn deallocate_all(&self) {
+        sqlx::query("DEALLOCATE ALL").execute(&self.pool).await.ok();
     }
 }
 
@@ -254,6 +260,7 @@ impl DataStore for PostgresStore {
     }
 
     async fn pending_bill_summaries(&self, limit: u32) -> Result<Vec<PendingBillSummary>> {
+        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -333,6 +340,7 @@ impl DataStore for PostgresStore {
     }
 
     async fn pending_topic_summaries(&self, limit: u32) -> Result<Vec<PendingTopicSummary>> {
+        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -415,6 +423,7 @@ impl DataStore for PostgresStore {
         &self,
         limit: u32,
     ) -> Result<Vec<PendingTopicAppearanceSummary>> {
+        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -631,6 +640,7 @@ impl DataStore for PostgresStore {
         &self,
         limit: u32,
     ) -> Result<Vec<PendingBillAppearanceSummary>> {
+        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -709,6 +719,7 @@ impl DataStore for PostgresStore {
         &self,
         limit: u32,
     ) -> Result<Vec<PendingBillJourneySummary>> {
+        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -782,6 +793,7 @@ impl DataStore for PostgresStore {
     }
 
     async fn pending_sitting_summaries(&self, limit: u32) -> Result<Vec<PendingSittingSummary>> {
+        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (

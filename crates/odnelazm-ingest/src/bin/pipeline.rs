@@ -9,6 +9,7 @@ use odnelazm_ingest::{
     postgres::PostgresStore,
     summarize::{Summarizer, SummaryContext},
 };
+use std::sync::Arc;
 use std::{fmt::Display, process};
 
 #[derive(Parser)]
@@ -216,6 +217,7 @@ impl EnrichCmd {
                 let tasks: Vec<_> = chunk
                     .iter()
                     .map(|p| async move {
+                        log::info!("bill-mention start: {}", p.bill_name);
                         let prompt = prompts::bill_appearance_prompt(p);
                         (
                             p.bill_mention_id,
@@ -273,6 +275,7 @@ impl EnrichCmd {
                 let tasks: Vec<_> = chunk
                     .iter()
                     .map(|p| async move {
+                        log::info!("bill-journey start: {}", p.bill_name);
                         let prompt = prompts::bill_journey_prompt(p);
                         (p.bill_id, &p.bill_name, summarizer.summarize(&prompt).await)
                     })
@@ -391,6 +394,7 @@ impl EnrichCmd {
                 let tasks: Vec<_> = chunk
                     .iter()
                     .map(|p| async move {
+                        log::info!("topic start: {}", p.title);
                         let prompt = prompts::topic_appearance_prompt(p);
                         (p.topic_id, &p.title, summarizer.summarize(&prompt).await)
                     })
@@ -510,6 +514,7 @@ impl EnrichCmd {
                 let tasks: Vec<_> = chunk
                     .iter()
                     .map(|p| async move {
+                        log::info!("sitting start: {} {}", p.date, p.house);
                         let prompt = prompts::sitting_prompt(p);
                         (
                             p.sitting_id,
@@ -613,17 +618,22 @@ async fn main() {
             cmd.run(&pipeline).await;
         }
         Command::Enrich(cmd) => {
-            let llm = LmStudioSummarizer::new(&cmd.llm_url, &cmd.model, cmd.temperature);
             let pipeline = match &cli.metrics_url {
                 Some(url) => {
                     log::info!("Metrics: pushing to {url}");
+                    let sink = Arc::new(PrometheusPushSink::new(url, "odnelazm-pipeline"));
+                    let llm = LmStudioSummarizer::new(&cmd.llm_url, &cmd.model, cmd.temperature)
+                        .with_metrics(Arc::clone(&sink) as Arc<dyn MetricsSink>);
                     IngestPipeline::new(scraper, store)
                         .with_summarizer(llm)
-                        .with_metrics(PrometheusPushSink::new(url, "odnelazm-pipeline"))
+                        .with_metrics_arc(sink)
                 }
-                None => IngestPipeline::new(scraper, store)
-                    .with_summarizer(llm)
-                    .with_metrics(NoopSink),
+                None => {
+                    let llm = LmStudioSummarizer::new(&cmd.llm_url, &cmd.model, cmd.temperature);
+                    IngestPipeline::new(scraper, store)
+                        .with_summarizer(llm)
+                        .with_metrics(NoopSink)
+                }
             };
             cmd.run(&pipeline).await;
         }
