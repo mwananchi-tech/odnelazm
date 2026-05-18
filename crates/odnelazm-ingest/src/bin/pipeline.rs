@@ -83,7 +83,9 @@ impl IngestCmd {
                         "Ingesting range {start} to {end} (concurrency={})",
                         self.concurrency
                     );
-                    pipeline.ingest_sittings_in_range(start, end, self.concurrency).await
+                    pipeline
+                        .ingest_sittings_in_range(start, end, self.concurrency)
+                        .await
                 }
                 _ => {
                     log::info!(

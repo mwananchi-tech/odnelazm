@@ -207,14 +207,18 @@ pub trait DataStore: Send + Sync {
     ) -> Result<()>;
 
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
-    async fn link_speakers_to_members(&self) -> Result<u64>;
+    async fn link_speakers_to_members(&self, parliament: &str) -> Result<u64>;
     async fn link_bill_sponsors_to_members(&self) -> Result<u64>;
 
     /// Return all (id, url) pairs for stored members: used by the profile import pass.
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>>;
 
     /// Enrich an existing member row with profile-page data.
-    async fn update_member_profile(&self, member_id: Uuid, enrichment: &MemberProfileData) -> Result<()>;
+    async fn update_member_profile(
+        &self,
+        member_id: Uuid,
+        enrichment: &MemberProfileData,
+    ) -> Result<()>;
 
     /*  Enrichment */
 

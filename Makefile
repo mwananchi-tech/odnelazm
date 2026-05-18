@@ -1,5 +1,6 @@
-DATABASE_URL ?= postgres://odnelazm:odnelazm@localhost:5432/odnelazm
-METRICS_URL  ?=
+DATABASE_URL      ?= postgres://odnelazm:odnelazm@localhost:5432/odnelazm
+CLOUD_DATABASE_URL ?=
+METRICS_URL       ?=
 MODEL        ?= google/gemma-4-e4b
 CONCURRENCY  ?= 1
 BATCH        ?= 10
@@ -13,7 +14,7 @@ PIPELINE_FLAGS = --database-url $(DATABASE_URL) $(if $(METRICS_URL),--metrics-ur
 
 .PHONY: build ingest ingest-with-profiles enrich-bill-mentions enrich-bill-journeys \
         enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings \
-        enrich-all metrics-up metrics-down metrics-logs
+        enrich-all db-pull metrics-up metrics-down metrics-logs
 
 build:
 	cargo build -p odnelazm-ingest --release
@@ -73,6 +74,27 @@ enrich-sittings: build
 
 enrich-all: enrich-bill-mentions enrich-bill-journeys \
             enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings
+
+## DB sync (Supabase -> local)
+
+db-pull:
+	@if [ -z "$(CLOUD_DATABASE_URL)" ]; then echo "CLOUD_DATABASE_URL is not set"; exit 1; fi
+	@echo "Dumping schema from Supabase..."
+	docker run --rm --network host postgres:16-alpine \
+	  pg_dump "$(CLOUD_DATABASE_URL)" --no-owner --no-acl --schema-only \
+	  > /tmp/odnelazm_cloud_schema.sql
+	@echo "Dumping data from Supabase..."
+	docker run --rm --network host postgres:16-alpine \
+	  pg_dump "$(CLOUD_DATABASE_URL)" --no-owner --no-acl --data-only \
+	  > /tmp/odnelazm_cloud_data.sql
+	@echo "Resetting local DB..."
+	docker exec odnelazm-pg psql -U odnelazm -d odnelazm \
+	  -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@echo "Applying schema..."
+	docker exec -i odnelazm-pg psql -U odnelazm -d odnelazm < /tmp/odnelazm_cloud_schema.sql
+	@echo "Applying data..."
+	docker exec -i odnelazm-pg psql -U odnelazm -d odnelazm < /tmp/odnelazm_cloud_data.sql
+	@echo "Done."
 
 ## Metrics stack
 

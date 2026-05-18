@@ -305,7 +305,7 @@ impl<S: DataStore> IngestPipeline<S> {
         }
 
         log::info!("Members stored, running speaker linkage...");
-        let linked = self.store.link_speakers_to_members().await?;
+        let linked = self.store.link_speakers_to_members(parliament).await?;
         log::info!("{linked} speaker rows linked to members");
 
         let bill_sponsors = self.store.link_bill_sponsors_to_members().await?;
@@ -337,7 +337,11 @@ impl<S: DataStore> IngestPipeline<S> {
             for (member_id, result) in futures::future::join_all(fetches).await {
                 match result {
                     Ok(profile) => {
-                        match self.store.update_member_profile(member_id, &profile.into()).await {
+                        match self
+                            .store
+                            .update_member_profile(member_id, &profile.into())
+                            .await
+                        {
                             Ok(()) => enriched += 1,
                             Err(e) => log::warn!("Enrichment store failed for {member_id}: {e}"),
                         }

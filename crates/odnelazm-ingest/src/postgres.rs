@@ -543,25 +543,29 @@ impl DataStore for PostgresStore {
         Ok(())
     }
 
-    async fn link_speakers_to_members(&self) -> Result<u64> {
+    async fn link_speakers_to_members(&self, parliament: &str) -> Result<u64> {
+        // Both functions are defined in migrations/0004_members.sql.
+        // link_speakers_by_url: exact URL match between speakers.url and members.url.
+        // link_speakers_by_name: fuzzy trigram match via clean_speaker_name() and match_member().
         let url_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_url()")
             .fetch_one(&self.pool)
             .await?;
-
         let name_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_name(0.45)")
             .fetch_one(&self.pool)
             .await?;
 
         // Link NA presiding officers by role. "Hon. Speaker" / "Hon Speaker" are recorded
         // without a URL and won't fuzzy-match because "Speaker" is too generic. We resolve
-        // them via the role column instead, scoped to NA sittings only.
+        // them via the role column instead, scoped to NA sittings and the given parliament.
+        // TODO: scope by sitting date range rather than parliament string when adding
+        // historical data, to handle Speaker changes across parliaments correctly.
         let role_linked = sqlx::query_scalar::<_, i64>(
             r#"
             WITH updated AS (
                 UPDATE speakers sp
                 SET    member_id = m.id
                 FROM   members m
-                WHERE  m.parliament = '13th-parliament'
+                WHERE  m.parliament = $1
                   AND  m.house      = 'National Assembly'
                   AND  sp.member_id IS NULL
                   AND  (
@@ -569,7 +573,7 @@ impl DataStore for PostgresStore {
                           AND sp.name ~* '^hon\.?\s+speaker$')
                          OR
                          (m.role ILIKE '%deputy speaker%'
-                          AND sp.name ~* '^(the\s+)?deputy\s+speaker$')
+                          AND sp.name ~* '^(the|hon\.?)\s+deputy\s+speaker$')
                        )
                   AND  EXISTS (
                          SELECT 1
@@ -583,6 +587,7 @@ impl DataStore for PostgresStore {
             SELECT count(*)::BIGINT FROM updated
             "#,
         )
+        .bind(parliament)
         .fetch_one(&self.pool)
         .await?;
 
