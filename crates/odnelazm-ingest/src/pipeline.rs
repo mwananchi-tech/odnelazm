@@ -5,11 +5,10 @@ use odnelazm::{HansardScraper, HansardSitting, SittingListOptions};
 use crate::{
     Result,
     embed::{Embedder, sitting_text},
-    enricher::prompts::member_contribution_prompt,
     extract::{extract_bills, extract_speakers, extract_topics},
     metrics::MetricsSink,
-    store::{BillMentionRecord, DataStore, MemberEnrichment, MemberRecord, TopicRecord},
-    summarize::{Summarizer, SummaryContext},
+    store::{BillMentionRecord, DataStore, MemberRecord, TopicRecord},
+    summarize::Summarizer,
 };
 
 /// Orchestrates scraping → extraction → storage for a stream of sittings.
@@ -51,18 +50,13 @@ impl<S: DataStore> IngestPipeline<S> {
         self
     }
 
-    pub fn with_metrics_arc(mut self, sink: Arc<dyn MetricsSink>) -> Self {
-        self.metrics = Some(sink);
-        self
-    }
-
     pub fn store(&self) -> &S {
         &self.store
     }
 
     /// Ingest a single fully-fetched sitting. This is the core unit of work;
     /// all other ingest methods funnel through here.
-    pub async fn ingest_sitting(&self, sitting: HansardSitting) -> Result<IngestStats> {
+    async fn ingest_sitting(&self, sitting: HansardSitting) -> Result<IngestStats> {
         let mut stats = IngestStats::default();
 
         let sitting_id = self.store.upsert_sitting(&sitting).await?;
@@ -160,7 +154,7 @@ impl<S: DataStore> IngestPipeline<S> {
     /// Fetch all current-source sittings, skip those already ingested, and
     /// process the rest. Sittings are fetched and ingested in batches of
     /// `concurrency` at a time to avoid hammering the source.
-    pub async fn ingest_all(&self, concurrency: usize) -> Result<IngestStats> {
+    pub async fn ingest_all_sittings(&self, concurrency: usize) -> Result<IngestStats> {
         let listings = self
             .scraper
             .list_sittings(SittingListOptions {
@@ -178,7 +172,7 @@ impl<S: DataStore> IngestPipeline<S> {
             .collect();
 
         log::info!(
-            "{} sittings total — {} already ingested — {} to process",
+            "{} sittings total, {} already ingested, {} to process",
             ingested_urls.len() + new_listings.len(),
             ingested_urls.len(),
             new_listings.len(),
@@ -224,7 +218,7 @@ impl<S: DataStore> IngestPipeline<S> {
     }
 
     /// Ingest sittings within a specific date range, skipping already-stored ones.
-    pub async fn ingest_range(
+    pub async fn ingest_sittings_in_range(
         &self,
         start: chrono::NaiveDate,
         end: chrono::NaiveDate,
@@ -292,97 +286,8 @@ impl<S: DataStore> IngestPipeline<S> {
         Ok(total)
     }
 
-    /// Fetch all members for a parliament session, store them, then link them
-    /// to existing speaker rows via URL match and fuzzy name match.
-    /// Returns the number of speaker→member links created.
-    /// Generate and store AI summaries for pending (member, bill) and (member, topic) pairs.
-    ///
-    /// Requires a [`Summarizer`] attached via [`IngestPipeline::with_summarizer`].
-    /// Safe to call incrementally; only rows with `contributions_text IS NOT NULL
-    /// AND summary IS NULL` are processed.
-    ///
-    /// Returns `(bill_summaries, topic_summaries)` generated in this run.
-    pub async fn enrich_summaries(&self, batch_size: u32) -> Result<(u64, u64)> {
-        let Some(summarizer) = &self.summarizer else {
-            log::warn!("enrich_summaries called but no Summarizer is configured");
-            return Ok((0, 0));
-        };
-
-        let mut bill_count = 0u64;
-        let pending_bills = self.store.pending_bill_summaries(batch_size).await?;
-        log::info!("Summarising {} bill contributions...", pending_bills.len());
-        for p in &pending_bills {
-            let ctx = SummaryContext {
-                member_name: p
-                    .member_name
-                    .clone()
-                    .unwrap_or_else(|| "Unknown member".into()),
-                title: p.bill_name.clone(),
-                item_type: "bill".into(),
-                stage: p.stage.clone(),
-                date: p.date,
-                house: p.house.clone(),
-            };
-            let prompt = member_contribution_prompt(&ctx, &p.contributions_text);
-            match summarizer.summarize(&prompt).await {
-                Ok(summary) => {
-                    self.store
-                        .store_bill_mention_summary(
-                            p.bill_mention_id,
-                            p.speaker_id,
-                            &summary,
-                            "unknown",
-                        )
-                        .await?;
-                    bill_count += 1;
-                }
-                Err(e) => log::warn!(
-                    "Bill summary failed ({} / {}): {e}",
-                    p.bill_name,
-                    p.member_name.as_deref().unwrap_or("?")
-                ),
-            }
-        }
-
-        let mut topic_count = 0u64;
-        let pending_topics = self.store.pending_topic_summaries(batch_size).await?;
-        log::info!(
-            "Summarising {} topic contributions...",
-            pending_topics.len()
-        );
-        for p in &pending_topics {
-            let ctx = SummaryContext {
-                member_name: p
-                    .member_name
-                    .clone()
-                    .unwrap_or_else(|| "Unknown member".into()),
-                title: p.topic_title.clone(),
-                item_type: "topic".into(),
-                stage: None,
-                date: p.date,
-                house: p.house.clone(),
-            };
-            let prompt = member_contribution_prompt(&ctx, &p.contributions_text);
-            match summarizer.summarize(&prompt).await {
-                Ok(summary) => {
-                    self.store
-                        .store_topic_summary(p.topic_id, p.speaker_id, &summary, "unknown")
-                        .await?;
-                    topic_count += 1;
-                }
-                Err(e) => log::warn!(
-                    "Topic summary failed ({} / {}): {e}",
-                    p.topic_title,
-                    p.member_name.as_deref().unwrap_or("?")
-                ),
-            }
-        }
-
-        Ok((bill_count, topic_count))
-    }
-
     // XXX: limited to 2013-current (mzalendo.com)
-    pub async fn import_members(&self, parliament: &str) -> Result<u64> {
+    pub async fn ingest_members(&self, parliament: &str) -> Result<u64> {
         let members = self.scraper.list_all_members_all_houses(parliament).await?;
         log::info!("Importing {} members for {parliament}...", members.len());
 
@@ -399,8 +304,8 @@ impl<S: DataStore> IngestPipeline<S> {
                 .await?;
         }
 
-        log::info!("Members stored — running speaker linkage...");
-        let linked = self.store.link_speakers_to_members().await?;
+        log::info!("Members stored, running speaker linkage...");
+        let linked = self.store.link_speakers_to_members(parliament).await?;
         log::info!("{linked} speaker rows linked to members");
 
         let bill_sponsors = self.store.link_bill_sponsors_to_members().await?;
@@ -412,7 +317,7 @@ impl<S: DataStore> IngestPipeline<S> {
     /// Fetch individual profile pages for all stored members and enrich the DB
     /// with photo, biography, party, committees, and speech statistics.
     /// Safe to re-run since it uses COALESCE so existing values are not overwritten.
-    pub async fn enrich_member_profiles(&self, concurrency: usize) -> Result<u64> {
+    pub async fn ingest_member_profiles(&self, concurrency: usize) -> Result<u64> {
         let members = self.store.list_member_urls().await?;
         log::info!("Enriching {} member profiles...", members.len());
         let mut enriched = 0u64;
@@ -432,23 +337,11 @@ impl<S: DataStore> IngestPipeline<S> {
             for (member_id, result) in futures::future::join_all(fetches).await {
                 match result {
                     Ok(profile) => {
-                        let e = MemberEnrichment {
-                            photo_url: profile.photo_url.map(|p| {
-                                if p.starts_with("http") {
-                                    p
-                                } else {
-                                    format!("https://mzalendo.com{p}")
-                                }
-                            }),
-                            biography: profile.biography,
-                            party: profile.party,
-                            positions: profile.positions,
-                            committees: profile.committees,
-                            speeches_last_year: profile.speeches_last_year,
-                            speeches_total: profile.speeches_total,
-                            bills_total: profile.bills_total,
-                        };
-                        match self.store.enrich_member(member_id, &e).await {
+                        match self
+                            .store
+                            .update_member_profile(member_id, &profile.into())
+                            .await
+                        {
                             Ok(()) => enriched += 1,
                             Err(e) => log::warn!("Enrichment store failed for {member_id}: {e}"),
                         }

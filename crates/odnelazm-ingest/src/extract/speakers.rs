@@ -23,7 +23,7 @@ pub fn is_noise_speaker(name: &str) -> bool {
     if t.contains("I beg to move") {
         return true;
     }
-    // Implausibly long — almost certainly a multi-line parse error
+    // Implausibly long, almost certainly a multi-line parse error
     if t.len() > 150 {
         return true;
     }

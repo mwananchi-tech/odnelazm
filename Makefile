@@ -1,5 +1,6 @@
-DATABASE_URL ?= postgres://odnelazm:odnelazm@localhost:5432/odnelazm
-METRICS_URL  ?=
+DATABASE_URL      ?= postgres://odnelazm:odnelazm@localhost:5432/odnelazm
+CLOUD_DATABASE_URL ?=
+METRICS_URL       ?=
 MODEL        ?= google/gemma-4-e4b
 CONCURRENCY  ?= 1
 BATCH        ?= 10
@@ -11,9 +12,9 @@ PIPELINE = ./target/release/odnelazm-pipeline
 
 PIPELINE_FLAGS = --database-url $(DATABASE_URL) $(if $(METRICS_URL),--metrics-url $(METRICS_URL),)
 
-.PHONY: build ingest ingest-members enrich-bill-mentions enrich-bill-journeys \
+.PHONY: build ingest ingest-with-profiles enrich-bill-mentions enrich-bill-journeys \
         enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings \
-        enrich-all metrics-up metrics-down metrics-logs
+        enrich-all db-pull db-push metrics-up metrics-down metrics-logs
 
 build:
 	cargo build -p odnelazm-ingest --release
@@ -26,12 +27,12 @@ ingest: build
 		--end-date $(END_DATE) \
 		--parliament $(PARLIAMENT)
 
-ingest-members: build
+ingest-with-profiles: build
 	$(PIPELINE) $(PIPELINE_FLAGS) ingest \
 		--start-date $(START_DATE) \
 		--end-date $(END_DATE) \
 		--parliament $(PARLIAMENT) \
-		--enrich-members
+		--import-profiles
 
 ## Enrichment
 
@@ -71,8 +72,49 @@ enrich-sittings: build
 		--concurrency $(CONCURRENCY) \
 		--batch $(BATCH)
 
-enrich-all: enrich-bill-mentions enrich-bill-journeys enrich-bill-speakers \
-            enrich-topics enrich-topic-speakers enrich-sittings
+enrich-all: enrich-bill-mentions enrich-bill-journeys \
+            enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings
+
+## DB sync
+
+db-pull:
+	@if [ -z "$(CLOUD_DATABASE_URL)" ]; then echo "CLOUD_DATABASE_URL is not set"; exit 1; fi
+	@echo "Dumping schema from cloud..."
+	docker run --rm --network host postgres:17-alpine \
+	  pg_dump "$(CLOUD_DATABASE_URL)" --no-owner --no-acl --schema-only \
+	  > /tmp/odnelazm_cloud_schema.sql
+	@echo "Dumping data from cloud..."
+	docker run --rm --network host postgres:17-alpine \
+	  pg_dump "$(CLOUD_DATABASE_URL)" --no-owner --no-acl --data-only \
+	  > /tmp/odnelazm_cloud_data.sql
+	@echo "Resetting local DB..."
+	docker exec odnelazm-pg psql -U odnelazm -d odnelazm \
+	  -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@echo "Applying schema..."
+	docker exec -i odnelazm-pg psql -U odnelazm -d odnelazm < /tmp/odnelazm_cloud_schema.sql
+	@echo "Applying data..."
+	docker exec -i odnelazm-pg psql -U odnelazm -d odnelazm < /tmp/odnelazm_cloud_data.sql
+	@echo "Done."
+
+db-push:
+	@if [ -z "$(CLOUD_DATABASE_URL)" ]; then echo "CLOUD_DATABASE_URL is not set"; exit 1; fi
+	@echo "Dumping schema from local..."
+	docker exec odnelazm-pg pg_dump -U odnelazm -d odnelazm --no-owner --no-acl --schema-only \
+	  -f /tmp/odnelazm_local_schema.sql
+	@echo "Dumping data from local..."
+	docker exec odnelazm-pg pg_dump -U odnelazm -d odnelazm --no-owner --no-acl --data-only \
+	  -f /tmp/odnelazm_local_data.sql
+	@echo "Resetting cloud DB..."
+	docker run --rm --network host postgres:17-alpine \
+	  psql "$(CLOUD_DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" \
+	  -c "CREATE OR REPLACE FUNCTION public.uuid_generate_v4() RETURNS uuid LANGUAGE sql AS \$\$SELECT gen_random_uuid();\$\$;"
+	@echo "Applying schema..."
+	docker run --rm --network host -v /tmp:/tmp postgres:17-alpine \
+	  psql "$(CLOUD_DATABASE_URL)" -f /tmp/odnelazm_local_schema.sql
+	@echo "Applying data..."
+	docker run --rm --network host -v /tmp:/tmp postgres:17-alpine \
+	  psql "$(CLOUD_DATABASE_URL)" -f /tmp/odnelazm_local_data.sql
+	@echo "Done."
 
 ## Metrics stack
 

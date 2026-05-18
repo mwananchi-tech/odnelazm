@@ -5,7 +5,7 @@ use async_trait::async_trait;
 /// A sink that receives pipeline metrics.
 ///
 /// `counter` and `gauge` update in-memory state synchronously.
-/// `flush` sends accumulated metrics to the configured backend — call it
+/// `flush` sends accumulated metrics to the configured backend; call it
 /// at the end of each batch or pipeline run. On a `NoopSink` all three
 /// methods are zero-cost.
 ///
