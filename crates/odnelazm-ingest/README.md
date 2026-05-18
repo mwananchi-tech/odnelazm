@@ -117,23 +117,56 @@ Each enrichment run is idempotent. Items that already have a summary are skipped
 
 ## Metrics
 
-The pipeline can push metrics to a Prometheus pushgateway after each batch. This is optional — omitting `--metrics-url` disables it with no effect on ingestion.
+The pipeline can push metrics to a Prometheus pushgateway after each batch. This is optional. Omitting `--metrics-url` disables it with no effect on ingestion.
 
 ```bash
 # With metrics enabled
 odnelazm-pipeline --metrics-url http://localhost:9091 enrich bill-mentions --model qwen/qwen3.5-9b
 ```
 
-A local monitoring stack (Prometheus, pushgateway, Grafana) is available via Docker Compose from the repo root:
+### Local monitoring stack
+
+A local stack (Prometheus, pushgateway, Grafana) is available via Docker Compose from the repo root. Grafana comes pre-configured with the Prometheus datasource and the enrichment dashboard, so no manual setup is required.
+
+**Requirements:** Docker (or OrbStack)
+
+**Start the stack:**
 
 ```bash
-make metrics-up   # start
-make metrics-down # stop
+make metrics-up
 ```
 
-The Makefile at the repo root also provides convenience targets for running the pipeline with metrics wired in:
+This starts three services:
+
+- Pushgateway at `http://localhost:9091`: receives metric pushes from the pipeline
+- Prometheus at `http://localhost:9090`: scrapes pushgateway every 15 seconds
+- Grafana at `http://localhost:3001`: dashboards, no login required
+
+Open `http://localhost:3001` and navigate to **Dashboards > odnelazm > odnelazm-ingest** to view the enrichment dashboard.
+
+**Stop the stack:**
+
+```bash
+make metrics-down
+```
+
+Data is persisted in Docker volumes and restored automatically on the next `make metrics-up`.
+
+The Makefile also provides convenience targets with metrics wired in:
 
 ```bash
 make enrich-bill-mentions MODEL=qwen/qwen3.5-9b METRICS_URL=http://localhost:9091
 make enrich-all           MODEL=qwen/qwen3.5-9b METRICS_URL=http://localhost:9091
 ```
+
+### Available metrics
+
+| Metric | Type | Description |
+| --- | --- | --- |
+| `summaries_written` | counter | Total summaries written, labelled by `target` and `model` |
+| `summary_failures` | counter | Total LLM call failures, labelled by `target` |
+| `llm_tokens_per_second` | gauge | Inference throughput of the most recent call |
+| `llm_input_tokens` | counter | Total input tokens fed to the model |
+| `llm_output_tokens` | counter | Total output tokens generated |
+| `llm_reasoning_tokens` | counter | Total reasoning (chain-of-thought) tokens generated |
+| `llm_time_to_first_token_seconds` | gauge | Latency before the model starts generating, in seconds |
