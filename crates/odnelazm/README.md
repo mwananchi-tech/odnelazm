@@ -2,49 +2,40 @@
 
 The core [mzalendo.com](https://mzalendo.com) hansard scraper and parser.
 
+Source routing is automatic: archive (`info.mzalendo.com`) is used for sittings before 2013-03-28, current (`mzalendo.com`) for those after, and both are merged in parallel for ranges that span the cutoff.
+
 ## Usage
 
-### Archive (`info.mzalendo.com`)
-
 ```rust
-use odnelazm::archive::WebScraper;
+use odnelazm::{HansardScraper, House, SittingListOptions};
 
-let scraper = WebScraper::new()?;
+let scraper = HansardScraper::new()?;
 
-// list all available sittings
-let listings = scraper.fetch_hansard_list().await?;
+// List recent sittings (current source, page 1)
+let listings = scraper.list_sittings(SittingListOptions::default()).await?;
 
-// fetch a sitting transcript
-let sitting = scraper.fetch_hansard_sitting("https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00", false).await?;
+// List sittings in a date range (auto-routed)
+let listings = scraper.list_sittings(SittingListOptions {
+    start_date: Some("2023-01-01".parse()?),
+    end_date: Some("2023-12-31".parse()?),
+    house: Some(House::Senate),
+    ..Default::default()
+}).await?;
 
-// fetch a person's profile
-let person = scraper.fetch_person_details("/person/farhiya-ali-haji/").await?;
-```
+// Fetch a sitting transcript (source detected from URL or slug)
+let sitting = scraper.get_sitting("thursday-12th-february-2026-afternoon-sitting-2438").await?;
+let sitting = scraper.get_sitting("https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00").await?;
 
-### Current (`mzalendo.com/democracy-tools`)
+// List members
+let members = scraper.list_members(House::NationalAssembly, "13th-parliament", 1).await?;
 
-```rust
-use odnelazm::current::WebScraper;
-use odnelazm::House;
+// Fetch all members from both houses in parallel
+let all = scraper.list_all_members_all_houses("13th-parliament").await?;
 
-let scraper = WebScraper::new()?;
-
-// list one page of sittings, optionally filtered by house
-let listings = scraper.fetch_hansard_list(1, Some(House::Senate)).await?;
-
-// fetch all sittings across all pages
-let all = scraper.fetch_all_sittings(None).await?;
-
-// fetch a sitting transcript
-let sitting = scraper.fetch_hansard_sitting("thursday-12th-february-2026-afternoon-sitting-2438").await?;
-
-// list members
-let members = scraper.fetch_members(House::NationalAssembly, "13th-parliament", 1).await?;
-
-// fetch a member profile (with all activity and bills pages)
-let profile = scraper.fetch_member_profile(
+// Fetch a member profile
+let profile = scraper.get_member_profile(
     "https://mzalendo.com/mps-performance/national-assembly/13th-parliament/boss-gladys-jepkosgei/",
-    true,  // fetch_all_activity
-    true,  // fetch_all_bills
+    false, // all_activity
+    false, // all_bills
 ).await?;
 ```
