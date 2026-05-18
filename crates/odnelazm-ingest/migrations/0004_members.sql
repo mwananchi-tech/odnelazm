@@ -41,18 +41,21 @@ LANGUAGE sql IMMUTABLE STRICT AS $$
     regexp_replace(
     regexp_replace(
     regexp_replace(
+    regexp_replace(
         trim(raw),
-        -- 1. Strip presiding-role prefix: "The (Temporary) (Deputy) Speaker/Chairman ..."
-        '^The\s+(Temporary\s+)?(Deputy\s+)?(Speaker|Chairman|Chairlady|Chair|Deputy\s+Speaker)\s*',
+        -- 1. Strip presiding-role prefix: "The/Hon. (Temporary) (Deputy) Speaker/Chairman ..."
+        '^(The|Hon\.?)\s+(Temporary\s+)?(Deputy\s+)?(Speaker|Chairman|Chairlady|Chairperson|Chair|Deputy\s+Speaker)\s*',
         '', 'i'),
-        -- 2. Unwrap remaining lone parenthetical: "(Hon. Peter Kaluma)" → "Hon. Peter Kaluma"
-        '^\s*\(([^)]+)\)\s*$', '\1'),
+        -- 2. Unwrap lone outer parenthetical (greedy to handle nested parens like "(Hon. (Dr) X)")
+        '^\s*\((.+)\)\s*$', '\1'),
         -- 3. Strip honorifics
         '\m(Hon|Sen|Mr|Mrs|Ms|Madam|Mhe)\.?\s*', '', 'gi'),
         -- 4. Strip academic/professional titles (standalone or in parens)
-        '\(?(Dr|Prof|Eng|Rtd|SC|EGH|CBS|OGW|MBS|EBS|HSC|OBS)\.?\)?\s*', '', 'gi'),
+        '\(?(Dr|Prof|Eng|Rtd|Ret|SC|EGH|CBS|OGW|MBS|EBS|HSC|OBS|Capt|Maj|Col|Gen|Lt|Cdr)\.?\)?\s*', '', 'gi'),
         -- 5. Strip constituency / party parenthetical at end: "(Molo, UDA)"
         '\s*\([^)]*\)\s*$', ''),
+        -- 5b. Strip unclosed parenthetical at end: "(Kikuyu, UDA" (missing closing paren)
+        '\s*\([^)]*$', ''),
         -- 6. Strip trailing noise: stray ): ; chars
         '[:\);,]+\s*$', ''),
         -- 7. Strip possessives
