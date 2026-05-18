@@ -75,16 +75,16 @@ enrich-sittings: build
 enrich-all: enrich-bill-mentions enrich-bill-journeys \
             enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings
 
-## DB sync (Supabase -> local)
+## DB sync (cloud -> local)
 
 db-pull:
 	@if [ -z "$(CLOUD_DATABASE_URL)" ]; then echo "CLOUD_DATABASE_URL is not set"; exit 1; fi
-	@echo "Dumping schema from Supabase..."
-	docker run --rm --network host postgres:16-alpine \
+	@echo "Dumping schema from cloud..."
+	docker run --rm --network host postgres:17-alpine \
 	  pg_dump "$(CLOUD_DATABASE_URL)" --no-owner --no-acl --schema-only \
 	  > /tmp/odnelazm_cloud_schema.sql
-	@echo "Dumping data from Supabase..."
-	docker run --rm --network host postgres:16-alpine \
+	@echo "Dumping data from cloud..."
+	docker run --rm --network host postgres:17-alpine \
 	  pg_dump "$(CLOUD_DATABASE_URL)" --no-owner --no-acl --data-only \
 	  > /tmp/odnelazm_cloud_data.sql
 	@echo "Resetting local DB..."
