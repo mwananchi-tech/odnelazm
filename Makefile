@@ -14,7 +14,7 @@ PIPELINE_FLAGS = --database-url $(DATABASE_URL) $(if $(METRICS_URL),--metrics-ur
 
 .PHONY: build ingest ingest-with-profiles enrich-bill-mentions enrich-bill-journeys \
         enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings \
-        enrich-all db-pull metrics-up metrics-down metrics-logs
+        enrich-all db-pull db-push metrics-up metrics-down metrics-logs
 
 build:
 	cargo build -p odnelazm-ingest --release
@@ -75,7 +75,7 @@ enrich-sittings: build
 enrich-all: enrich-bill-mentions enrich-bill-journeys \
             enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings
 
-## DB sync (cloud -> local)
+## DB sync
 
 db-pull:
 	@if [ -z "$(CLOUD_DATABASE_URL)" ]; then echo "CLOUD_DATABASE_URL is not set"; exit 1; fi
@@ -94,6 +94,26 @@ db-pull:
 	docker exec -i odnelazm-pg psql -U odnelazm -d odnelazm < /tmp/odnelazm_cloud_schema.sql
 	@echo "Applying data..."
 	docker exec -i odnelazm-pg psql -U odnelazm -d odnelazm < /tmp/odnelazm_cloud_data.sql
+	@echo "Done."
+
+db-push:
+	@if [ -z "$(CLOUD_DATABASE_URL)" ]; then echo "CLOUD_DATABASE_URL is not set"; exit 1; fi
+	@echo "Dumping schema from local..."
+	docker exec odnelazm-pg pg_dump -U odnelazm -d odnelazm --no-owner --no-acl --schema-only \
+	  -f /tmp/odnelazm_local_schema.sql
+	@echo "Dumping data from local..."
+	docker exec odnelazm-pg pg_dump -U odnelazm -d odnelazm --no-owner --no-acl --data-only \
+	  -f /tmp/odnelazm_local_data.sql
+	@echo "Resetting cloud DB..."
+	docker run --rm --network host postgres:17-alpine \
+	  psql "$(CLOUD_DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" \
+	  -c "CREATE OR REPLACE FUNCTION public.uuid_generate_v4() RETURNS uuid LANGUAGE sql AS \$\$SELECT gen_random_uuid();\$\$;"
+	@echo "Applying schema..."
+	docker run --rm --network host -v /tmp:/tmp postgres:17-alpine \
+	  psql "$(CLOUD_DATABASE_URL)" -f /tmp/odnelazm_local_schema.sql
+	@echo "Applying data..."
+	docker run --rm --network host -v /tmp:/tmp postgres:17-alpine \
+	  psql "$(CLOUD_DATABASE_URL)" -f /tmp/odnelazm_local_data.sql
 	@echo "Done."
 
 ## Metrics stack
