@@ -16,7 +16,7 @@ path = "./src/main.rs"
 [dependencies]
 chrono = "0.4.43"
 clap = { version = "4.5.59", features = ["derive"] }
-env_logger = "0.11.6"
+env_logger = "0.11.10"
 log = "0.4.22"
 odnelazm = { version = "1.0.0-beta.7", path = "../odnelazm" }
 polars = { version = "0.44", default-features = false, features = ["json", "csv", "parquet", "lazy"] }
