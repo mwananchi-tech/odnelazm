@@ -31,6 +31,8 @@ services:
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
 
