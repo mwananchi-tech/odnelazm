@@ -11,7 +11,7 @@ PIPELINE = ./target/release/odnelazm-pipeline
 
 PIPELINE_FLAGS = --database-url $(DATABASE_URL) $(if $(METRICS_URL),--metrics-url $(METRICS_URL),)
 
-.PHONY: build ingest ingest-members enrich-bill-mentions enrich-bill-journeys \
+.PHONY: build ingest ingest-with-profiles enrich-bill-mentions enrich-bill-journeys \
         enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings \
         enrich-all metrics-up metrics-down metrics-logs
 
@@ -26,12 +26,12 @@ ingest: build
 		--end-date $(END_DATE) \
 		--parliament $(PARLIAMENT)
 
-ingest-members: build
+ingest-with-profiles: build
 	$(PIPELINE) $(PIPELINE_FLAGS) ingest \
 		--start-date $(START_DATE) \
 		--end-date $(END_DATE) \
 		--parliament $(PARLIAMENT) \
-		--enrich-members
+		--import-profiles
 
 ## Enrichment
 
@@ -71,8 +71,8 @@ enrich-sittings: build
 		--concurrency $(CONCURRENCY) \
 		--batch $(BATCH)
 
-enrich-all: enrich-bill-mentions enrich-bill-journeys enrich-bill-speakers \
-            enrich-topics enrich-topic-speakers enrich-sittings
+enrich-all: enrich-bill-mentions enrich-bill-journeys \
+            enrich-bill-speakers enrich-topics enrich-topic-speakers enrich-sittings
 
 ## Metrics stack
 

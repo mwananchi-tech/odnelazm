@@ -23,7 +23,7 @@ struct MetricKey {
 ///
 /// Metrics accumulate in memory and are sent together on `flush()`.
 /// If the pushgateway is unreachable, a warning is logged and ingestion
-/// continues — metrics are best-effort.
+/// continues. Metrics are best-effort.
 pub struct PrometheusPushSink {
     client: Client,
     url: String,
@@ -31,8 +31,8 @@ pub struct PrometheusPushSink {
 }
 
 impl PrometheusPushSink {
-    /// `pushgateway_url` — base URL of the pushgateway, e.g. `http://localhost:9091`
-    /// `job` — job label used to group metrics in the pushgateway
+    /// `pushgateway_url`: base URL of the pushgateway, e.g. `http://localhost:9091`
+    /// `job`: job label used to group metrics in the pushgateway
     pub fn new(pushgateway_url: &str, job: &str) -> Self {
         Self {
             client: Client::new(),

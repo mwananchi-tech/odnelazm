@@ -21,7 +21,7 @@ pub struct TopicContributor {
     pub contributions_text: String,
 }
 
-/// Section types we extract as topics. Order matters — more specific first.
+/// Section types we extract as topics. Order matters: more specific first.
 static TOPIC_SECTION_TYPES: &[&str] = &[
     "QUESTIONS AND STATEMENTS",
     "STATEMENTS",
@@ -113,7 +113,7 @@ pub fn extract_topics(sitting: &HansardSitting) -> Vec<ExtractedTopic> {
                 continue;
             }
 
-            // Skip bill/act debates — handled by the bill extractor.
+            // Skip bill/act debates: handled by the bill extractor.
             // Also skip Senate "Communication From The Chair" entries that announce bills
             // using the pattern "The X Bill (Senate/National Assembly Bills No. Y of YYYY)".
             let upper = title.to_uppercase();

@@ -27,7 +27,7 @@ struct Cli {
     database_url: String,
 
     /// Prometheus pushgateway URL. When set, pipeline metrics are pushed after
-    /// each batch. Omitting this flag disables metrics — ingestion is unaffected.
+    /// each batch. Omitting this flag disables metrics; ingestion is unaffected.
     #[arg(long, env = "METRICS_URL")]
     metrics_url: Option<String>,
 
@@ -69,13 +69,9 @@ struct IngestCmd {
     #[arg(long)]
     skip_members: bool,
 
-    /// Fetch and store individual member profile pages
+    /// Fetch individual member profile pages (photos, bio, party, committees)
     #[arg(long)]
-    enrich_members: bool,
-
-    /// Run AI speaker summaries after ingest (0 = skip)
-    #[arg(long, default_value_t = 0)]
-    enrich_batch: u32,
+    import_profiles: bool,
 }
 
 impl IngestCmd {
@@ -87,14 +83,14 @@ impl IngestCmd {
                         "Ingesting range {start} to {end} (concurrency={})",
                         self.concurrency
                     );
-                    pipeline.ingest_range(start, end, self.concurrency).await
+                    pipeline.ingest_sittings_in_range(start, end, self.concurrency).await
                 }
                 _ => {
                     log::info!(
                         "Ingesting all current sittings (concurrency={})",
                         self.concurrency
                     );
-                    pipeline.ingest_all(self.concurrency).await
+                    pipeline.ingest_all_sittings(self.concurrency).await
                 }
             }
             .unwrap_or_else(|e| {
@@ -108,7 +104,7 @@ impl IngestCmd {
 
         if !self.skip_members {
             let linked = pipeline
-                .import_members(&self.parliament)
+                .ingest_members(&self.parliament)
                 .await
                 .unwrap_or_else(|e| {
                     log::error!("Member import error: {e}");
@@ -117,26 +113,15 @@ impl IngestCmd {
             log::info!("Members: {linked} speaker-member links created");
         }
 
-        if self.enrich_members {
-            let enriched = pipeline
-                .enrich_member_profiles(self.concurrency)
+        if self.import_profiles {
+            let updated = pipeline
+                .ingest_member_profiles(self.concurrency)
                 .await
                 .unwrap_or_else(|e| {
-                    log::error!("Member enrichment error: {e}");
+                    log::error!("Member profile import error: {e}");
                     process::exit(1);
                 });
-            log::info!("Member profiles: {enriched} updated");
-        }
-
-        if self.enrich_batch > 0 {
-            let (bills, topics) = pipeline
-                .enrich_summaries(self.enrich_batch)
-                .await
-                .unwrap_or_else(|e| {
-                    log::error!("Enrichment error: {e}");
-                    process::exit(1);
-                });
-            log::info!("Enrichment: {bills} bill summaries, {topics} topic summaries");
+            log::info!("Member profiles: {updated} updated");
         }
     }
 }
@@ -621,12 +606,11 @@ async fn main() {
             let pipeline = match &cli.metrics_url {
                 Some(url) => {
                     log::info!("Metrics: pushing to {url}");
-                    let sink = Arc::new(PrometheusPushSink::new(url, "odnelazm-pipeline"));
                     let llm = LmStudioSummarizer::new(&cmd.llm_url, &cmd.model, cmd.temperature)
-                        .with_metrics(Arc::clone(&sink) as Arc<dyn MetricsSink>);
+                        .with_metrics(Arc::new(PrometheusPushSink::new(url, "odnelazm-pipeline")));
                     IngestPipeline::new(scraper, store)
                         .with_summarizer(llm)
-                        .with_metrics_arc(sink)
+                        .with_metrics(PrometheusPushSink::new(url, "odnelazm-pipeline"))
                 }
                 None => {
                     let llm = LmStudioSummarizer::new(&cmd.llm_url, &cmd.model, cmd.temperature);

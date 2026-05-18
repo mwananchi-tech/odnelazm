@@ -4,7 +4,7 @@ use crate::Result;
 
 /// Trait for generating embeddings from text.
 ///
-/// Implement with your preferred provider — OpenAI, a local model, Anthropic
+/// Implement with your preferred provider: OpenAI, a local model, Anthropic
 /// (once they expose an embedding endpoint), etc. The pipeline calls this
 /// once per sitting using the text produced by [`sitting_text`].
 #[async_trait]
@@ -24,7 +24,7 @@ pub trait Embedder: Send + Sync {
 /// metadata (house, date, session type) is always prepended for grounding.
 pub fn sitting_text(sitting: &odnelazm::HansardSitting) -> String {
     let header = format!(
-        "{} — {} — {}",
+        "{}, {}, {}",
         sitting.house, sitting.date, sitting.session_type
     );
 

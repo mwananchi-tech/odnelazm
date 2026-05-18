@@ -48,9 +48,9 @@ pub struct MemberRecord {
     pub constituency: Option<String>,
 }
 
-/// Enrichment data fetched from a member's individual profile page.
+/// Profile data fetched from a member's individual profile page.
 #[derive(Debug, Clone)]
-pub struct MemberEnrichment {
+pub struct MemberProfileData {
     pub photo_url: Option<String>,
     pub biography: Option<String>,
     pub party: Option<String>,
@@ -59,6 +59,27 @@ pub struct MemberEnrichment {
     pub speeches_last_year: Option<u32>,
     pub speeches_total: Option<u32>,
     pub bills_total: Option<u32>,
+}
+
+impl From<odnelazm::MemberProfile> for MemberProfileData {
+    fn from(p: odnelazm::MemberProfile) -> Self {
+        Self {
+            photo_url: p.photo_url.map(|url| {
+                if url.starts_with("http") {
+                    url
+                } else {
+                    format!("https://mzalendo.com{url}")
+                }
+            }),
+            biography: p.biography,
+            party: p.party,
+            positions: p.positions,
+            committees: p.committees,
+            speeches_last_year: p.speeches_last_year,
+            speeches_total: p.speeches_total,
+            bills_total: p.bills_total,
+        }
+    }
 }
 
 /// A (bill_mention, speaker) pair that has contribution text but no summary yet.
@@ -189,11 +210,11 @@ pub trait DataStore: Send + Sync {
     async fn link_speakers_to_members(&self) -> Result<u64>;
     async fn link_bill_sponsors_to_members(&self) -> Result<u64>;
 
-    /// Return all (id, url) pairs for stored members: used by the enrichment pass.
+    /// Return all (id, url) pairs for stored members: used by the profile import pass.
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>>;
 
     /// Enrich an existing member row with profile-page data.
-    async fn enrich_member(&self, member_id: Uuid, enrichment: &MemberEnrichment) -> Result<()>;
+    async fn update_member_profile(&self, member_id: Uuid, enrichment: &MemberProfileData) -> Result<()>;
 
     /*  Enrichment */
 

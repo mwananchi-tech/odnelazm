@@ -8,7 +8,7 @@ use odnelazm::HansardSitting;
 use crate::{
     Result,
     store::{
-        BillMentionContext, BillMentionRecord, BillRecord, DataStore, MemberEnrichment,
+        BillMentionContext, BillMentionRecord, BillRecord, DataStore, MemberProfileData,
         MemberRecord, PendingBillAppearanceSummary, PendingBillJourneySummary, PendingBillSummary,
         PendingSittingSummary, PendingTopicAppearanceSummary, PendingTopicSummary, SpeakerRecord,
         TopicRecord,
@@ -512,7 +512,7 @@ impl DataStore for PostgresStore {
         Ok(rows)
     }
 
-    async fn enrich_member(&self, member_id: Uuid, e: &MemberEnrichment) -> Result<()> {
+    async fn update_member_profile(&self, member_id: Uuid, e: &MemberProfileData) -> Result<()> {
         let positions = serde_json::to_value(&e.positions)?;
         let committees = serde_json::to_value(&e.committees)?;
         sqlx::query(
