@@ -50,18 +50,17 @@ pub struct PostgresStore {
 
 impl PostgresStore {
     pub async fn connect(database_url: &str) -> Result<Self> {
-        let pool = PgPool::connect(database_url).await?;
-        // Clear any prepared statements left on pooled connections from previous runs.
-        sqlx::query("DEALLOCATE ALL").execute(&pool).await.ok();
+        // persistent(false) on every query uses PostgreSQL's unnamed prepared statement slot,
+        // which the server overwrites on each use rather than accumulating named statements
+        // (sqlx_s_1, sqlx_s_2, ...) that persist across connection reuse by a pooler.
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect(database_url)
+            .await?;
         Ok(Self { pool })
     }
 
     pub fn from_pool(pool: PgPool) -> Self {
         Self { pool }
-    }
-
-    async fn deallocate_all(&self) {
-        sqlx::query("DEALLOCATE ALL").execute(&self.pool).await.ok();
     }
 }
 
@@ -91,6 +90,7 @@ impl DataStore for PostgresStore {
             RETURNING id
             "#,
         )
+        .persistent(false)
         .bind(&sitting.url)
         .bind(&house)
         .bind(sitting.date)
@@ -108,6 +108,7 @@ impl DataStore for PostgresStore {
 
     async fn list_ingested_urls(&self) -> Result<Vec<String>> {
         let rows: Vec<(String,)> = sqlx::query_as("SELECT url FROM sittings")
+            .persistent(false)
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.into_iter().map(|r| r.0).collect())
@@ -117,6 +118,7 @@ impl DataStore for PostgresStore {
         // Store as JSON array; swap to pgvector REAL[] once the extension is added.
         let json = serde_json::to_value(&embedding)?;
         sqlx::query("UPDATE sittings SET embedding = $1::jsonb WHERE id = $2")
+            .persistent(false)
             .bind(&json)
             .bind(sitting_id)
             .execute(&self.pool)
@@ -133,6 +135,7 @@ impl DataStore for PostgresStore {
             RETURNING id
             "#,
         )
+        .persistent(false)
         .bind(&speaker.name)
         .bind(speaker.url.as_deref())
         .fetch_one(&self.pool)
@@ -155,6 +158,7 @@ impl DataStore for PostgresStore {
                 SET speech_count = sitting_speakers.speech_count + EXCLUDED.speech_count
             "#,
         )
+        .persistent(false)
         .bind(sitting_id)
         .bind(speaker_id)
         .bind(speech_count as i32)
@@ -176,6 +180,7 @@ impl DataStore for PostgresStore {
             RETURNING id
             "#,
         )
+        .persistent(false)
         .bind(&bill.name)
         .bind(bill.bill_number.as_deref())
         .bind(bill.year)
@@ -203,6 +208,7 @@ impl DataStore for PostgresStore {
             RETURNING id
             "#,
         )
+        .persistent(false)
         .bind(bill_id)
         .bind(mention.sitting_id)
         .bind(&mention.house)
@@ -225,6 +231,7 @@ impl DataStore for PostgresStore {
             RETURNING id
             "#,
         )
+        .persistent(false)
         .bind(topic.sitting_id)
         .bind(&topic.section_type)
         .bind(&topic.title)
@@ -250,6 +257,7 @@ impl DataStore for PostgresStore {
                 contributions_text = EXCLUDED.contributions_text
             "#,
         )
+        .persistent(false)
         .bind(topic_id)
         .bind(speaker_id)
         .bind(speech_count as i32)
@@ -260,7 +268,6 @@ impl DataStore for PostgresStore {
     }
 
     async fn pending_bill_summaries(&self, limit: u32) -> Result<Vec<PendingBillSummary>> {
-        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -288,6 +295,7 @@ impl DataStore for PostgresStore {
             LIMIT $1
             "#,
         )
+        .persistent(false)
         .bind(limit as i32)
         .fetch_all(&self.pool)
         .await?;
@@ -330,6 +338,7 @@ impl DataStore for PostgresStore {
         sqlx::query(
             "UPDATE bill_mention_speakers SET summary = $1, summary_model = $2 WHERE bill_mention_id = $3 AND speaker_id = $4",
         )
+        .persistent(false)
         .bind(summary)
         .bind(model)
         .bind(bill_mention_id)
@@ -340,7 +349,6 @@ impl DataStore for PostgresStore {
     }
 
     async fn pending_topic_summaries(&self, limit: u32) -> Result<Vec<PendingTopicSummary>> {
-        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -368,6 +376,7 @@ impl DataStore for PostgresStore {
             LIMIT $1
             "#,
         )
+        .persistent(false)
         .bind(limit as i32)
         .fetch_all(&self.pool)
         .await?;
@@ -410,6 +419,7 @@ impl DataStore for PostgresStore {
         sqlx::query(
             "UPDATE topic_speakers SET summary = $1, summary_model = $2 WHERE topic_id = $3 AND speaker_id = $4",
         )
+        .persistent(false)
         .bind(summary)
         .bind(model)
         .bind(topic_id)
@@ -423,7 +433,6 @@ impl DataStore for PostgresStore {
         &self,
         limit: u32,
     ) -> Result<Vec<PendingTopicAppearanceSummary>> {
-        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -445,6 +454,7 @@ impl DataStore for PostgresStore {
             LIMIT $1
             "#,
         )
+        .persistent(false)
         .bind(limit as i32)
         .fetch_all(&self.pool)
         .await?;
@@ -474,6 +484,7 @@ impl DataStore for PostgresStore {
         model: &str,
     ) -> Result<()> {
         sqlx::query("UPDATE topics SET summary = $1, summary_model = $2 WHERE id = $3")
+            .persistent(false)
             .bind(summary)
             .bind(model)
             .bind(topic_id)
@@ -494,6 +505,7 @@ impl DataStore for PostgresStore {
             RETURNING id
             "#,
         )
+        .persistent(false)
         .bind(&member.name)
         .bind(&member.url)
         .bind(&member.house)
@@ -507,6 +519,7 @@ impl DataStore for PostgresStore {
 
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>> {
         let rows: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, url FROM members ORDER BY name")
+            .persistent(false)
             .fetch_all(&self.pool)
             .await?;
         Ok(rows)
@@ -529,6 +542,7 @@ impl DataStore for PostgresStore {
             WHERE id = $9
             "#,
         )
+        .persistent(false)
         .bind(e.photo_url.as_deref())
         .bind(e.biography.as_deref())
         .bind(e.party.as_deref())
@@ -548,9 +562,11 @@ impl DataStore for PostgresStore {
         // link_speakers_by_url: exact URL match between speakers.url and members.url.
         // link_speakers_by_name: fuzzy trigram match via clean_speaker_name() and match_member().
         let url_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_url()")
+            .persistent(false)
             .fetch_one(&self.pool)
             .await?;
         let name_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_name(0.45)")
+            .persistent(false)
             .fetch_one(&self.pool)
             .await?;
 
@@ -587,6 +603,7 @@ impl DataStore for PostgresStore {
             SELECT count(*)::BIGINT FROM updated
             "#,
         )
+        .persistent(false)
         .bind(parliament)
         .fetch_one(&self.pool)
         .await?;
@@ -611,6 +628,7 @@ impl DataStore for PostgresStore {
             SELECT count(*)::BIGINT FROM updated
             "#,
         )
+        .persistent(false)
         .fetch_one(&self.pool)
         .await?;
         Ok(linked as u64)
@@ -632,6 +650,7 @@ impl DataStore for PostgresStore {
                 contributions_text = EXCLUDED.contributions_text
             "#,
         )
+        .persistent(false)
         .bind(bill_mention_id)
         .bind(speaker_id)
         .bind(speech_count as i32)
@@ -645,7 +664,6 @@ impl DataStore for PostgresStore {
         &self,
         limit: u32,
     ) -> Result<Vec<PendingBillAppearanceSummary>> {
-        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -671,6 +689,7 @@ impl DataStore for PostgresStore {
             LIMIT $1
             "#,
         )
+        .persistent(false)
         .bind(limit as i32)
         .fetch_all(&self.pool)
         .await?;
@@ -712,6 +731,7 @@ impl DataStore for PostgresStore {
         model: &str,
     ) -> Result<()> {
         sqlx::query("UPDATE bill_mentions SET summary = $1, summary_model = $2 WHERE id = $3")
+            .persistent(false)
             .bind(summary)
             .bind(model)
             .bind(bill_mention_id)
@@ -724,7 +744,6 @@ impl DataStore for PostgresStore {
         &self,
         limit: u32,
     ) -> Result<Vec<PendingBillJourneySummary>> {
-        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -761,6 +780,7 @@ impl DataStore for PostgresStore {
             LIMIT $1
             "#,
         )
+        .persistent(false)
         .bind(limit as i32)
         .fetch_all(&self.pool)
         .await?;
@@ -789,6 +809,7 @@ impl DataStore for PostgresStore {
         model: &str,
     ) -> Result<()> {
         sqlx::query("UPDATE bills SET summary = $1, summary_model = $2 WHERE id = $3")
+            .persistent(false)
             .bind(summary)
             .bind(model)
             .bind(bill_id)
@@ -798,7 +819,6 @@ impl DataStore for PostgresStore {
     }
 
     async fn pending_sitting_summaries(&self, limit: u32) -> Result<Vec<PendingSittingSummary>> {
-        self.deallocate_all().await;
         let rows = sqlx::query_as::<
             _,
             (
@@ -819,6 +839,7 @@ impl DataStore for PostgresStore {
             LIMIT $1
             "#,
         )
+        .persistent(false)
         .bind(limit as i32)
         .fetch_all(&self.pool)
         .await?;
@@ -848,6 +869,7 @@ impl DataStore for PostgresStore {
         model: &str,
     ) -> Result<()> {
         sqlx::query("UPDATE sittings SET generated_summary = $1, generated_summary_model = $2 WHERE id = $3")
+            .persistent(false)
             .bind(summary).bind(model).bind(sitting_id).execute(&self.pool).await?;
         Ok(())
     }
