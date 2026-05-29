@@ -570,11 +570,13 @@ impl DataStore for PostgresStore {
             .fetch_one(&self.pool)
             .await?;
 
-        // Link NA presiding officers by role. "Hon. Speaker" / "Hon Speaker" are recorded
-        // without a URL and won't fuzzy-match because "Speaker" is too generic. We resolve
-        // them via the role column instead, scoped to NA sittings and the given parliament.
-        // TODO: scope by sitting date range rather than parliament string when adding
-        // historical data, to handle Speaker changes across parliaments correctly.
+        // Link presiding officers by role, scoped to each house.
+        // "Hon. Speaker" / "Hon Speaker" are recorded without a URL and won't
+        // fuzzy-match because "Speaker" is too generic. Joining through
+        // sitting_speakers ensures NA speakers never link to Senate members
+        // and vice versa.
+        // TODO: scope by sitting date range rather than parliament string when
+        // adding historical data, to handle Speaker changes across parliaments.
         let role_linked = sqlx::query_scalar::<_, i64>(
             r#"
             WITH updated AS (
@@ -582,7 +584,6 @@ impl DataStore for PostgresStore {
                 SET    member_id = m.id
                 FROM   members m
                 WHERE  m.parliament = $1
-                  AND  m.house      = 'National Assembly'
                   AND  sp.member_id IS NULL
                   AND  (
                          (m.role = 'Speaker'
@@ -596,7 +597,7 @@ impl DataStore for PostgresStore {
                          FROM   sitting_speakers ss
                          JOIN   sittings s ON s.id = ss.sitting_id
                          WHERE  ss.speaker_id = sp.id
-                           AND  s.house = 'National Assembly'
+                           AND  s.house = m.house
                        )
                 RETURNING 1
             )
