@@ -2,9 +2,96 @@ use async_trait::async_trait;
 use chrono::NaiveDate;
 use uuid::Uuid;
 
-use odnelazm::HansardSitting;
+use odnelazm::{DataSource, HansardSitting};
 
 use crate::Result;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SittingSourceIdentity {
+    pub source_key: String,
+    pub source_url: String,
+    pub normalized_url: String,
+    pub external_key: Option<String>,
+}
+
+impl SittingSourceIdentity {
+    pub fn from_sitting(sitting: &HansardSitting) -> Self {
+        Self::from_observation(sitting.source, &sitting.url)
+    }
+
+    pub fn from_observation(source: DataSource, source_url: &str) -> Self {
+        let source_key = match source {
+            DataSource::Current => "mzalendo-current",
+            DataSource::Archive => "mzalendo-archive",
+        };
+        let base_url = match source {
+            DataSource::Current => "https://mzalendo.com",
+            DataSource::Archive => "https://info.mzalendo.com",
+        };
+        let absolute_url =
+            if source_url.starts_with("http://") || source_url.starts_with("https://") {
+                source_url.to_owned()
+            } else {
+                format!("{base_url}/{}", source_url.trim_start_matches('/'))
+            };
+        let normalized_url = normalize_source_url(&absolute_url);
+        let external_key = match source {
+            DataSource::Current => current_external_key(&normalized_url),
+            DataSource::Archive => None,
+        };
+
+        Self {
+            source_key: source_key.to_owned(),
+            source_url: absolute_url,
+            normalized_url,
+            external_key,
+        }
+    }
+}
+
+fn normalize_source_url(url: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(url) else {
+        return url.trim_end_matches('/').to_owned();
+    };
+    if matches!(parsed.host_str(), Some("mzalendo.com" | "www.mzalendo.com")) {
+        let _ = parsed.set_host(Some("mzalendo.com"));
+        let _ = parsed.set_scheme("https");
+    } else if matches!(
+        parsed.host_str(),
+        Some("info.mzalendo.com" | "www.info.mzalendo.com")
+    ) {
+        let _ = parsed.set_host(Some("info.mzalendo.com"));
+        let _ = parsed.set_scheme("https");
+    }
+    parsed.set_query(None);
+    parsed.set_fragment(None);
+    let path = parsed.path().trim_end_matches('/').to_owned();
+    parsed.set_path(if path.is_empty() { "/" } else { &path });
+    parsed.to_string().trim_end_matches('/').to_owned()
+}
+
+fn current_external_key(normalized_url: &str) -> Option<String> {
+    let parsed = url::Url::parse(normalized_url).ok()?;
+    let segments: Vec<_> = parsed
+        .path_segments()?
+        .filter(|part| !part.is_empty())
+        .collect();
+
+    if let ["democracy-tools", "hansard", "document", id] = segments.as_slice()
+        && id.chars().all(|c| c.is_ascii_digit())
+    {
+        return Some((*id).to_owned());
+    }
+
+    if let ["democracy-tools", "hansard", slug] = segments.as_slice()
+        && let Some((_, id)) = slug.rsplit_once('-')
+        && id.chars().all(|c| c.is_ascii_digit())
+    {
+        return Some(id.to_owned());
+    }
+
+    None
+}
 
 #[derive(Debug, Clone)]
 pub struct SpeakerRecord {
@@ -42,10 +129,70 @@ pub struct TopicRecord {
 pub struct MemberRecord {
     pub name: String,
     pub url: String,
+    pub source: DataSource,
     pub house: String,
     pub parliament: String,
     pub role: Option<String>,
     pub constituency: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberSourceIdentity {
+    pub source_key: String,
+    pub source_url: String,
+    pub normalized_url: String,
+    pub external_key: Option<String>,
+}
+
+impl MemberSourceIdentity {
+    pub fn from_member(member: &MemberRecord) -> Self {
+        Self::from_observation(member.source, &member.url)
+    }
+
+    pub fn from_observation(source: DataSource, source_url: &str) -> Self {
+        let (source_key, base_url) = match source {
+            DataSource::Current => ("mzalendo-current", "https://mzalendo.com"),
+            DataSource::Archive => ("mzalendo-archive", "https://info.mzalendo.com"),
+        };
+        let source_url = source_url.trim();
+        let absolute_url =
+            if source_url.starts_with("http://") || source_url.starts_with("https://") {
+                source_url.to_owned()
+            } else {
+                format!("{base_url}/{}", source_url.trim_start_matches('/'))
+            };
+        let normalized_url = normalize_source_url(&absolute_url);
+        let external_key = member_external_key(&normalized_url);
+
+        Self {
+            source_key: source_key.to_owned(),
+            source_url: absolute_url,
+            normalized_url,
+            external_key,
+        }
+    }
+}
+
+pub(crate) fn normalize_member_name(name: &str) -> String {
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn member_external_key(normalized_url: &str) -> Option<String> {
+    let parsed = url::Url::parse(normalized_url).ok()?;
+    let segments: Vec<_> = parsed
+        .path_segments()?
+        .filter(|part| !part.is_empty())
+        .collect();
+
+    match segments.as_slice() {
+        ["person", slug] | ["mps-performance", _, _, slug] if !slug.is_empty() => {
+            Some((*slug).to_owned())
+        }
+        _ => None,
+    }
 }
 
 /// Profile data fetched from a member's individual profile page.
@@ -175,7 +322,7 @@ pub trait DataStore: Send + Sync {
     async fn migrate(&self) -> Result<()>;
 
     async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid>;
-    async fn list_ingested_urls(&self) -> Result<Vec<String>>;
+    async fn list_ingested_sitting_sources(&self) -> Result<Vec<SittingSourceIdentity>>;
     async fn store_sitting_embedding(&self, sitting_id: Uuid, embedding: Vec<f32>) -> Result<()>;
 
     async fn upsert_speaker(&self, speaker: &SpeakerRecord) -> Result<Uuid>;
@@ -288,4 +435,141 @@ pub trait DataStore: Send + Sync {
         summary: &str,
         model: &str,
     ) -> Result<()>;
+}
+
+#[cfg(test)]
+mod tests {
+    use odnelazm::DataSource;
+
+    use super::{MemberSourceIdentity, SittingSourceIdentity, normalize_member_name};
+
+    #[test]
+    fn current_old_slug_and_document_url_share_external_key() {
+        let old = SittingSourceIdentity::from_observation(
+            DataSource::Current,
+            "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/",
+        );
+        let redesigned = SittingSourceIdentity::from_observation(
+            DataSource::Current,
+            "/democracy-tools/hansard/document/2438/",
+        );
+
+        assert_eq!(old.external_key.as_deref(), Some("2438"));
+        assert_eq!(old.external_key, redesigned.external_key);
+        assert_eq!(redesigned.source_key, "mzalendo-current");
+    }
+
+    #[test]
+    fn source_url_normalization_qualifies_paths_and_removes_non_identity_parts() {
+        let identity = SittingSourceIdentity::from_observation(
+            DataSource::Current,
+            "/democracy-tools/hansard/document/3096/?download=1#transcript",
+        );
+
+        assert_eq!(
+            identity.source_url,
+            "https://mzalendo.com/democracy-tools/hansard/document/3096/?download=1#transcript"
+        );
+        assert_eq!(
+            identity.normalized_url,
+            "https://mzalendo.com/democracy-tools/hansard/document/3096"
+        );
+        assert_eq!(identity.external_key.as_deref(), Some("3096"));
+    }
+
+    #[test]
+    fn archive_timestamp_is_not_an_external_key() {
+        let identity = SittingSourceIdentity::from_observation(
+            DataSource::Archive,
+            "https://info.mzalendo.com/hansard/sitting/national_assembly/2025-07-01-14-30-00/",
+        );
+
+        assert_eq!(identity.source_key, "mzalendo-archive");
+        assert_eq!(identity.external_key, None);
+        assert_eq!(
+            identity.normalized_url,
+            "https://info.mzalendo.com/hansard/sitting/national_assembly/2025-07-01-14-30-00"
+        );
+    }
+
+    #[test]
+    fn unrelated_current_numeric_suffix_is_not_an_external_key() {
+        let identity = SittingSourceIdentity::from_observation(
+            DataSource::Current,
+            "https://mzalendo.com/person/member-2438/",
+        );
+
+        assert_eq!(identity.external_key, None);
+    }
+
+    #[test]
+    fn malformed_document_identifier_is_not_an_external_key() {
+        for url in [
+            "/democracy-tools/hansard/document/2438-extra/",
+            "/democracy-tools/hansard/document/",
+            "/democracy-tools/hansard/not-a-sitting/",
+        ] {
+            let identity = SittingSourceIdentity::from_observation(DataSource::Current, url);
+            assert_eq!(identity.external_key, None, "unexpected key for {url}");
+        }
+    }
+
+    #[test]
+    fn current_member_relative_and_absolute_urls_share_identity() {
+        let relative = MemberSourceIdentity::from_observation(
+            DataSource::Current,
+            "/mps-performance/national-assembly/13th-parliament/example-member/",
+        );
+        let absolute = MemberSourceIdentity::from_observation(
+            DataSource::Current,
+            "http://www.mzalendo.com/mps-performance/national-assembly/13th-parliament/example-member?tab=activity#top",
+        );
+
+        assert_eq!(relative.normalized_url, absolute.normalized_url);
+        assert_eq!(relative.external_key.as_deref(), Some("example-member"));
+        assert_eq!(relative.external_key, absolute.external_key);
+        assert_eq!(relative.source_key, "mzalendo-current");
+    }
+
+    #[test]
+    fn current_member_profile_routes_share_external_key() {
+        let legacy =
+            MemberSourceIdentity::from_observation(DataSource::Current, "/person/example-member/");
+        let current = MemberSourceIdentity::from_observation(
+            DataSource::Current,
+            "/mps-performance/national-assembly/13th-parliament/example-member/",
+        );
+
+        assert_ne!(legacy.normalized_url, current.normalized_url);
+        assert_eq!(legacy.external_key, current.external_key);
+    }
+
+    #[test]
+    fn archive_member_relative_and_absolute_urls_share_identity() {
+        let relative =
+            MemberSourceIdentity::from_observation(DataSource::Archive, "/person/example-member/");
+        let absolute = MemberSourceIdentity::from_observation(
+            DataSource::Archive,
+            "https://info.mzalendo.com/person/example-member/?ref=list",
+        );
+
+        assert_eq!(relative.normalized_url, absolute.normalized_url);
+        assert_eq!(relative.external_key.as_deref(), Some("example-member"));
+        assert_eq!(relative.source_key, "mzalendo-archive");
+    }
+
+    #[test]
+    fn member_name_normalization_is_case_and_whitespace_insensitive() {
+        assert_eq!(normalize_member_name("  Jane\n  W.  DOE "), "jane w. doe");
+    }
+
+    #[test]
+    fn unrelated_member_url_has_no_external_key() {
+        let identity = MemberSourceIdentity::from_observation(
+            DataSource::Current,
+            "/organizations/example-member/",
+        );
+
+        assert_eq!(identity.external_key, None);
+    }
 }

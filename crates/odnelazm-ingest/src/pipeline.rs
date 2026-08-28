@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
-use odnelazm::{HansardScraper, HansardSitting, SittingListOptions};
+use odnelazm::{HansardListing, HansardScraper, HansardSitting, SittingListOptions};
 
 use crate::{
     Result,
     embed::{Embedder, sitting_text},
     extract::{extract_bills, extract_speakers, extract_topics},
     metrics::MetricsSink,
-    store::{BillMentionRecord, DataStore, MemberRecord, TopicRecord},
+    store::{BillMentionRecord, DataStore, MemberRecord, SittingSourceIdentity, TopicRecord},
     summarize::Summarizer,
 };
 
@@ -163,23 +163,20 @@ impl<S: DataStore> IngestPipeline<S> {
             })
             .await?;
 
-        let ingested_urls: std::collections::HashSet<String> =
-            self.store.list_ingested_urls().await?.into_iter().collect();
-
-        let new_listings: Vec<_> = listings
-            .into_iter()
-            .filter(|l| !ingested_urls.contains(&l.url))
-            .collect();
+        let ingested_sources = self.store.list_ingested_sitting_sources().await?;
+        let total_listings = listings.len();
+        let new_listings = filter_ingested_listings(listings, &ingested_sources);
+        let skipped = total_listings - new_listings.len();
 
         log::info!(
             "{} sittings total, {} already ingested, {} to process",
-            ingested_urls.len() + new_listings.len(),
-            ingested_urls.len(),
+            total_listings,
+            skipped,
             new_listings.len(),
         );
 
         let mut total = IngestStats {
-            skipped: ingested_urls.len() as u32,
+            skipped: skipped as u32,
             ..Default::default()
         };
 
@@ -234,13 +231,10 @@ impl<S: DataStore> IngestPipeline<S> {
             })
             .await?;
 
-        let ingested_urls: std::collections::HashSet<String> =
-            self.store.list_ingested_urls().await?.into_iter().collect();
-
-        let new_listings: Vec<_> = listings
-            .into_iter()
-            .filter(|l| !ingested_urls.contains(&l.url))
-            .collect();
+        let ingested_sources = self.store.list_ingested_sitting_sources().await?;
+        let total_listings = listings.len();
+        let new_listings = filter_ingested_listings(listings, &ingested_sources);
+        let skipped = total_listings - new_listings.len();
 
         log::info!(
             "Date range {start}–{end}: {} new sittings to ingest",
@@ -248,7 +242,7 @@ impl<S: DataStore> IngestPipeline<S> {
         );
 
         let mut total = IngestStats {
-            skipped: ingested_urls.len() as u32,
+            skipped: skipped as u32,
             ..Default::default()
         };
 
@@ -296,6 +290,7 @@ impl<S: DataStore> IngestPipeline<S> {
                 .upsert_member(&MemberRecord {
                     name: member.name.clone(),
                     url: normalise_url(&member.url),
+                    source: odnelazm::DataSource::Current,
                     house: member.house.to_string(),
                     parliament: parliament.to_string(),
                     role: member.role.clone(),
@@ -355,6 +350,38 @@ impl<S: DataStore> IngestPipeline<S> {
     }
 }
 
+fn filter_ingested_listings(
+    listings: Vec<HansardListing>,
+    ingested: &[SittingSourceIdentity],
+) -> Vec<HansardListing> {
+    let external_keys: std::collections::HashSet<_> = ingested
+        .iter()
+        .filter_map(|identity| {
+            identity
+                .external_key
+                .as_ref()
+                .map(|key| (&identity.source_key, key))
+        })
+        .collect();
+    let normalized_urls: std::collections::HashSet<_> = ingested
+        .iter()
+        .map(|identity| (&identity.source_key, &identity.normalized_url))
+        .collect();
+
+    listings
+        .into_iter()
+        .filter(|listing| {
+            let identity = SittingSourceIdentity::from_observation(listing.source, &listing.url);
+            let external_match = identity
+                .external_key
+                .as_ref()
+                .is_some_and(|key| external_keys.contains(&(&identity.source_key, key)));
+            !external_match
+                && !normalized_urls.contains(&(&identity.source_key, &identity.normalized_url))
+        })
+        .collect()
+}
+
 #[derive(Debug, Default)]
 pub struct IngestStats {
     pub ingested: u32,
@@ -386,5 +413,62 @@ fn normalise_url(url: &str) -> String {
         u.to_string()
     } else {
         format!("{u}/")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::NaiveDate;
+    use odnelazm::{DataSource, HansardListing, House};
+
+    use super::{SittingSourceIdentity, filter_ingested_listings};
+
+    fn listing(source: DataSource, url: &str) -> HansardListing {
+        HansardListing {
+            house: House::NationalAssembly,
+            date: NaiveDate::from_ymd_opt(2026, 2, 12).unwrap(),
+            url: url.to_owned(),
+            title: "Sitting".to_owned(),
+            session_type: Some("Afternoon Sitting".to_owned()),
+            start_time: None,
+            end_time: None,
+            source,
+        }
+    }
+
+    #[test]
+    fn skip_logic_matches_current_alias_by_external_key_before_url() {
+        let ingested = [SittingSourceIdentity::from_observation(
+            DataSource::Current,
+            "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/",
+        )];
+        let listings = vec![
+            listing(
+                DataSource::Current,
+                "/democracy-tools/hansard/document/2438/",
+            ),
+            listing(
+                DataSource::Current,
+                "/democracy-tools/hansard/document/3096/",
+            ),
+        ];
+
+        let remaining = filter_ingested_listings(listings, &ingested);
+        assert_eq!(remaining.len(), 1);
+        assert!(remaining[0].url.contains("3096"));
+    }
+
+    #[test]
+    fn skip_logic_keeps_source_namespaces_separate() {
+        let ingested = [SittingSourceIdentity::from_observation(
+            DataSource::Archive,
+            "https://info.mzalendo.com/hansard/sitting/senate/2020-12-29-14-30-00",
+        )];
+        let listings = vec![listing(
+            DataSource::Current,
+            "/democracy-tools/hansard/document/00/",
+        )];
+
+        assert_eq!(filter_ingested_listings(listings, &ingested).len(), 1);
     }
 }

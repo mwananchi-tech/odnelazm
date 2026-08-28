@@ -9,11 +9,16 @@ use crate::{
     Result,
     store::{
         BillMentionContext, BillMentionRecord, BillRecord, DataStore, MemberProfileData,
-        MemberRecord, PendingBillAppearanceSummary, PendingBillJourneySummary, PendingBillSummary,
-        PendingSittingSummary, PendingTopicAppearanceSummary, PendingTopicSummary, SpeakerRecord,
-        TopicRecord,
+        MemberRecord, MemberSourceIdentity, PendingBillAppearanceSummary,
+        PendingBillJourneySummary, PendingBillSummary, PendingSittingSummary,
+        PendingTopicAppearanceSummary, PendingTopicSummary, SittingSourceIdentity, SpeakerRecord,
+        TopicRecord, normalize_member_name,
     },
 };
+
+#[cfg(test)]
+const SOURCE_IDENTITY_MIGRATION: &str =
+    include_str!("../migrations/0015_source_identity_foundation.sql");
 
 const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0001_init.sql"),
@@ -41,7 +46,68 @@ const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0013_summary_model.sql"),
     "\n",
     include_str!("../migrations/0014_topic_summary.sql"),
+    "\n",
+    include_str!("../migrations/0015_source_identity_foundation.sql"),
 );
+
+const UPDATE_SITTING_SQL: &str = r#"
+    UPDATE sittings SET
+        summary   = COALESCE($1, summary),
+        sentiment = COALESCE($2, sentiment),
+        pdf_url   = COALESCE($3, pdf_url),
+        raw_json  = $4
+    WHERE id = $5
+"#;
+
+const INSERT_SITTING_SQL: &str = r#"
+    INSERT INTO sittings
+        (id, url, house, date, session_type, source, summary, sentiment, pdf_url, raw_json)
+    VALUES
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+    ON CONFLICT (url) DO UPDATE SET
+        summary   = COALESCE(EXCLUDED.summary, sittings.summary),
+        sentiment = COALESCE(EXCLUDED.sentiment, sittings.sentiment),
+        pdf_url   = COALESCE(EXCLUDED.pdf_url, sittings.pdf_url),
+        raw_json  = EXCLUDED.raw_json
+    RETURNING id
+"#;
+
+const FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL: &str = r#"
+    SELECT member_id, id
+    FROM member_sources
+    WHERE data_source_id = $1 AND external_key = $2
+"#;
+
+const FIND_MEMBER_SOURCE_BY_URL_SQL: &str = r#"
+    SELECT member_id, id
+    FROM member_sources
+    WHERE data_source_id = $1 AND normalized_url = $2
+"#;
+
+const FIND_CANONICAL_MEMBER_SQL: &str = r#"
+    SELECT id
+    FROM members
+    WHERE lower(regexp_replace(btrim(name), '\s+', ' ', 'g')) = $1
+      AND house = $2
+      AND parliament = $3
+      AND constituency IS NOT DISTINCT FROM $4
+    LIMIT 2
+    FOR UPDATE
+"#;
+
+const UPDATE_CANONICAL_MEMBER_SQL: &str = r#"
+    UPDATE members SET
+        name         = $1,
+        role         = COALESCE($2, role),
+        constituency = COALESCE($3, constituency)
+    WHERE id = $4
+"#;
+
+const INSERT_MEMBER_SOURCE_SQL: &str = r#"
+    INSERT INTO member_sources
+        (member_id, data_source_id, external_key, source_url, normalized_url, raw_metadata)
+    VALUES ($1, $2, $3, $4, $5, $6)
+"#;
 
 #[derive(Debug, Clone)]
 pub struct PostgresStore {
@@ -75,43 +141,130 @@ impl DataStore for PostgresStore {
         let raw_json = serde_json::to_value(sitting)?;
         let house = sitting.house.to_string();
         let source = sitting.source.to_string();
+        let identity = SittingSourceIdentity::from_sitting(sitting);
+        let mut tx = self.pool.begin().await?;
 
-        let row: (Uuid,) = sqlx::query_as(
+        // Serializing per source closes the resolve-then-insert race without
+        // imposing a canonical identity constraint on the legacy sittings table.
+        let (data_source_id,): (Uuid,) =
+            sqlx::query_as("SELECT id FROM data_sources WHERE source_key = $1 FOR UPDATE")
+                .persistent(false)
+                .bind(&identity.source_key)
+                .fetch_one(&mut *tx)
+                .await?;
+
+        let mut resolved: Option<(Uuid, Uuid)> = None;
+        if let Some(external_key) = identity.external_key.as_deref() {
+            resolved = sqlx::query_as(
+                "SELECT sitting_id, id FROM sitting_sources WHERE data_source_id = $1 AND external_key = $2",
+            )
+            .persistent(false)
+            .bind(data_source_id)
+            .bind(external_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+        }
+        if resolved.is_none() {
+            resolved = sqlx::query_as(
+                "SELECT sitting_id, id FROM sitting_sources WHERE data_source_id = $1 AND normalized_url = $2",
+            )
+            .persistent(false)
+            .bind(data_source_id)
+            .bind(&identity.normalized_url)
+            .fetch_optional(&mut *tx)
+            .await?;
+        }
+
+        let (sitting_id, sitting_source_id) = if let Some((sitting_id, source_id)) = resolved {
+            sqlx::query(UPDATE_SITTING_SQL)
+                .persistent(false)
+                .bind(sitting.summary.as_deref())
+                .bind(sitting.sentiment.as_deref())
+                .bind(sitting.pdf_url.as_deref())
+                .bind(&raw_json)
+                .bind(sitting_id)
+                .execute(&mut *tx)
+                .await?;
+            (sitting_id, Some(source_id))
+        } else {
+            let (sitting_id,): (Uuid,) = sqlx::query_as(INSERT_SITTING_SQL)
+                .persistent(false)
+                .bind(&identity.source_url)
+                .bind(&house)
+                .bind(sitting.date)
+                .bind(&sitting.session_type)
+                .bind(&source)
+                .bind(sitting.summary.as_deref())
+                .bind(sitting.sentiment.as_deref())
+                .bind(sitting.pdf_url.as_deref())
+                .bind(&raw_json)
+                .fetch_one(&mut *tx)
+                .await?;
+            (sitting_id, None)
+        };
+
+        if let Some(source_id) = sitting_source_id {
+            sqlx::query(
+                r#"
+                UPDATE sitting_sources SET
+                    source_url = $1, normalized_url = $2,
+                    external_key = COALESCE($3, external_key), last_seen_at = now()
+                WHERE id = $4
+                "#,
+            )
+            .persistent(false)
+            .bind(&identity.source_url)
+            .bind(&identity.normalized_url)
+            .bind(identity.external_key.as_deref())
+            .bind(source_id)
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query(
+                r#"
+                INSERT INTO sitting_sources
+                    (sitting_id, data_source_id, external_key, source_url, normalized_url)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+            )
+            .persistent(false)
+            .bind(sitting_id)
+            .bind(data_source_id)
+            .bind(identity.external_key.as_deref())
+            .bind(&identity.source_url)
+            .bind(&identity.normalized_url)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(sitting_id)
+    }
+
+    async fn list_ingested_sitting_sources(&self) -> Result<Vec<SittingSourceIdentity>> {
+        let rows: Vec<(String, String, String, Option<String>)> = sqlx::query_as(
             r#"
-            INSERT INTO sittings
-                (id, url, house, date, session_type, source, summary, sentiment, pdf_url, raw_json)
-            VALUES
-                (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ON CONFLICT (url) DO UPDATE SET
-                summary      = COALESCE(EXCLUDED.summary,   sittings.summary),
-                sentiment    = COALESCE(EXCLUDED.sentiment, sittings.sentiment),
-                pdf_url      = COALESCE(EXCLUDED.pdf_url,   sittings.pdf_url),
-                raw_json     = EXCLUDED.raw_json
-            RETURNING id
+            SELECT ds.source_key, ss.source_url,
+                   COALESCE(ss.normalized_url, regexp_replace(ss.source_url, '/+$', '')),
+                   ss.external_key
+            FROM sitting_sources ss
+            JOIN data_sources ds ON ds.id = ss.data_source_id
             "#,
         )
         .persistent(false)
-        .bind(&sitting.url)
-        .bind(&house)
-        .bind(sitting.date)
-        .bind(&sitting.session_type)
-        .bind(&source)
-        .bind(sitting.summary.as_deref())
-        .bind(sitting.sentiment.as_deref())
-        .bind(sitting.pdf_url.as_deref())
-        .bind(&raw_json)
-        .fetch_one(&self.pool)
+        .fetch_all(&self.pool)
         .await?;
-
-        Ok(row.0)
-    }
-
-    async fn list_ingested_urls(&self) -> Result<Vec<String>> {
-        let rows: Vec<(String,)> = sqlx::query_as("SELECT url FROM sittings")
-            .persistent(false)
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(rows.into_iter().map(|r| r.0).collect())
+        Ok(rows
+            .into_iter()
+            .map(
+                |(source_key, source_url, normalized_url, external_key)| SittingSourceIdentity {
+                    source_key,
+                    source_url,
+                    normalized_url,
+                    external_key,
+                },
+            )
+            .collect())
     }
 
     async fn store_sitting_embedding(&self, sitting_id: Uuid, embedding: Vec<f32>) -> Result<()> {
@@ -494,27 +647,118 @@ impl DataStore for PostgresStore {
     }
 
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid> {
-        let row: (Uuid,) = sqlx::query_as(
-            r#"
-            INSERT INTO members (id, name, url, house, parliament, role, constituency)
-            VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
-            ON CONFLICT (url) DO UPDATE SET
-                name         = EXCLUDED.name,
-                role         = COALESCE(EXCLUDED.role, members.role),
-                constituency = COALESCE(EXCLUDED.constituency, members.constituency)
-            RETURNING id
-            "#,
-        )
-        .persistent(false)
-        .bind(&member.name)
-        .bind(&member.url)
-        .bind(&member.house)
-        .bind(&member.parliament)
-        .bind(member.role.as_deref())
-        .bind(member.constituency.as_deref())
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(row.0)
+        let identity = MemberSourceIdentity::from_member(member);
+        let mut tx = self.pool.begin().await?;
+        let (data_source_id,): (Uuid,) =
+            sqlx::query_as("SELECT id FROM data_sources WHERE source_key = $1 FOR UPDATE")
+                .persistent(false)
+                .bind(&identity.source_key)
+                .fetch_one(&mut *tx)
+                .await?;
+
+        let mut resolved: Option<(Uuid, Uuid)> = None;
+        if let Some(external_key) = identity.external_key.as_deref() {
+            resolved = sqlx::query_as(FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL)
+                .persistent(false)
+                .bind(data_source_id)
+                .bind(external_key)
+                .fetch_optional(&mut *tx)
+                .await?;
+        }
+        if resolved.is_none() {
+            resolved = sqlx::query_as(FIND_MEMBER_SOURCE_BY_URL_SQL)
+                .persistent(false)
+                .bind(data_source_id)
+                .bind(&identity.normalized_url)
+                .fetch_optional(&mut *tx)
+                .await?;
+        }
+
+        let (member_id, member_source_id) = if let Some((member_id, source_id)) = resolved {
+            (member_id, Some(source_id))
+        } else {
+            let candidates: Vec<(Uuid,)> = sqlx::query_as(FIND_CANONICAL_MEMBER_SQL)
+                .persistent(false)
+                .bind(normalize_member_name(&member.name))
+                .bind(&member.house)
+                .bind(&member.parliament)
+                .bind(member.constituency.as_deref())
+                .fetch_all(&mut *tx)
+                .await?;
+
+            if let [(member_id,)] = candidates.as_slice() {
+                (*member_id, None)
+            } else {
+                let (member_id,): (Uuid,) = sqlx::query_as(
+                    r#"
+                    INSERT INTO members (id, name, url, house, parliament, role, constituency)
+                    VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
+                    RETURNING id
+                    "#,
+                )
+                .persistent(false)
+                .bind(&member.name)
+                .bind(&member.url)
+                .bind(&member.house)
+                .bind(&member.parliament)
+                .bind(member.role.as_deref())
+                .bind(member.constituency.as_deref())
+                .fetch_one(&mut *tx)
+                .await?;
+                (member_id, None)
+            }
+        };
+
+        sqlx::query(UPDATE_CANONICAL_MEMBER_SQL)
+            .persistent(false)
+            .bind(&member.name)
+            .bind(member.role.as_deref())
+            .bind(member.constituency.as_deref())
+            .bind(member_id)
+            .execute(&mut *tx)
+            .await?;
+
+        let raw_metadata = serde_json::json!({
+            "house": member.house,
+            "parliament": member.parliament,
+            "role": member.role,
+            "constituency": member.constituency,
+        });
+        if let Some(source_id) = member_source_id {
+            sqlx::query(
+                r#"
+                UPDATE member_sources SET
+                    source_url = $1,
+                    normalized_url = $2,
+                    external_key = COALESCE($3, external_key),
+                    raw_metadata = $4,
+                    last_seen_at = now()
+                WHERE id = $5
+                "#,
+            )
+            .persistent(false)
+            .bind(&identity.source_url)
+            .bind(&identity.normalized_url)
+            .bind(identity.external_key.as_deref())
+            .bind(&raw_metadata)
+            .bind(source_id)
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query(INSERT_MEMBER_SOURCE_SQL)
+                .persistent(false)
+                .bind(member_id)
+                .bind(data_source_id)
+                .bind(identity.external_key.as_deref())
+                .bind(&identity.source_url)
+                .bind(&identity.normalized_url)
+                .bind(&raw_metadata)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        tx.commit().await?;
+        Ok(member_id)
     }
 
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>> {
@@ -872,5 +1116,125 @@ impl DataStore for PostgresStore {
             .persistent(false)
             .bind(summary).bind(model).bind(sitting_id).execute(&self.pool).await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        FIND_CANONICAL_MEMBER_SQL, FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL,
+        FIND_MEMBER_SOURCE_BY_URL_SQL, INSERT_MEMBER_SOURCE_SQL, INSERT_SITTING_SQL, MIGRATIONS,
+        SOURCE_IDENTITY_MIGRATION, UPDATE_CANONICAL_MEMBER_SQL, UPDATE_SITTING_SQL,
+    };
+
+    #[test]
+    fn source_identity_migration_is_in_runtime_migrations() {
+        assert!(MIGRATIONS.ends_with(SOURCE_IDENTITY_MIGRATION));
+    }
+
+    #[test]
+    fn source_identity_migration_covers_required_tables_and_summary_lifecycle() {
+        for table in [
+            "data_sources",
+            "ingestion_runs",
+            "sitting_sources",
+            "member_sources",
+        ] {
+            assert!(
+                SOURCE_IDENTITY_MIGRATION.contains(&format!("CREATE TABLE IF NOT EXISTS {table}")),
+                "missing idempotent creation for {table}"
+            );
+        }
+
+        for table in [
+            "sittings",
+            "bills",
+            "bill_mentions",
+            "bill_mention_speakers",
+            "topics",
+            "topic_speakers",
+        ] {
+            let alter = format!("ALTER TABLE {table}");
+            assert!(
+                SOURCE_IDENTITY_MIGRATION.contains(&alter),
+                "missing summary lifecycle metadata for {table}"
+            );
+        }
+
+        assert!(SOURCE_IDENTITY_MIGRATION.contains("'mzalendo-current'"));
+        assert!(SOURCE_IDENTITY_MIGRATION.contains("'mzalendo-archive'"));
+        assert!(SOURCE_IDENTITY_MIGRATION.contains("INSERT INTO member_sources"));
+        assert!(SOURCE_IDENTITY_MIGRATION.contains("external_key, source_url, normalized_url"));
+        assert!(SOURCE_IDENTITY_MIGRATION.contains("ON CONFLICT DO NOTHING"));
+    }
+
+    #[test]
+    fn canonical_sitting_updates_do_not_overwrite_derived_or_lifecycle_data() {
+        for protected_column in [
+            "generated_summary",
+            "generated_summary_model",
+            "embedding",
+            "generated_summary_input_hash",
+            "generated_summary_prompt_version",
+            "generated_summary_generated_at",
+            "generated_summary_stale_at",
+            "ingested_at",
+        ] {
+            assert!(
+                !UPDATE_SITTING_SQL.contains(protected_column),
+                "canonical update touches {protected_column}"
+            );
+            assert!(
+                !INSERT_SITTING_SQL.contains(protected_column),
+                "legacy URL conflict update touches {protected_column}"
+            );
+        }
+
+        assert!(UPDATE_SITTING_SQL.contains("WHERE id = $5"));
+        assert!(INSERT_SITTING_SQL.contains("ON CONFLICT (url) DO UPDATE"));
+    }
+
+    #[test]
+    fn member_resolution_sql_uses_source_aliases_and_a_unique_strict_fallback() {
+        assert!(FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL.contains("member_sources"));
+        assert!(FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL.contains("data_source_id = $1"));
+        assert!(FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL.contains("external_key = $2"));
+        assert!(FIND_MEMBER_SOURCE_BY_URL_SQL.contains("normalized_url = $2"));
+
+        for predicate in [
+            "lower(regexp_replace(btrim(name), '\\s+', ' ', 'g')) = $1",
+            "house = $2",
+            "parliament = $3",
+            "constituency IS NOT DISTINCT FROM $4",
+            "LIMIT 2",
+        ] {
+            assert!(
+                FIND_CANONICAL_MEMBER_SQL.contains(predicate),
+                "missing conservative member predicate: {predicate}"
+            );
+        }
+        assert!(!FIND_CANONICAL_MEMBER_SQL.contains("similarity"));
+        assert!(INSERT_MEMBER_SOURCE_SQL.contains("member_sources"));
+    }
+
+    #[test]
+    fn member_match_updates_preserve_uuid_url_and_profile_enrichment() {
+        assert!(UPDATE_CANONICAL_MEMBER_SQL.contains("WHERE id = $4"));
+        for protected_column in [
+            "url",
+            "photo_url",
+            "biography",
+            "party",
+            "positions",
+            "committees",
+            "speeches_last_year",
+            "speeches_total",
+            "bills_total",
+        ] {
+            assert!(
+                !UPDATE_CANONICAL_MEMBER_SQL.contains(protected_column),
+                "member match update touches {protected_column}"
+            );
+        }
     }
 }
