@@ -43,6 +43,11 @@ static RE_BILLS_TOTAL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"has sponsored\D+(\d+)\D+bill").expect("invalid regex: bills total")
 });
 
+static RE_ACTIVITY_TOTALS: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(\d+)\s+counted contributions.*?,\s*(\d+)\s+of them")
+        .expect("invalid regex: activity totals")
+});
+
 fn elem_text(element: ElementRef) -> String {
     element.text().collect::<String>()
 }
@@ -430,10 +435,64 @@ pub fn parse_hansard_list(
     house_filter: Option<House>,
 ) -> Result<Vec<HansardListing>, ParseError> {
     let document = Html::parse_document(html);
+    let row_selector = Selector::parse("div.leg-row")?;
+    let row_link_selector = Selector::parse("a.leg-row__link")?;
+    let row_title_selector = Selector::parse("span.leg-row__title")?;
+    let row_house_selector = Selector::parse("span.leg-badge")?;
     let split_selector = Selector::parse("div.split-docs")?;
     let link_selector = Selector::parse("div.hansard-document h3 a")?;
 
     let mut listings = Vec::new();
+
+    for row in document.select(&row_selector) {
+        let Some(link_elem) = row.select(&row_link_selector).next() else {
+            continue;
+        };
+        let Some(url) = link_elem.value().attr("href").map(str::to_string) else {
+            continue;
+        };
+        let title = link_elem
+            .select(&row_title_selector)
+            .next()
+            .map(|e| normalize_whitespace(&elem_text(e)))
+            .unwrap_or_else(|| normalize_whitespace(&elem_text(link_elem)));
+        let house_text = row
+            .select(&row_house_selector)
+            .next()
+            .map(|e| normalize_whitespace(&elem_text(e)))
+            .unwrap_or_default();
+        let house = if house_text.contains("National Assembly") {
+            House::NationalAssembly
+        } else if house_text.contains("Senate") {
+            House::Senate
+        } else {
+            log::warn!(
+                "Skipping listing with unknown house '{}': {}",
+                house_text,
+                title
+            );
+            continue;
+        };
+
+        if house_filter.as_ref().is_some_and(|f| f != &house) {
+            continue;
+        }
+
+        match parse_date_from_title(&title) {
+            Ok((date, _, session_type)) => listings.push(HansardListing {
+                house,
+                date,
+                session_type,
+                url,
+                title,
+            }),
+            Err(e) => log::warn!("Skipping listing '{}': {}", title, e),
+        }
+    }
+
+    if !listings.is_empty() {
+        return Ok(listings);
+    }
 
     for (i, split_div) in document.select(&split_selector).enumerate() {
         let house = if i == 0 {
@@ -503,6 +562,13 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         }
     };
 
+    let title_sel = Selector::parse("meta[property='og:title']")?;
+    let title_text = document
+        .select(&title_sel)
+        .next()
+        .and_then(|e| e.value().attr("content"))
+        .map(normalize_whitespace)
+        .unwrap_or_default();
     let breadcrumb_sel = Selector::parse("li.breadcrumb-item.current")?;
     let breadcrumb_text = document
         .select(&breadcrumb_sel)
@@ -512,6 +578,8 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
 
     let (date, day_of_week, session_type) = if !breadcrumb_text.is_empty() {
         parse_date_from_title(&breadcrumb_text).or_else(|_| parse_date_from_url_slug(url))?
+    } else if !title_text.is_empty() {
+        parse_date_from_title(&title_text).or_else(|_| parse_date_from_url_slug(url))?
     } else {
         parse_date_from_url_slug(url)?
     };
@@ -533,13 +601,14 @@ pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, Pa
         .filter(|s| !s.is_empty())
         .and_then(|t| parse_time_12h(&t).ok());
 
-    let pdf_sel = Selector::parse("div.document-thumbnail a")?;
+    let pdf_sel =
+        Selector::parse("div.document-thumbnail a, a[href$='/source/'], a[href$='.pdf']")?;
     let pdf_url = document
         .select(&pdf_sel)
         .next()
         .and_then(|e| e.value().attr("href"))
-        .filter(|h| h.ends_with(".pdf"))
-        .map(str::to_string);
+        .filter(|h| h.ends_with(".pdf") || h.ends_with("/source/"))
+        .map(|href| resolve_url(url, href));
 
     let doc_summary_sel = Selector::parse("div.doc-summary")?;
     let (summary, sentiment) = document
@@ -602,7 +671,7 @@ fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseE
     //   old: article.hansard-document → semantic elements as direct children
     //   new: div.hansard-content → div.chunk-wrapper → semantic elements
     let article_sel = Selector::parse("article.hansard-document")?;
-    let content_sel = Selector::parse("div.hansard-content")?;
+    let content_sel = Selector::parse(".hansard-content")?;
 
     let container = document
         .select(&article_sel)
@@ -843,11 +912,23 @@ fn flush_subsection(
     }
 }
 
+fn resolve_url(base: &str, href: &str) -> String {
+    if href.starts_with("http") {
+        return href.to_string();
+    }
+
+    reqwest::Url::parse(base)
+        .and_then(|url| url.join(href))
+        .map(|url| url.to_string())
+        .unwrap_or_else(|_| href.to_string())
+}
+
 pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseError> {
     let document = Html::parse_document(html);
     let item_sel = Selector::parse("a.members-list--item, a.senators-list--item")?;
     let name_sel = Selector::parse("div.members-list--name, div.senators-list--name")?;
     let leader_role_sel = Selector::parse("p.leader-role")?;
+    let strong_sel = Selector::parse("strong")?;
     let repr_sel =
         Selector::parse("div.members-list--representation, div.senators-list--representation")?;
 
@@ -873,7 +954,19 @@ pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseE
             .select(&leader_role_sel)
             .next()
             .map(|e| normalize_whitespace(&elem_text(e)))
-            .filter(|s| !s.is_empty());
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                let representation = item.select(&repr_sel).next()?;
+                let text = normalize_whitespace(&elem_text(representation));
+                if !(text.contains("Speaker") || text.contains("Leader") || text.contains("Whip")) {
+                    return None;
+                }
+                representation
+                    .select(&strong_sel)
+                    .next()
+                    .map(|e| normalize_whitespace(&elem_text(e)))
+                    .filter(|s| !s.is_empty())
+            });
 
         let constituency = item
             .select(&repr_sel)
@@ -993,16 +1086,22 @@ pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, Pars
         .filter(|s| !s.is_empty())
         .collect();
 
-    let activity_sel = Selector::parse("div.activity-section p")?;
+    let activity_sel = Selector::parse("div.activity-section p, p.activity-totals")?;
     let (speeches_last_year, speeches_total) = document
         .select(&activity_sel)
         .next()
         .and_then(|e| {
             let text = elem_text(e);
-            let caps = RE_SPEECHES.captures(&text)?;
-            let last_year: u32 = caps[1].parse().ok()?;
-            let total: u32 = caps[2].parse().ok()?;
-            Some((Some(last_year), Some(total)))
+            if let Some(caps) = RE_SPEECHES.captures(&text) {
+                let last_year: u32 = caps[1].parse().ok()?;
+                let total: u32 = caps[2].parse().ok()?;
+                Some((Some(last_year), Some(total)))
+            } else {
+                let caps = RE_ACTIVITY_TOTALS.captures(&text)?;
+                let total: u32 = caps[1].parse().ok()?;
+                let current_year: u32 = caps[2].parse().ok()?;
+                Some((Some(current_year), Some(total)))
+            }
         })
         .unwrap_or((None, None));
 
@@ -1169,6 +1268,61 @@ mod tests {
 
         assert_eq!(feb12.session_type, "Afternoon Sitting");
         assert!(feb12.url.contains("2438"), "URL should contain sitting ID");
+    }
+
+    #[test]
+    fn test_parse_redesigned_hansard_list() {
+        let html = r#"
+            <div class="leg-row leg-row--inline">
+              <a class="leg-row__link" href="/democracy-tools/hansard/document/3096/">
+                <span class="leg-row__title">Wednesday, 1st July, 2026 - Morning Sitting</span>
+                <span class="leg-row__meta"><span class="leg-badge">National Assembly</span></span>
+              </a>
+            </div>
+            <div class="leg-row leg-row--inline">
+              <a class="leg-row__link" href="/democracy-tools/hansard/document/3097/">
+                <span class="leg-row__title">Wednesday, 1st July, 2026 - Afternoon Sitting</span>
+                <span class="leg-row__meta"><span class="leg-badge">Senate</span></span>
+              </a>
+            </div>
+        "#;
+
+        let listings = parse_hansard_list(html, None).unwrap();
+
+        assert_eq!(listings.len(), 2);
+        assert_eq!(listings[0].house, House::NationalAssembly);
+        assert_eq!(listings[0].date.to_string(), "2026-07-01");
+        assert_eq!(listings[0].session_type, "Morning Sitting");
+        assert_eq!(listings[0].url, "/democracy-tools/hansard/document/3096/");
+        assert_eq!(listings[1].house, House::Senate);
+    }
+
+    #[test]
+    fn test_parse_id_based_hansard_sitting() {
+        let html = r#"
+            <meta property="og:title" content="Wednesday, 1st July, 2026 - Morning Sitting">
+            <span class="house"><strong>House:</strong> National Assembly</span>
+            <span class="time"><strong>Time:</strong> 9:30 AM</span>
+            <article class="hansard-content">
+              <p class="hansard-provenance"><a href="/democracy-tools/hansard/document/3096/source/">Read the official PDF</a></p>
+              <h2 class="major-section-header">PAPERS</h2>
+              <div class="contributor-name">The Temporary Speaker</div>
+              <div class="speech-content"><p>Next Order.</p></div>
+            </article>
+        "#;
+        let url = "https://mzalendo.com/democracy-tools/hansard/document/3096/";
+
+        let sitting = parse_hansard_sitting(html, url).unwrap();
+
+        assert_eq!(sitting.date.to_string(), "2026-07-01");
+        assert_eq!(sitting.day_of_week, "Wednesday");
+        assert_eq!(sitting.session_type, "Morning Sitting");
+        assert_eq!(
+            sitting.pdf_url.as_deref(),
+            Some("https://mzalendo.com/democracy-tools/hansard/document/3096/source/")
+        );
+        assert_eq!(sitting.sections.len(), 1);
+        assert_eq!(sitting.sections[0].contributions[0].content, "Next Order.");
     }
 
     #[test]
@@ -1428,6 +1582,23 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_redesigned_member_leadership_role() {
+        let html = r#"
+            <div class="members-list leadership-grid">
+              <a href="/mps-performance/national-assembly/13th-parliament/anthony-kimani-ichungwah/" class="members-list--item">
+                <div class="members-list--name">ICHUNG'WAH ANTONY KIMANI</div>
+                <div class="members-list--representation"><strong>Majority Leader</strong> · MNA for Kikuyu</div>
+              </a>
+            </div>
+        "#;
+
+        let members = parse_member_list(html, House::NationalAssembly).unwrap();
+
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].role.as_deref(), Some("Majority Leader"));
+    }
+
+    #[test]
     fn test_parse_member_profile() {
         let html = fs::read_to_string(
             "fixtures/current/Boss_Gladys_Jepkosgei_with_paginated_contributions",
@@ -1509,6 +1680,23 @@ mod tests {
 
         assert!(!profile.activity.is_empty(), "Should have activity items");
         assert_eq!(profile.activity_pages, 11);
+    }
+
+    #[test]
+    fn test_parse_redesigned_member_activity_totals() {
+        let html = r#"
+            <h1 class="page-heading">ICHUNG'WAH ANTONY KIMANI</h1>
+            <p class="activity-totals">
+              <span class="activity-totals__count">1758</span>
+              counted contributions in this Parliament, 365 of them in 2026.
+            </p>
+        "#;
+        let url = "https://mzalendo.com/mps-performance/national-assembly/13th-parliament/anthony-kimani-ichungwah/";
+
+        let profile = parse_member_profile(html, url).unwrap();
+
+        assert_eq!(profile.speeches_last_year, Some(365));
+        assert_eq!(profile.speeches_total, Some(1758));
     }
 
     #[test]

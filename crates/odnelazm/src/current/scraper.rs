@@ -10,6 +10,7 @@ use super::types::{
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, future};
 use reqwest::Client;
+use std::collections::HashSet;
 use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]
@@ -109,7 +110,7 @@ impl WebScraper {
         page: u32,
     ) -> Result<Vec<Member>, ScraperError> {
         let url = format!(
-            "{}/mps-performance/{}/{}/?q=&page={}",
+            "{}/mps-performance/{}/{}/?page={}",
             self.base_url,
             house.slug(),
             parliament,
@@ -132,7 +133,7 @@ impl WebScraper {
         parliament: &str,
     ) -> Result<Vec<Member>, ScraperError> {
         let first_url = format!(
-            "{}/mps-performance/{}/{}/?q=&page=1",
+            "{}/mps-performance/{}/{}/?page=1",
             self.base_url,
             house.slug(),
             parliament
@@ -160,6 +161,7 @@ impl WebScraper {
             }
         }
 
+        deduplicate_members(&mut members);
         Ok(members)
     }
 
@@ -327,5 +329,49 @@ impl WebScraper {
             .inspect_err(|e| log::error!("Decode error: {e:?}"))?;
 
         Ok(html)
+    }
+}
+
+fn deduplicate_members(members: &mut Vec<Member>) {
+    let mut seen = HashSet::new();
+    members.retain(|member| seen.insert(member.url.clone()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deduplicates_members_by_url_and_preserves_first_record() {
+        let url = "/mps-performance/national-assembly/13th-parliament/example/";
+        let mut members = vec![
+            Member {
+                name: "Example Leader".to_string(),
+                url: url.to_string(),
+                house: House::NationalAssembly,
+                role: Some("Majority Leader".to_string()),
+                constituency: Some("Kikuyu".to_string()),
+            },
+            Member {
+                name: "Example Leader".to_string(),
+                url: url.to_string(),
+                house: House::NationalAssembly,
+                role: None,
+                constituency: Some("Kikuyu".to_string()),
+            },
+            Member {
+                name: "Another Member".to_string(),
+                url: "/mps-performance/national-assembly/13th-parliament/another/".to_string(),
+                house: House::NationalAssembly,
+                role: None,
+                constituency: Some("Ijara".to_string()),
+            },
+        ];
+
+        deduplicate_members(&mut members);
+
+        assert_eq!(members.len(), 2);
+        assert_eq!(members[0].role.as_deref(), Some("Majority Leader"));
+        assert_eq!(members[1].name, "Another Member");
     }
 }
