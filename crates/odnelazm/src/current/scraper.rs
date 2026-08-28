@@ -109,7 +109,7 @@ impl WebScraper {
         page: u32,
     ) -> Result<Vec<Member>, ScraperError> {
         let url = format!(
-            "{}/mps-performance/{}/{}/?q=&page={}",
+            "{}/mps-performance/{}/{}/?page={}",
             self.base_url,
             house.slug(),
             parliament,
@@ -132,7 +132,7 @@ impl WebScraper {
         parliament: &str,
     ) -> Result<Vec<Member>, ScraperError> {
         let first_url = format!(
-            "{}/mps-performance/{}/{}/?q=&page=1",
+            "{}/mps-performance/{}/{}/?page=1",
             self.base_url,
             house.slug(),
             parliament
