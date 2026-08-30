@@ -397,6 +397,7 @@ pub trait DataStore: Send + Sync {
     async fn reconcile_sitting(
         &self,
         sitting: &HansardSitting,
+        parliament: &str,
         speakers: &[(SpeakerRecord, u32)],
         bill_mentions: &[ExtractedBillMention],
         topics: &[ExtractedTopic],

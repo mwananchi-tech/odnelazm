@@ -52,7 +52,7 @@ async fn reconciliation_is_idempotent_preserves_summaries_and_tracks_lifecycle()
 
     assert_eq!(
         store
-            .reconcile_sitting(&sitting, &speakers, &bills, &topics)
+            .reconcile_sitting(&sitting, "13th-parliament", &speakers, &bills, &topics)
             .await
             .unwrap()
             .sitting_id,
@@ -61,7 +61,7 @@ async fn reconciliation_is_idempotent_preserves_summaries_and_tracks_lifecycle()
     let first_snapshot = derived_snapshot(&pool, sitting_id).await;
 
     store
-        .reconcile_sitting(&sitting, &speakers, &bills, &topics)
+        .reconcile_sitting(&sitting, "13th-parliament", &speakers, &bills, &topics)
         .await
         .unwrap();
     let second_snapshot = derived_snapshot(&pool, sitting_id).await;
@@ -164,12 +164,43 @@ async fn sitting_reconciliation_links_speakers_without_member_import() {
     .await
     .unwrap();
 
+    let cross_house_name = format!("Cross House Integration {marker}");
+    let scoped_members: Vec<(Uuid, String, String)> = sqlx::query_as(
+        r#"
+        INSERT INTO members (id, name, url, house, parliament)
+        VALUES
+            (uuid_generate_v4(), $1, $2, 'National Assembly', '13th-parliament'),
+            (uuid_generate_v4(), $1, $3, 'Senate', '13th-parliament'),
+            (uuid_generate_v4(), $1, $4, 'National Assembly', '12th-parliament')
+        RETURNING id, house, parliament
+        "#,
+    )
+    .bind(&cross_house_name)
+    .bind(format!("https://example.test/{marker}/cross-house-na"))
+    .bind(format!("https://example.test/{marker}/cross-house-senate"))
+    .bind(format!("https://example.test/{marker}/cross-parliament-na"))
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let national_assembly_member = scoped_members
+        .iter()
+        .find_map(|(id, house, parliament)| {
+            (house == "National Assembly" && parliament == "13th-parliament").then_some(*id)
+        })
+        .unwrap();
+    let previous_parliament_member = scoped_members
+        .iter()
+        .find_map(|(id, house, parliament)| {
+            (house == "National Assembly" && parliament == "12th-parliament").then_some(*id)
+        })
+        .unwrap();
+
     let existing_name = format!("Existing Integration {marker}");
     let existing_url = format!("/person/{slug}");
     let existing_speaker: Uuid = sqlx::query_scalar(
         r#"
-        INSERT INTO speakers (id, name, url, member_id)
-        VALUES (uuid_generate_v4(), $1, $2, $3)
+        INSERT INTO speakers (id, name, url, member_id, house, parliament)
+        VALUES (uuid_generate_v4(), $1, $2, $3, 'National Assembly', '13th-parliament')
         RETURNING id
         "#,
     )
@@ -188,12 +219,13 @@ async fn sitting_reconciliation_links_speakers_without_member_import() {
                 Some(existing_url.clone()),
             ),
             (ambiguous_name.clone(), None),
+            (cross_house_name.clone(), None),
             (format!("No Match Integration {marker}"), None),
             (existing_name.clone(), Some(existing_url)),
         ],
     );
     let result = reconcile_extracted_result(&store, &sitting).await;
-    assert_eq!(result.speakers_linked, 1);
+    assert_eq!(result.speakers_linked, 2);
 
     let linked: Option<Uuid> =
         sqlx::query_scalar("SELECT member_id FROM speakers WHERE name = $1 AND url = $2")
@@ -204,6 +236,47 @@ async fn sitting_reconciliation_links_speakers_without_member_import() {
             .unwrap();
     assert_eq!(linked, Some(canonical_member));
     assert_ne!(linked, Some(archive_member));
+
+    let house_scoped: Option<Uuid> =
+        sqlx::query_scalar("SELECT member_id FROM speakers WHERE name = $1 AND url IS NULL")
+            .bind(&cross_house_name)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(house_scoped, Some(national_assembly_member));
+
+    let previous_marker = Uuid::new_v4();
+    let previous_sitting =
+        synthetic_linkage_sitting(previous_marker, &[(cross_house_name.clone(), None)]);
+    let previous_speakers = odnelazm_ingest::extract::extract_speakers(&previous_sitting);
+    let previous_bills = odnelazm_ingest::extract::extract_bills(&previous_sitting);
+    let previous_topics = odnelazm_ingest::extract::extract_topics(&previous_sitting);
+    let previous_result = store
+        .reconcile_sitting(
+            &previous_sitting,
+            "12th-parliament",
+            &previous_speakers,
+            &previous_bills,
+            &previous_topics,
+        )
+        .await
+        .unwrap();
+    assert_eq!(previous_result.speakers_linked, 1);
+
+    let contextual_links: Vec<(String, Option<Uuid>)> = sqlx::query_as(
+        "SELECT parliament, member_id FROM speakers WHERE name = $1 ORDER BY parliament",
+    )
+    .bind(&cross_house_name)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        contextual_links,
+        vec![
+            ("12th-parliament".into(), Some(previous_parliament_member)),
+            ("13th-parliament".into(), Some(national_assembly_member)),
+        ]
+    );
 
     for name in [&ambiguous_name, &format!("No Match Integration {marker}")] {
         let member_id: Option<Uuid> =
@@ -227,6 +300,11 @@ async fn sitting_reconciliation_links_speakers_without_member_import() {
         .execute(&pool)
         .await
         .unwrap();
+    sqlx::query("DELETE FROM sittings WHERE id = $1")
+        .bind(previous_result.sitting_id)
+        .execute(&pool)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM speakers WHERE name LIKE $1")
         .bind(format!("%{marker}%"))
         .execute(&pool)
@@ -236,7 +314,11 @@ async fn sitting_reconciliation_links_speakers_without_member_import() {
         .bind(
             [
                 vec![canonical_member, archive_member, preserved_member],
-                ambiguous_members,
+                [
+                    ambiguous_members,
+                    scoped_members.into_iter().map(|(id, _, _)| id).collect(),
+                ]
+                .concat(),
             ]
             .concat(),
         )
@@ -398,7 +480,7 @@ async fn reconcile_extracted_result(
     let bills = odnelazm_ingest::extract::extract_bills(sitting);
     let topics = odnelazm_ingest::extract::extract_topics(sitting);
     store
-        .reconcile_sitting(sitting, &speakers, &bills, &topics)
+        .reconcile_sitting(sitting, "13th-parliament", &speakers, &bills, &topics)
         .await
         .unwrap()
 }

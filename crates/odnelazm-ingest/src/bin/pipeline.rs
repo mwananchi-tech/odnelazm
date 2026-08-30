@@ -88,7 +88,7 @@ impl IngestCmd {
                         self.concurrency
                     );
                     pipeline
-                        .ingest_sittings_in_range(start, end, self.concurrency)
+                        .ingest_sittings_in_range(start, end, &self.parliament, self.concurrency)
                         .await
                 }
                 _ => {
@@ -96,7 +96,9 @@ impl IngestCmd {
                         "Ingesting all current sittings (concurrency={})",
                         self.concurrency
                     );
-                    pipeline.ingest_all_sittings(self.concurrency).await
+                    pipeline
+                        .ingest_all_sittings(&self.parliament, self.concurrency)
+                        .await
                 }
             }
             .unwrap_or_else(|e| {

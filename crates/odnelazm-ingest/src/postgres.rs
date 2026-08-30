@@ -27,6 +27,11 @@ const DERIVED_RECONCILIATION_MIGRATION: &str =
 #[cfg(test)]
 const INGESTION_RUN_ACCOUNTING_MIGRATION: &str =
     include_str!("../migrations/0017_ingestion_run_accounting.sql");
+#[cfg(test)]
+const SITTING_PARLIAMENT_MIGRATION: &str =
+    include_str!("../migrations/0018_sitting_parliament.sql");
+#[cfg(test)]
+const SPEAKER_CONTEXT_MIGRATION: &str = include_str!("../migrations/0019_speaker_context.sql");
 
 const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0001_init.sql"),
@@ -60,6 +65,10 @@ const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0016_derived_reconciliation.sql"),
     "\n",
     include_str!("../migrations/0017_ingestion_run_accounting.sql"),
+    "\n",
+    include_str!("../migrations/0018_sitting_parliament.sql"),
+    "\n",
+    include_str!("../migrations/0019_speaker_context.sql"),
 );
 
 const UPDATE_SITTING_SQL: &str = r#"
@@ -68,25 +77,27 @@ const UPDATE_SITTING_SQL: &str = r#"
         sentiment = COALESCE($2, sentiment),
         pdf_url   = COALESCE($3, pdf_url),
         raw_json  = $4,
+        parliament = COALESCE($5, parliament),
         generated_summary_stale_at = CASE
             WHEN generated_summary IS NOT NULL
              AND generated_summary_input_hash IS DISTINCT FROM md5($4::jsonb::text)
             THEN COALESCE(generated_summary_stale_at, now())
             ELSE generated_summary_stale_at
         END
-    WHERE id = $5
+    WHERE id = $6
 "#;
 
 const INSERT_SITTING_SQL: &str = r#"
     INSERT INTO sittings
-        (id, url, house, date, session_type, source, summary, sentiment, pdf_url, raw_json)
+        (id, url, house, date, session_type, source, summary, sentiment, pdf_url, raw_json, parliament)
     VALUES
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     ON CONFLICT (url) DO UPDATE SET
         summary   = COALESCE(EXCLUDED.summary, sittings.summary),
         sentiment = COALESCE(EXCLUDED.sentiment, sittings.sentiment),
         pdf_url   = COALESCE(EXCLUDED.pdf_url, sittings.pdf_url),
         raw_json  = EXCLUDED.raw_json,
+        parliament = COALESCE(EXCLUDED.parliament, sittings.parliament),
         generated_summary_stale_at = CASE
             WHEN sittings.generated_summary IS NOT NULL
              AND sittings.generated_summary_input_hash IS DISTINCT FROM md5(EXCLUDED.raw_json::text)
@@ -156,6 +167,7 @@ impl PostgresStore {
     async fn upsert_sitting_in_tx(
         tx: &mut Transaction<'_, Postgres>,
         sitting: &HansardSitting,
+        parliament: Option<&str>,
     ) -> Result<Uuid> {
         let raw_json = serde_json::to_value(sitting)?;
         let house = sitting.house.to_string();
@@ -198,6 +210,7 @@ impl PostgresStore {
                 .bind(sitting.sentiment.as_deref())
                 .bind(sitting.pdf_url.as_deref())
                 .bind(&raw_json)
+                .bind(parliament)
                 .bind(sitting_id)
                 .execute(&mut **tx)
                 .await?;
@@ -214,6 +227,7 @@ impl PostgresStore {
                 .bind(sitting.sentiment.as_deref())
                 .bind(sitting.pdf_url.as_deref())
                 .bind(&raw_json)
+                .bind(parliament)
                 .fetch_one(&mut **tx)
                 .await?;
             (sitting_id, None)
@@ -306,10 +320,31 @@ impl PostgresStore {
                 }
             } else if name.len() > 5 {
                 let candidates: Vec<(Uuid, f64)> = sqlx::query_as(
-                    "SELECT id, score FROM match_member($1, 0.45) ORDER BY score DESC LIMIT 2",
+                    r#"
+                    WITH cleaned AS (
+                        SELECT clean_speaker_name($1) AS name
+                    ), scored AS (
+                        SELECT m.id,
+                               greatest(
+                                   word_similarity(c.name, m.name),
+                                   similarity(c.name, m.name)
+                               )::FLOAT AS score
+                        FROM members m
+                        CROSS JOIN cleaned c
+                        JOIN sittings s ON s.id = $2
+                                       AND s.house = m.house
+                                       AND s.parliament = m.parliament
+                    )
+                    SELECT id, score
+                    FROM scored
+                    WHERE score >= 0.45
+                    ORDER BY score DESC
+                    LIMIT 2
+                    "#,
                 )
                 .persistent(false)
                 .bind(&name)
+                .bind(sitting_id)
                 .fetch_all(&mut **tx)
                 .await?;
                 match candidates.as_slice() {
@@ -475,7 +510,7 @@ impl DataStore for PostgresStore {
 
     async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid> {
         let mut tx = self.pool.begin().await?;
-        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting).await?;
+        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting, None).await?;
         tx.commit().await?;
         Ok(sitting_id)
     }
@@ -483,12 +518,13 @@ impl DataStore for PostgresStore {
     async fn reconcile_sitting(
         &self,
         sitting: &HansardSitting,
+        parliament: &str,
         speakers: &[(SpeakerRecord, u32)],
         bill_mentions: &[ExtractedBillMention],
         topics: &[ExtractedTopic],
     ) -> Result<SittingReconciliation> {
         let mut tx = self.pool.begin().await?;
-        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting).await?;
+        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting, Some(parliament)).await?;
 
         // Inactivation first makes the final active set exactly match this
         // extraction snapshot. It remains invisible until the transaction commits.
@@ -509,15 +545,18 @@ impl DataStore for PostgresStore {
         for (speaker, speech_count) in speakers {
             let (speaker_id,): (Uuid,) = sqlx::query_as(
                 r#"
-                INSERT INTO speakers (id, name, url)
-                VALUES (uuid_generate_v4(), $1, $2)
-                ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+                INSERT INTO speakers (id, name, url, house, parliament)
+                VALUES (uuid_generate_v4(), $1, $2, $3, $4)
+                ON CONFLICT (name, url, house, parliament) DO UPDATE
+                    SET name = EXCLUDED.name
                 RETURNING id
                 "#,
             )
             .persistent(false)
             .bind(&speaker.name)
             .bind(speaker.url.as_deref())
+            .bind(sitting.house.to_string())
+            .bind(parliament)
             .fetch_one(&mut *tx)
             .await?;
             sqlx::query(
@@ -591,15 +630,18 @@ impl DataStore for PostgresStore {
             for contributor in &mention.contributors {
                 let (speaker_id,): (Uuid,) = sqlx::query_as(
                     r#"
-                    INSERT INTO speakers (id, name, url)
-                    VALUES (uuid_generate_v4(), $1, $2)
-                    ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+                    INSERT INTO speakers (id, name, url, house, parliament)
+                    VALUES (uuid_generate_v4(), $1, $2, $3, $4)
+                    ON CONFLICT (name, url, house, parliament) DO UPDATE
+                        SET name = EXCLUDED.name
                     RETURNING id
                     "#,
                 )
                 .persistent(false)
                 .bind(&contributor.name)
                 .bind(contributor.url.as_deref())
+                .bind(sitting.house.to_string())
+                .bind(parliament)
                 .fetch_one(&mut *tx)
                 .await?;
                 sqlx::query(
@@ -657,15 +699,18 @@ impl DataStore for PostgresStore {
             for contributor in &topic.contributors {
                 let (speaker_id,): (Uuid,) = sqlx::query_as(
                     r#"
-                    INSERT INTO speakers (id, name, url)
-                    VALUES (uuid_generate_v4(), $1, $2)
-                    ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+                    INSERT INTO speakers (id, name, url, house, parliament)
+                    VALUES (uuid_generate_v4(), $1, $2, $3, $4)
+                    ON CONFLICT (name, url, house, parliament) DO UPDATE
+                        SET name = EXCLUDED.name
                     RETURNING id
                     "#,
                 )
                 .persistent(false)
                 .bind(&contributor.speaker.name)
                 .bind(contributor.speaker.url.as_deref())
+                .bind(sitting.house.to_string())
+                .bind(parliament)
                 .fetch_one(&mut *tx)
                 .await?;
                 sqlx::query(
@@ -829,7 +874,8 @@ impl DataStore for PostgresStore {
             r#"
             INSERT INTO speakers (id, name, url)
             VALUES (uuid_generate_v4(), $1, $2)
-            ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+            ON CONFLICT (name, url, house, parliament) DO UPDATE
+                SET name = EXCLUDED.name
             RETURNING id
             "#,
         )
@@ -1415,17 +1461,58 @@ impl DataStore for PostgresStore {
         let mut tx = self.pool.begin().await?;
         let url_linked = Self::link_url_speakers_in_tx(&mut tx).await?;
 
-        // This pass retains the existing conservative matcher for historical URL-less rows.
-        let name_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_name(0.45)")
-            .persistent(false)
-            .fetch_one(&mut *tx)
-            .await?;
+        // Historical URL-less rows can be disambiguated when every active appearance
+        // of that speaker is in the same house and parliament.
+        let name_linked = sqlx::query_scalar::<_, i64>(
+            r#"
+            WITH speaker_houses AS (
+                SELECT sp.id AS speaker_id, min(s.house) AS house,
+                       min(s.parliament) AS parliament
+                FROM speakers sp
+                JOIN sitting_speakers ss ON ss.speaker_id = sp.id AND ss.active
+                JOIN sittings s ON s.id = ss.sitting_id
+                WHERE sp.url IS NULL
+                  AND sp.member_id IS NULL
+                  AND length(sp.name) > 5
+                GROUP BY sp.id
+                HAVING count(DISTINCT s.house) = 1
+                   AND count(DISTINCT s.parliament) = 1
+            ), scored AS (
+                SELECT sp.id AS speaker_id, m.id AS member_id,
+                       greatest(
+                           word_similarity(clean_speaker_name(sp.name), m.name),
+                           similarity(clean_speaker_name(sp.name), m.name)
+                       )::FLOAT AS score
+                FROM speakers sp
+                JOIN speaker_houses sh ON sh.speaker_id = sp.id
+                JOIN members m ON m.house = sh.house
+                              AND m.parliament = sh.parliament
+                              AND m.parliament = $1
+            ), ranked AS (
+                SELECT speaker_id, member_id, score,
+                       row_number() OVER (PARTITION BY speaker_id ORDER BY score DESC) AS rank,
+                       lead(score) OVER (PARTITION BY speaker_id ORDER BY score DESC) AS next_score
+                FROM scored
+                WHERE score >= 0.45
+            ), updated AS (
+                UPDATE speakers sp
+                SET member_id = ranked.member_id
+                FROM ranked
+                WHERE sp.id = ranked.speaker_id
+                  AND ranked.rank = 1
+                  AND (ranked.next_score IS NULL OR ranked.score > ranked.next_score)
+                RETURNING 1
+            )
+            SELECT count(*)::BIGINT FROM updated
+            "#,
+        )
+        .persistent(false)
+        .bind(parliament)
+        .fetch_one(&mut *tx)
+        .await?;
 
         // Link NA presiding officers by role. "Hon. Speaker" / "Hon Speaker" are recorded
-        // without a URL and won't fuzzy-match because "Speaker" is too generic. We resolve
-        // them via the role column instead, scoped to NA sittings and the given parliament.
-        // TODO: scope by sitting date range rather than parliament string when adding
-        // historical data, to handle Speaker changes across parliaments correctly.
+        // without a URL and won't fuzzy-match because "Speaker" is too generic.
         let role_linked = sqlx::query_scalar::<_, i64>(
             r#"
             WITH updated AS (
@@ -1435,6 +1522,7 @@ impl DataStore for PostgresStore {
                 WHERE  m.parliament = $1
                   AND  m.house      = 'National Assembly'
                   AND  sp.member_id IS NULL
+                  AND  sp.parliament = $1
                   AND  (
                          (m.role = 'Speaker'
                           AND sp.name ~* '^hon\.?\s+speaker$')
@@ -1460,7 +1548,7 @@ impl DataStore for PostgresStore {
         .await?;
 
         tx.commit().await?;
-        Ok(url_linked + (name_linked.0 + role_linked) as u64)
+        Ok(url_linked + (name_linked + role_linked) as u64)
     }
 
     async fn link_bill_sponsors_to_members(&self) -> Result<u64> {
@@ -1784,7 +1872,8 @@ mod tests {
         DERIVED_RECONCILIATION_MIGRATION, FIND_CANONICAL_MEMBER_SQL,
         FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL, FIND_MEMBER_SOURCE_BY_URL_SQL,
         INGESTION_RUN_ACCOUNTING_MIGRATION, INSERT_MEMBER_SOURCE_SQL, INSERT_SITTING_SQL,
-        MIGRATIONS, SOURCE_IDENTITY_MIGRATION, UPDATE_CANONICAL_MEMBER_SQL, UPDATE_SITTING_SQL,
+        MIGRATIONS, SITTING_PARLIAMENT_MIGRATION, SOURCE_IDENTITY_MIGRATION,
+        SPEAKER_CONTEXT_MIGRATION, UPDATE_CANONICAL_MEMBER_SQL, UPDATE_SITTING_SQL,
     };
 
     #[test]
@@ -1792,8 +1881,12 @@ mod tests {
         assert!(MIGRATIONS.contains(SOURCE_IDENTITY_MIGRATION));
         let derived_position = MIGRATIONS.find(DERIVED_RECONCILIATION_MIGRATION).unwrap();
         let run_position = MIGRATIONS.find(INGESTION_RUN_ACCOUNTING_MIGRATION).unwrap();
+        let parliament_position = MIGRATIONS.find(SITTING_PARLIAMENT_MIGRATION).unwrap();
+        let speaker_position = MIGRATIONS.find(SPEAKER_CONTEXT_MIGRATION).unwrap();
         assert!(derived_position < run_position);
-        assert!(MIGRATIONS.ends_with(INGESTION_RUN_ACCOUNTING_MIGRATION));
+        assert!(run_position < parliament_position);
+        assert!(parliament_position < speaker_position);
+        assert!(MIGRATIONS.ends_with(SPEAKER_CONTEXT_MIGRATION));
     }
 
     #[test]
@@ -1878,7 +1971,7 @@ mod tests {
         assert!(!INSERT_SITTING_SQL.contains("generated_summary ="));
         assert!(!INSERT_SITTING_SQL.contains("generated_summary_model ="));
         assert!(!INSERT_SITTING_SQL.contains("generated_summary_input_hash ="));
-        assert!(UPDATE_SITTING_SQL.contains("WHERE id = $5"));
+        assert!(UPDATE_SITTING_SQL.contains("WHERE id = $6"));
         assert!(UPDATE_SITTING_SQL.contains("generated_summary_input_hash IS DISTINCT FROM"));
         assert!(UPDATE_SITTING_SQL.contains("COALESCE(generated_summary_stale_at, now())"));
         assert!(INSERT_SITTING_SQL.contains("ON CONFLICT (url) DO UPDATE"));

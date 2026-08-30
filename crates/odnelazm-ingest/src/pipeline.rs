@@ -68,7 +68,11 @@ impl<S: DataStore> IngestPipeline<S> {
 
     /// Ingest a single fully-fetched sitting. This is the core unit of work;
     /// all other ingest methods funnel through here.
-    async fn ingest_sitting(&self, sitting: HansardSitting) -> Result<IngestStats> {
+    async fn ingest_sitting(
+        &self,
+        sitting: HansardSitting,
+        parliament: &str,
+    ) -> Result<IngestStats> {
         let mut stats = IngestStats::default();
 
         let speakers = extract_speakers(&sitting);
@@ -87,7 +91,13 @@ impl<S: DataStore> IngestPipeline<S> {
 
         let reconciliation = self
             .store
-            .reconcile_sitting(&sitting, &speakers, &mentions, &extracted_topics)
+            .reconcile_sitting(
+                &sitting,
+                parliament,
+                &speakers,
+                &mentions,
+                &extracted_topics,
+            )
             .await?;
         stats.speakers_linked = reconciliation.speakers_linked as u32;
 
@@ -107,12 +117,17 @@ impl<S: DataStore> IngestPipeline<S> {
     /// Fetch all current-source sittings, skip those already ingested, and
     /// process the rest. Sittings are fetched and ingested in batches of
     /// `concurrency` at a time to avoid hammering the source.
-    pub async fn ingest_all_sittings(&self, concurrency: usize) -> Result<IngestStats> {
+    pub async fn ingest_all_sittings(
+        &self,
+        parliament: &str,
+        concurrency: usize,
+    ) -> Result<IngestStats> {
         self.ingest_sittings(
             SittingListOptions {
                 all: true,
                 ..Default::default()
             },
+            parliament,
             concurrency,
         )
         .await
@@ -123,6 +138,7 @@ impl<S: DataStore> IngestPipeline<S> {
         &self,
         start: chrono::NaiveDate,
         end: chrono::NaiveDate,
+        parliament: &str,
         concurrency: usize,
     ) -> Result<IngestStats> {
         self.ingest_sittings(
@@ -132,6 +148,7 @@ impl<S: DataStore> IngestPipeline<S> {
                 all: true,
                 ..Default::default()
             },
+            parliament,
             concurrency,
         )
         .await
@@ -140,6 +157,7 @@ impl<S: DataStore> IngestPipeline<S> {
     async fn ingest_sittings(
         &self,
         options: SittingListOptions,
+        parliament: &str,
         concurrency: usize,
     ) -> Result<IngestStats> {
         let source_keys = sitting_source_keys(&options);
@@ -213,7 +231,7 @@ impl<S: DataStore> IngestPipeline<S> {
                     .map(|(_, _, accumulator)| accumulator)
                     .expect("run created for routed source");
                 match result {
-                    Ok(sitting) => match self.ingest_sitting(sitting).await {
+                    Ok(sitting) => match self.ingest_sitting(sitting, parliament).await {
                         Ok(stats) => {
                             accumulator.succeeded += 1;
                             accumulator.speakers_linked += stats.speakers_linked as u64;
