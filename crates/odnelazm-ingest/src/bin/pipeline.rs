@@ -72,6 +72,10 @@ struct IngestCmd {
     /// Fetch individual member profile pages (photos, bio, party, committees)
     #[arg(long)]
     import_profiles: bool,
+
+    /// Scrape, resolve, and report outcomes without canonical or derived writes
+    #[arg(long)]
+    dry_run: bool,
 }
 
 impl IngestCmd {
@@ -598,9 +602,12 @@ async fn main() {
                 Some(url) => {
                     log::info!("Metrics: pushing to {url}");
                     IngestPipeline::new(scraper, store)
+                        .with_dry_run(cmd.dry_run)
                         .with_metrics(PrometheusPushSink::new(url, "odnelazm-pipeline"))
                 }
-                None => IngestPipeline::new(scraper, store).with_metrics(NoopSink),
+                None => IngestPipeline::new(scraper, store)
+                    .with_dry_run(cmd.dry_run)
+                    .with_metrics(NoopSink),
             };
             cmd.run(&pipeline).await;
         }

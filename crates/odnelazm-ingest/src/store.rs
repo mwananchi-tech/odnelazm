@@ -5,6 +5,65 @@ use uuid::Uuid;
 use odnelazm::{DataSource, HansardSitting};
 
 use crate::Result;
+use crate::extract::{ExtractedBillMention, ExtractedTopic};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IngestionRunStatus {
+    Succeeded,
+    Partial,
+    Failed,
+}
+
+impl IngestionRunStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Succeeded => "succeeded",
+            Self::Partial => "partial",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IngestionRunCompletion {
+    pub status: IngestionRunStatus,
+    pub discovered: u64,
+    pub processed: u64,
+    pub succeeded: u64,
+    pub skipped: u64,
+    pub failed: u64,
+    pub error_message: Option<String>,
+    pub error_metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SittingReconciliation {
+    pub sitting_id: Uuid,
+    pub speakers_linked: u64,
+}
+
+impl IngestionRunCompletion {
+    pub fn validate(&self) -> Result<()> {
+        let outcomes = self
+            .succeeded
+            .checked_add(self.skipped)
+            .and_then(|count| count.checked_add(self.failed));
+        if outcomes != Some(self.processed) || self.processed > self.discovered {
+            return Err(crate::IngestError::Store(format!(
+                "invalid ingestion run counts: discovered={} processed={} succeeded={} skipped={} failed={}",
+                self.discovered, self.processed, self.succeeded, self.skipped, self.failed
+            )));
+        }
+        if self.status == IngestionRunStatus::Succeeded
+            && (self.failed != 0 || self.error_message.is_some())
+        {
+            return Err(crate::IngestError::Store(
+                "succeeded ingestion run cannot contain failures".to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SittingSourceIdentity {
@@ -321,7 +380,27 @@ pub struct PendingSittingSummary {
 pub trait DataStore: Send + Sync {
     async fn migrate(&self) -> Result<()>;
 
+    async fn start_ingestion_run(
+        &self,
+        source_key: &str,
+        metadata: serde_json::Value,
+    ) -> Result<Uuid>;
+    async fn finish_ingestion_run(
+        &self,
+        run_id: Uuid,
+        completion: &IngestionRunCompletion,
+    ) -> Result<()>;
+
     async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid>;
+    /// Atomically replace all sitting-scoped derived projections with one
+    /// extraction snapshot. Missing rows are retained but marked inactive.
+    async fn reconcile_sitting(
+        &self,
+        sitting: &HansardSitting,
+        speakers: &[(SpeakerRecord, u32)],
+        bill_mentions: &[ExtractedBillMention],
+        topics: &[ExtractedTopic],
+    ) -> Result<SittingReconciliation>;
     async fn list_ingested_sitting_sources(&self) -> Result<Vec<SittingSourceIdentity>>;
     async fn store_sitting_embedding(&self, sitting_id: Uuid, embedding: Vec<f32>) -> Result<()>;
 
@@ -441,7 +520,40 @@ pub trait DataStore: Send + Sync {
 mod tests {
     use odnelazm::DataSource;
 
-    use super::{MemberSourceIdentity, SittingSourceIdentity, normalize_member_name};
+    use super::{
+        IngestionRunCompletion, IngestionRunStatus, MemberSourceIdentity, SittingSourceIdentity,
+        normalize_member_name,
+    };
+
+    fn completion(status: IngestionRunStatus) -> IngestionRunCompletion {
+        IngestionRunCompletion {
+            status,
+            discovered: 3,
+            processed: 3,
+            succeeded: 1,
+            skipped: 1,
+            failed: 1,
+            error_message: Some("one failed".to_owned()),
+            error_metadata: serde_json::json!({}),
+        }
+    }
+
+    #[test]
+    fn ingestion_run_counts_require_one_outcome_per_processed_item() {
+        assert!(completion(IngestionRunStatus::Partial).validate().is_ok());
+        let mut invalid = completion(IngestionRunStatus::Partial);
+        invalid.processed = 2;
+        assert!(invalid.validate().is_err());
+    }
+
+    #[test]
+    fn succeeded_ingestion_run_rejects_failure_metadata() {
+        assert!(
+            completion(IngestionRunStatus::Succeeded)
+                .validate()
+                .is_err()
+        );
+    }
 
     #[test]
     fn current_old_slug_and_document_url_share_external_key() {

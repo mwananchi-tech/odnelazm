@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use chrono::NaiveDate;
@@ -7,18 +8,25 @@ use odnelazm::HansardSitting;
 
 use crate::{
     Result,
+    extract::{ExtractedBillMention, ExtractedTopic},
     store::{
-        BillMentionContext, BillMentionRecord, BillRecord, DataStore, MemberProfileData,
-        MemberRecord, MemberSourceIdentity, PendingBillAppearanceSummary,
+        BillMentionContext, BillMentionRecord, BillRecord, DataStore, IngestionRunCompletion,
+        MemberProfileData, MemberRecord, MemberSourceIdentity, PendingBillAppearanceSummary,
         PendingBillJourneySummary, PendingBillSummary, PendingSittingSummary,
-        PendingTopicAppearanceSummary, PendingTopicSummary, SittingSourceIdentity, SpeakerRecord,
-        TopicRecord, normalize_member_name,
+        PendingTopicAppearanceSummary, PendingTopicSummary, SittingReconciliation,
+        SittingSourceIdentity, SpeakerRecord, TopicRecord, normalize_member_name,
     },
 };
 
 #[cfg(test)]
 const SOURCE_IDENTITY_MIGRATION: &str =
     include_str!("../migrations/0015_source_identity_foundation.sql");
+#[cfg(test)]
+const DERIVED_RECONCILIATION_MIGRATION: &str =
+    include_str!("../migrations/0016_derived_reconciliation.sql");
+#[cfg(test)]
+const INGESTION_RUN_ACCOUNTING_MIGRATION: &str =
+    include_str!("../migrations/0017_ingestion_run_accounting.sql");
 
 const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0001_init.sql"),
@@ -48,6 +56,10 @@ const MIGRATIONS: &str = concat!(
     include_str!("../migrations/0014_topic_summary.sql"),
     "\n",
     include_str!("../migrations/0015_source_identity_foundation.sql"),
+    "\n",
+    include_str!("../migrations/0016_derived_reconciliation.sql"),
+    "\n",
+    include_str!("../migrations/0017_ingestion_run_accounting.sql"),
 );
 
 const UPDATE_SITTING_SQL: &str = r#"
@@ -55,7 +67,13 @@ const UPDATE_SITTING_SQL: &str = r#"
         summary   = COALESCE($1, summary),
         sentiment = COALESCE($2, sentiment),
         pdf_url   = COALESCE($3, pdf_url),
-        raw_json  = $4
+        raw_json  = $4,
+        generated_summary_stale_at = CASE
+            WHEN generated_summary IS NOT NULL
+             AND generated_summary_input_hash IS DISTINCT FROM md5($4::jsonb::text)
+            THEN COALESCE(generated_summary_stale_at, now())
+            ELSE generated_summary_stale_at
+        END
     WHERE id = $5
 "#;
 
@@ -68,7 +86,13 @@ const INSERT_SITTING_SQL: &str = r#"
         summary   = COALESCE(EXCLUDED.summary, sittings.summary),
         sentiment = COALESCE(EXCLUDED.sentiment, sittings.sentiment),
         pdf_url   = COALESCE(EXCLUDED.pdf_url, sittings.pdf_url),
-        raw_json  = EXCLUDED.raw_json
+        raw_json  = EXCLUDED.raw_json,
+        generated_summary_stale_at = CASE
+            WHEN sittings.generated_summary IS NOT NULL
+             AND sittings.generated_summary_input_hash IS DISTINCT FROM md5(EXCLUDED.raw_json::text)
+            THEN COALESCE(sittings.generated_summary_stale_at, now())
+            ELSE sittings.generated_summary_stale_at
+        END
     RETURNING id
 "#;
 
@@ -128,29 +152,21 @@ impl PostgresStore {
     pub fn from_pool(pool: PgPool) -> Self {
         Self { pool }
     }
-}
 
-#[async_trait]
-impl DataStore for PostgresStore {
-    async fn migrate(&self) -> Result<()> {
-        sqlx::raw_sql(MIGRATIONS).execute(&self.pool).await?;
-        Ok(())
-    }
-
-    async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid> {
+    async fn upsert_sitting_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        sitting: &HansardSitting,
+    ) -> Result<Uuid> {
         let raw_json = serde_json::to_value(sitting)?;
         let house = sitting.house.to_string();
         let source = sitting.source.to_string();
         let identity = SittingSourceIdentity::from_sitting(sitting);
-        let mut tx = self.pool.begin().await?;
 
-        // Serializing per source closes the resolve-then-insert race without
-        // imposing a canonical identity constraint on the legacy sittings table.
         let (data_source_id,): (Uuid,) =
             sqlx::query_as("SELECT id FROM data_sources WHERE source_key = $1 FOR UPDATE")
                 .persistent(false)
                 .bind(&identity.source_key)
-                .fetch_one(&mut *tx)
+                .fetch_one(&mut **tx)
                 .await?;
 
         let mut resolved: Option<(Uuid, Uuid)> = None;
@@ -161,7 +177,7 @@ impl DataStore for PostgresStore {
             .persistent(false)
             .bind(data_source_id)
             .bind(external_key)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await?;
         }
         if resolved.is_none() {
@@ -171,7 +187,7 @@ impl DataStore for PostgresStore {
             .persistent(false)
             .bind(data_source_id)
             .bind(&identity.normalized_url)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await?;
         }
 
@@ -183,7 +199,7 @@ impl DataStore for PostgresStore {
                 .bind(sitting.pdf_url.as_deref())
                 .bind(&raw_json)
                 .bind(sitting_id)
-                .execute(&mut *tx)
+                .execute(&mut **tx)
                 .await?;
             (sitting_id, Some(source_id))
         } else {
@@ -198,7 +214,7 @@ impl DataStore for PostgresStore {
                 .bind(sitting.sentiment.as_deref())
                 .bind(sitting.pdf_url.as_deref())
                 .bind(&raw_json)
-                .fetch_one(&mut *tx)
+                .fetch_one(&mut **tx)
                 .await?;
             (sitting_id, None)
         };
@@ -217,7 +233,7 @@ impl DataStore for PostgresStore {
             .bind(&identity.normalized_url)
             .bind(identity.external_key.as_deref())
             .bind(source_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
         } else {
             sqlx::query(
@@ -233,12 +249,541 @@ impl DataStore for PostgresStore {
             .bind(identity.external_key.as_deref())
             .bind(&identity.source_url)
             .bind(&identity.normalized_url)
+            .execute(&mut **tx)
+            .await?;
+        }
+
+        Ok(sitting_id)
+    }
+
+    async fn link_sitting_speakers_in_tx(
+        tx: &mut Transaction<'_, Postgres>,
+        sitting_id: Uuid,
+        source: odnelazm::DataSource,
+    ) -> Result<u64> {
+        let speakers: Vec<(Uuid, String, Option<String>)> = sqlx::query_as(
+            r#"
+            SELECT DISTINCT sp.id, sp.name, sp.url
+            FROM speakers sp
+            JOIN sitting_speakers ss ON ss.speaker_id = sp.id
+            WHERE ss.sitting_id = $1 AND ss.active AND sp.member_id IS NULL
+            "#,
+        )
+        .persistent(false)
+        .bind(sitting_id)
+        .fetch_all(&mut **tx)
+        .await?;
+
+        let mut linked = 0;
+        for (speaker_id, name, url) in speakers {
+            let member_id = if let Some(url) = url {
+                let identity = MemberSourceIdentity::from_observation(source, &url);
+                let (data_source_id,): (Uuid,) =
+                    sqlx::query_as("SELECT id FROM data_sources WHERE source_key = $1")
+                        .persistent(false)
+                        .bind(&identity.source_key)
+                        .fetch_one(&mut **tx)
+                        .await?;
+                let candidates: Vec<(Uuid,)> = sqlx::query_as(
+                    r#"
+                    SELECT DISTINCT member_id
+                    FROM member_sources
+                    WHERE data_source_id = $1
+                      AND (($2::TEXT IS NOT NULL AND external_key = $2)
+                           OR normalized_url = $3)
+                    LIMIT 2
+                    "#,
+                )
+                .persistent(false)
+                .bind(data_source_id)
+                .bind(identity.external_key.as_deref())
+                .bind(&identity.normalized_url)
+                .fetch_all(&mut **tx)
+                .await?;
+                match candidates.as_slice() {
+                    [(member_id,)] => Some(*member_id),
+                    _ => None,
+                }
+            } else if name.len() > 5 {
+                let candidates: Vec<(Uuid, f64)> = sqlx::query_as(
+                    "SELECT id, score FROM match_member($1, 0.45) ORDER BY score DESC LIMIT 2",
+                )
+                .persistent(false)
+                .bind(&name)
+                .fetch_all(&mut **tx)
+                .await?;
+                match candidates.as_slice() {
+                    [(member_id, _)] => Some(*member_id),
+                    [(member_id, best), (_, second)] if best > second => Some(*member_id),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+
+            if let Some(member_id) = member_id {
+                linked += sqlx::query(
+                    "UPDATE speakers SET member_id = $1 WHERE id = $2 AND member_id IS NULL",
+                )
+                .persistent(false)
+                .bind(member_id)
+                .bind(speaker_id)
+                .execute(&mut **tx)
+                .await?
+                .rows_affected();
+            }
+        }
+
+        Ok(linked)
+    }
+
+    async fn link_url_speakers_in_tx(tx: &mut Transaction<'_, Postgres>) -> Result<u64> {
+        let observations: Vec<(Uuid, String, String)> = sqlx::query_as(
+            r#"
+            SELECT DISTINCT sp.id, ds.source_key, sp.url
+            FROM speakers sp
+            JOIN sitting_speakers ss ON ss.speaker_id = sp.id AND ss.active
+            JOIN sitting_sources sis ON sis.sitting_id = ss.sitting_id
+            JOIN data_sources ds ON ds.id = sis.data_source_id
+            WHERE sp.member_id IS NULL AND sp.url IS NOT NULL
+            "#,
+        )
+        .persistent(false)
+        .fetch_all(&mut **tx)
+        .await?;
+
+        let mut candidates: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
+        for (speaker_id, source_key, url) in observations {
+            let source = match source_key.as_str() {
+                "mzalendo-current" => odnelazm::DataSource::Current,
+                "mzalendo-archive" => odnelazm::DataSource::Archive,
+                _ => continue,
+            };
+            let identity = MemberSourceIdentity::from_observation(source, &url);
+            let member_ids: Vec<(Uuid,)> = sqlx::query_as(
+                r#"
+                SELECT DISTINCT ms.member_id
+                FROM member_sources ms
+                JOIN data_sources ds ON ds.id = ms.data_source_id
+                WHERE ds.source_key = $1
+                  AND (($2::TEXT IS NOT NULL AND ms.external_key = $2)
+                       OR ms.normalized_url = $3)
+                "#,
+            )
+            .persistent(false)
+            .bind(&identity.source_key)
+            .bind(identity.external_key.as_deref())
+            .bind(&identity.normalized_url)
+            .fetch_all(&mut **tx)
+            .await?;
+            candidates
+                .entry(speaker_id)
+                .or_default()
+                .extend(member_ids.into_iter().map(|(member_id,)| member_id));
+        }
+
+        let mut linked = 0;
+        for (speaker_id, member_ids) in candidates {
+            if let Some(member_id) = member_ids.iter().copied().next()
+                && member_ids.len() == 1
+            {
+                linked += sqlx::query(
+                    "UPDATE speakers SET member_id = $1 WHERE id = $2 AND member_id IS NULL",
+                )
+                .persistent(false)
+                .bind(member_id)
+                .bind(speaker_id)
+                .execute(&mut **tx)
+                .await?
+                .rows_affected();
+            }
+        }
+        Ok(linked)
+    }
+}
+
+#[async_trait]
+impl DataStore for PostgresStore {
+    async fn migrate(&self) -> Result<()> {
+        sqlx::raw_sql(MIGRATIONS).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    async fn start_ingestion_run(
+        &self,
+        source_key: &str,
+        metadata: serde_json::Value,
+    ) -> Result<Uuid> {
+        let run_id = sqlx::query_scalar(
+            r#"
+            INSERT INTO ingestion_runs (data_source_id, status, started_at, error_metadata)
+            SELECT id, 'running', now(), $2
+            FROM data_sources
+            WHERE source_key = $1
+            RETURNING id
+            "#,
+        )
+        .persistent(false)
+        .bind(source_key)
+        .bind(metadata)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(run_id)
+    }
+
+    async fn finish_ingestion_run(
+        &self,
+        run_id: Uuid,
+        completion: &IngestionRunCompletion,
+    ) -> Result<()> {
+        completion.validate()?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ingestion_runs SET
+                status = $1,
+                discovered_count = $2,
+                processed_count = $3,
+                succeeded_count = $4,
+                skipped_count = $5,
+                failed_count = $6,
+                error_message = $7,
+                error_metadata = COALESCE(error_metadata, '{}'::jsonb) || $8,
+                finished_at = now(),
+                updated_at = now()
+            WHERE id = $9 AND status = 'running' AND finished_at IS NULL
+            "#,
+        )
+        .persistent(false)
+        .bind(completion.status.as_str())
+        .bind(completion.discovered as i64)
+        .bind(completion.processed as i64)
+        .bind(completion.succeeded as i64)
+        .bind(completion.skipped as i64)
+        .bind(completion.failed as i64)
+        .bind(completion.error_message.as_deref())
+        .bind(&completion.error_metadata)
+        .bind(run_id)
+        .execute(&self.pool)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(crate::IngestError::Store(format!(
+                "ingestion run {run_id} is not running"
+            )));
+        }
+        Ok(())
+    }
+
+    async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid> {
+        let mut tx = self.pool.begin().await?;
+        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting).await?;
+        tx.commit().await?;
+        Ok(sitting_id)
+    }
+
+    async fn reconcile_sitting(
+        &self,
+        sitting: &HansardSitting,
+        speakers: &[(SpeakerRecord, u32)],
+        bill_mentions: &[ExtractedBillMention],
+        topics: &[ExtractedTopic],
+    ) -> Result<SittingReconciliation> {
+        let mut tx = self.pool.begin().await?;
+        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting).await?;
+
+        // Inactivation first makes the final active set exactly match this
+        // extraction snapshot. It remains invisible until the transaction commits.
+        for sql in [
+            "UPDATE sitting_speakers SET active = false WHERE sitting_id = $1 AND active",
+            "UPDATE bill_mention_speakers bms SET active = false FROM bill_mentions bm WHERE bms.bill_mention_id = bm.id AND bm.sitting_id = $1 AND bms.active",
+            "UPDATE bill_mentions SET active = false WHERE sitting_id = $1 AND active",
+            "UPDATE topic_speakers ts SET active = false FROM topics t WHERE ts.topic_id = t.id AND t.sitting_id = $1 AND ts.active",
+            "UPDATE topics SET active = false WHERE sitting_id = $1 AND active",
+        ] {
+            sqlx::query(sql)
+                .persistent(false)
+                .bind(sitting_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        for (speaker, speech_count) in speakers {
+            let (speaker_id,): (Uuid,) = sqlx::query_as(
+                r#"
+                INSERT INTO speakers (id, name, url)
+                VALUES (uuid_generate_v4(), $1, $2)
+                ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+                RETURNING id
+                "#,
+            )
+            .persistent(false)
+            .bind(&speaker.name)
+            .bind(speaker.url.as_deref())
+            .fetch_one(&mut *tx)
+            .await?;
+            sqlx::query(
+                r#"
+                INSERT INTO sitting_speakers
+                    (sitting_id, speaker_id, speech_count, active, input_hash)
+                VALUES ($1, $2, $3, true, md5($3::text))
+                ON CONFLICT (sitting_id, speaker_id) DO UPDATE SET
+                    speech_count = EXCLUDED.speech_count,
+                    active = true,
+                    last_seen_at = now(),
+                    input_hash = EXCLUDED.input_hash
+                "#,
+            )
+            .persistent(false)
+            .bind(sitting_id)
+            .bind(speaker_id)
+            .bind(*speech_count as i32)
             .execute(&mut *tx)
             .await?;
         }
 
+        for mention in bill_mentions {
+            let (bill_id,): (Uuid,) = sqlx::query_as(
+                r#"
+                INSERT INTO bills (id, name, bill_number, year, sponsor, updated_at)
+                VALUES (uuid_generate_v4(), $1, $2, $3, $4, now())
+                ON CONFLICT (name) DO UPDATE SET
+                    bill_number = COALESCE(EXCLUDED.bill_number, bills.bill_number),
+                    year = COALESCE(EXCLUDED.year, bills.year),
+                    sponsor = COALESCE(EXCLUDED.sponsor, bills.sponsor),
+                    updated_at = now()
+                RETURNING id
+                "#,
+            )
+            .persistent(false)
+            .bind(&mention.bill.name)
+            .bind(mention.bill.bill_number.as_deref())
+            .bind(mention.bill.year)
+            .bind(mention.bill.sponsor.as_deref())
+            .fetch_one(&mut *tx)
+            .await?;
+
+            let (mention_id,): (Uuid,) = sqlx::query_as(
+                r#"
+                INSERT INTO bill_mentions
+                    (id, bill_id, sitting_id, house, date, stage, section_title,
+                     speech_count, active)
+                VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, true)
+                ON CONFLICT (bill_id, sitting_id, stage) DO UPDATE SET
+                    house = EXCLUDED.house,
+                    date = EXCLUDED.date,
+                    section_title = EXCLUDED.section_title,
+                    speech_count = EXCLUDED.speech_count,
+                    active = true,
+                    last_seen_at = now()
+                RETURNING id
+                "#,
+            )
+            .persistent(false)
+            .bind(bill_id)
+            .bind(sitting_id)
+            .bind(sitting.house.to_string())
+            .bind(sitting.date)
+            .bind(mention.stage.as_deref())
+            .bind(&mention.section_title)
+            .bind(mention.speech_count as i32)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            for contributor in &mention.contributors {
+                let (speaker_id,): (Uuid,) = sqlx::query_as(
+                    r#"
+                    INSERT INTO speakers (id, name, url)
+                    VALUES (uuid_generate_v4(), $1, $2)
+                    ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING id
+                    "#,
+                )
+                .persistent(false)
+                .bind(&contributor.name)
+                .bind(contributor.url.as_deref())
+                .fetch_one(&mut *tx)
+                .await?;
+                sqlx::query(
+                    r#"
+                    INSERT INTO bill_mention_speakers
+                        (bill_mention_id, speaker_id, speech_count, contributions_text,
+                         active, input_hash)
+                    VALUES ($1, $2, $3, $4, true,
+                            md5($3::text || chr(31) || COALESCE($4, '')))
+                    ON CONFLICT (bill_mention_id, speaker_id) DO UPDATE SET
+                        summary_stale_at = CASE
+                            WHEN bill_mention_speakers.summary IS NOT NULL
+                             AND bill_mention_speakers.input_hash IS DISTINCT FROM EXCLUDED.input_hash
+                            THEN COALESCE(bill_mention_speakers.summary_stale_at, now())
+                            ELSE bill_mention_speakers.summary_stale_at
+                        END,
+                        speech_count = EXCLUDED.speech_count,
+                        contributions_text = EXCLUDED.contributions_text,
+                        active = true,
+                        last_seen_at = now(),
+                        input_hash = EXCLUDED.input_hash
+                    "#,
+                )
+                .persistent(false)
+                .bind(mention_id)
+                .bind(speaker_id)
+                .bind(contributor.speech_count as i32)
+                .bind(&contributor.contributions_text)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        for topic in topics {
+            let (topic_id,): (Uuid,) = sqlx::query_as(
+                r#"
+                INSERT INTO topics
+                    (id, sitting_id, section_type, title, speech_count, active)
+                VALUES (uuid_generate_v4(), $1, $2, $3, $4, true)
+                ON CONFLICT (sitting_id, section_type, title) DO UPDATE SET
+                    speech_count = EXCLUDED.speech_count,
+                    active = true,
+                    last_seen_at = now()
+                RETURNING id
+                "#,
+            )
+            .persistent(false)
+            .bind(sitting_id)
+            .bind(&topic.section_type)
+            .bind(&topic.title)
+            .bind(topic.speech_count as i32)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            for contributor in &topic.contributors {
+                let (speaker_id,): (Uuid,) = sqlx::query_as(
+                    r#"
+                    INSERT INTO speakers (id, name, url)
+                    VALUES (uuid_generate_v4(), $1, $2)
+                    ON CONFLICT (name, url) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING id
+                    "#,
+                )
+                .persistent(false)
+                .bind(&contributor.speaker.name)
+                .bind(contributor.speaker.url.as_deref())
+                .fetch_one(&mut *tx)
+                .await?;
+                sqlx::query(
+                    r#"
+                    INSERT INTO topic_speakers
+                        (topic_id, speaker_id, speech_count, contributions_text, active, input_hash)
+                    VALUES ($1, $2, $3, $4, true,
+                            md5($3::text || chr(31) || COALESCE($4, '')))
+                    ON CONFLICT (topic_id, speaker_id) DO UPDATE SET
+                        summary_stale_at = CASE
+                            WHEN topic_speakers.summary IS NOT NULL
+                             AND topic_speakers.input_hash IS DISTINCT FROM EXCLUDED.input_hash
+                            THEN COALESCE(topic_speakers.summary_stale_at, now())
+                            ELSE topic_speakers.summary_stale_at
+                        END,
+                        speech_count = EXCLUDED.speech_count,
+                        contributions_text = EXCLUDED.contributions_text,
+                        active = true,
+                        last_seen_at = now(),
+                        input_hash = EXCLUDED.input_hash
+                    "#,
+                )
+                .persistent(false)
+                .bind(topic_id)
+                .bind(speaker_id)
+                .bind(contributor.speech_count as i32)
+                .bind(&contributor.contributions_text)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        // Parent hashes include the active contributor hashes, so appearance
+        // and journey summaries become stale when contribution input changes.
+        sqlx::query(
+            r#"
+            WITH hashes AS (
+                SELECT bm.id,
+                       md5(bm.bill_id::text || chr(31) || COALESCE(bm.stage, '<NULL>') || chr(31) ||
+                           bm.section_title || chr(31) || bm.speech_count::text || chr(31) ||
+                           COALESCE(string_agg(bms.speaker_id::text || ':' || bms.input_hash, ','
+                                               ORDER BY bms.speaker_id) FILTER (WHERE bms.active), '')) AS input_hash
+                FROM bill_mentions bm
+                LEFT JOIN bill_mention_speakers bms ON bms.bill_mention_id = bm.id
+                WHERE bm.sitting_id = $1 AND bm.active
+                GROUP BY bm.id
+            )
+            UPDATE bill_mentions bm SET
+                summary_stale_at = CASE
+                    WHEN bm.summary IS NOT NULL AND bm.input_hash IS DISTINCT FROM hashes.input_hash
+                    THEN COALESCE(bm.summary_stale_at, now()) ELSE bm.summary_stale_at END,
+                input_hash = hashes.input_hash
+            FROM hashes WHERE bm.id = hashes.id
+            "#,
+        )
+        .persistent(false)
+        .bind(sitting_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            WITH hashes AS (
+                SELECT t.id,
+                       md5(t.section_type || chr(31) || t.title || chr(31) || t.speech_count::text || chr(31) ||
+                           COALESCE(string_agg(ts.speaker_id::text || ':' || ts.input_hash, ','
+                                               ORDER BY ts.speaker_id) FILTER (WHERE ts.active), '')) AS input_hash
+                FROM topics t
+                LEFT JOIN topic_speakers ts ON ts.topic_id = t.id
+                WHERE t.sitting_id = $1 AND t.active
+                GROUP BY t.id
+            )
+            UPDATE topics t SET
+                summary_stale_at = CASE
+                    WHEN t.summary IS NOT NULL AND t.input_hash IS DISTINCT FROM hashes.input_hash
+                    THEN COALESCE(t.summary_stale_at, now()) ELSE t.summary_stale_at END,
+                input_hash = hashes.input_hash
+            FROM hashes WHERE t.id = hashes.id
+            "#,
+        )
+        .persistent(false)
+        .bind(sitting_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            WITH touched_bills AS (
+                SELECT DISTINCT bill_id FROM bill_mentions WHERE sitting_id = $1
+            ), hashes AS (
+                SELECT b.id,
+                       md5(COALESCE(string_agg(bm.id::text || ':' || bm.input_hash, ','
+                                               ORDER BY bm.date, bm.id) FILTER (WHERE bm.active), '')) AS input_hash
+                FROM bills b
+                JOIN touched_bills tb ON tb.bill_id = b.id
+                LEFT JOIN bill_mentions bm ON bm.bill_id = b.id
+                GROUP BY b.id
+            )
+            UPDATE bills b SET
+                summary_stale_at = CASE
+                    WHEN b.summary IS NOT NULL AND b.summary_input_hash IS DISTINCT FROM hashes.input_hash
+                    THEN COALESCE(b.summary_stale_at, now()) ELSE b.summary_stale_at END,
+                summary_input_hash = CASE WHEN b.summary IS NULL THEN hashes.input_hash ELSE b.summary_input_hash END
+            FROM hashes WHERE b.id = hashes.id
+            "#,
+        )
+        .persistent(false)
+        .bind(sitting_id)
+        .execute(&mut *tx)
+        .await?;
+
+        let speakers_linked =
+            Self::link_sitting_speakers_in_tx(&mut tx, sitting_id, sitting.source).await?;
         tx.commit().await?;
-        Ok(sitting_id)
+        Ok(SittingReconciliation {
+            sitting_id,
+            speakers_linked,
+        })
     }
 
     async fn list_ingested_sitting_sources(&self) -> Result<Vec<SittingSourceIdentity>> {
@@ -305,10 +850,14 @@ impl DataStore for PostgresStore {
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO sitting_speakers (sitting_id, speaker_id, speech_count)
-            VALUES ($1, $2, $3)
+            INSERT INTO sitting_speakers
+                (sitting_id, speaker_id, speech_count, active, input_hash)
+            VALUES ($1, $2, $3, true, md5($3::text))
             ON CONFLICT (sitting_id, speaker_id) DO UPDATE
-                SET speech_count = sitting_speakers.speech_count + EXCLUDED.speech_count
+                SET speech_count = EXCLUDED.speech_count,
+                    active = true,
+                    last_seen_at = now(),
+                    input_hash = EXCLUDED.input_hash
             "#,
         )
         .persistent(false)
@@ -357,7 +906,9 @@ impl DataStore for PostgresStore {
                 (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (bill_id, sitting_id, stage) DO UPDATE SET
                 speech_count  = EXCLUDED.speech_count,
-                section_title = EXCLUDED.section_title
+                section_title = EXCLUDED.section_title,
+                active = true,
+                last_seen_at = now()
             RETURNING id
             "#,
         )
@@ -380,7 +931,9 @@ impl DataStore for PostgresStore {
             INSERT INTO topics (id, sitting_id, section_type, title, speech_count)
             VALUES (uuid_generate_v4(), $1, $2, $3, $4)
             ON CONFLICT (sitting_id, section_type, title) DO UPDATE SET
-                speech_count = EXCLUDED.speech_count
+                speech_count = EXCLUDED.speech_count,
+                active = true,
+                last_seen_at = now()
             RETURNING id
             "#,
         )
@@ -403,11 +956,22 @@ impl DataStore for PostgresStore {
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO topic_speakers (topic_id, speaker_id, speech_count, contributions_text)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO topic_speakers
+                (topic_id, speaker_id, speech_count, contributions_text, active, input_hash)
+            VALUES ($1, $2, $3, $4, true,
+                    md5($3::text || chr(31) || COALESCE($4, '')))
             ON CONFLICT (topic_id, speaker_id) DO UPDATE SET
+                summary_stale_at = CASE
+                    WHEN topic_speakers.summary IS NOT NULL
+                     AND topic_speakers.input_hash IS DISTINCT FROM EXCLUDED.input_hash
+                    THEN COALESCE(topic_speakers.summary_stale_at, now())
+                    ELSE topic_speakers.summary_stale_at
+                END,
                 speech_count       = EXCLUDED.speech_count,
-                contributions_text = EXCLUDED.contributions_text
+                contributions_text = EXCLUDED.contributions_text,
+                active = true,
+                last_seen_at = now(),
+                input_hash = EXCLUDED.input_hash
             "#,
         )
         .persistent(false)
@@ -444,7 +1008,8 @@ impl DataStore for PostgresStore {
             JOIN speakers sp      ON sp.id = bms.speaker_id
             LEFT JOIN members m   ON m.id  = sp.member_id
             WHERE bms.contributions_text IS NOT NULL
-              AND bms.summary IS NULL
+              AND bms.active AND bm.active
+              AND (bms.summary IS NULL OR bms.summary_stale_at IS NOT NULL)
             LIMIT $1
             "#,
         )
@@ -489,7 +1054,14 @@ impl DataStore for PostgresStore {
         model: &str,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE bill_mention_speakers SET summary = $1, summary_model = $2 WHERE bill_mention_id = $3 AND speaker_id = $4",
+            r#"
+            UPDATE bill_mention_speakers SET
+                summary = $1, summary_model = $2,
+                summary_input_hash = input_hash,
+                summary_generated_at = now(),
+                summary_stale_at = NULL
+            WHERE bill_mention_id = $3 AND speaker_id = $4
+            "#,
         )
         .persistent(false)
         .bind(summary)
@@ -525,7 +1097,8 @@ impl DataStore for PostgresStore {
             JOIN speakers sp      ON sp.id = ts.speaker_id
             LEFT JOIN members m   ON m.id  = sp.member_id
             WHERE ts.contributions_text IS NOT NULL
-              AND ts.summary IS NULL
+              AND ts.active AND t.active
+              AND (ts.summary IS NULL OR ts.summary_stale_at IS NOT NULL)
             LIMIT $1
             "#,
         )
@@ -570,7 +1143,14 @@ impl DataStore for PostgresStore {
         model: &str,
     ) -> Result<()> {
         sqlx::query(
-            "UPDATE topic_speakers SET summary = $1, summary_model = $2 WHERE topic_id = $3 AND speaker_id = $4",
+            r#"
+            UPDATE topic_speakers SET
+                summary = $1, summary_model = $2,
+                summary_input_hash = input_hash,
+                summary_generated_at = now(),
+                summary_stale_at = NULL
+            WHERE topic_id = $3 AND speaker_id = $4
+            "#,
         )
         .persistent(false)
         .bind(summary)
@@ -602,7 +1182,8 @@ impl DataStore for PostgresStore {
             SELECT t.id, t.title, t.section_type, s.date, s.house, s.session_type, s.raw_json
             FROM topics t
             JOIN sittings s ON s.id = t.sitting_id
-            WHERE t.summary IS NULL AND t.speech_count > 0
+            WHERE t.active AND t.speech_count > 0
+              AND (t.summary IS NULL OR t.summary_stale_at IS NOT NULL)
             ORDER BY s.date DESC
             LIMIT $1
             "#,
@@ -636,13 +1217,22 @@ impl DataStore for PostgresStore {
         summary: &str,
         model: &str,
     ) -> Result<()> {
-        sqlx::query("UPDATE topics SET summary = $1, summary_model = $2 WHERE id = $3")
-            .persistent(false)
-            .bind(summary)
-            .bind(model)
-            .bind(topic_id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            r#"
+            UPDATE topics SET
+                summary = $1, summary_model = $2,
+                summary_input_hash = input_hash,
+                summary_generated_at = now(),
+                summary_stale_at = NULL
+            WHERE id = $3
+            "#,
+        )
+        .persistent(false)
+        .bind(summary)
+        .bind(model)
+        .bind(topic_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -762,10 +1352,30 @@ impl DataStore for PostgresStore {
     }
 
     async fn list_member_urls(&self) -> Result<Vec<(Uuid, String)>> {
-        let rows: Vec<(Uuid, String)> = sqlx::query_as("SELECT id, url FROM members ORDER BY name")
-            .persistent(false)
-            .fetch_all(&self.pool)
-            .await?;
+        let rows: Vec<(Uuid, String)> = sqlx::query_as(
+            r#"
+            WITH latest_roster AS (
+                SELECT ir.started_at
+                FROM ingestion_runs ir
+                JOIN data_sources ds ON ds.id = ir.data_source_id
+                WHERE ds.source_key = 'mzalendo-current'
+                  AND ir.status = 'succeeded'
+                  AND ir.error_metadata->>'operation' = 'members'
+                ORDER BY ir.finished_at DESC
+                LIMIT 1
+            )
+            SELECT DISTINCT ON (m.id) m.id, ms.source_url
+            FROM latest_roster lr
+            JOIN member_sources ms ON ms.last_seen_at >= lr.started_at
+            JOIN data_sources ds ON ds.id = ms.data_source_id
+            JOIN members m ON m.id = ms.member_id
+            WHERE ds.source_key = 'mzalendo-current'
+            ORDER BY m.id, ms.last_seen_at DESC
+            "#,
+        )
+        .persistent(false)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(rows)
     }
 
@@ -802,16 +1412,13 @@ impl DataStore for PostgresStore {
     }
 
     async fn link_speakers_to_members(&self, parliament: &str) -> Result<u64> {
-        // Both functions are defined in migrations/0004_members.sql.
-        // link_speakers_by_url: exact URL match between speakers.url and members.url.
-        // link_speakers_by_name: fuzzy trigram match via clean_speaker_name() and match_member().
-        let url_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_url()")
-            .persistent(false)
-            .fetch_one(&self.pool)
-            .await?;
+        let mut tx = self.pool.begin().await?;
+        let url_linked = Self::link_url_speakers_in_tx(&mut tx).await?;
+
+        // This pass retains the existing conservative matcher for historical URL-less rows.
         let name_linked: (i64,) = sqlx::query_as("SELECT link_speakers_by_name(0.45)")
             .persistent(false)
-            .fetch_one(&self.pool)
+            .fetch_one(&mut *tx)
             .await?;
 
         // Link NA presiding officers by role. "Hon. Speaker" / "Hon Speaker" are recorded
@@ -849,10 +1456,11 @@ impl DataStore for PostgresStore {
         )
         .persistent(false)
         .bind(parliament)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
 
-        Ok((url_linked.0 + name_linked.0 + role_linked) as u64)
+        tx.commit().await?;
+        Ok(url_linked + (name_linked.0 + role_linked) as u64)
     }
 
     async fn link_bill_sponsors_to_members(&self) -> Result<u64> {
@@ -887,11 +1495,22 @@ impl DataStore for PostgresStore {
     ) -> Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO bill_mention_speakers (bill_mention_id, speaker_id, speech_count, contributions_text)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO bill_mention_speakers
+                (bill_mention_id, speaker_id, speech_count, contributions_text, active, input_hash)
+            VALUES ($1, $2, $3, $4, true,
+                    md5($3::text || chr(31) || COALESCE($4, '')))
             ON CONFLICT (bill_mention_id, speaker_id) DO UPDATE SET
+                summary_stale_at = CASE
+                    WHEN bill_mention_speakers.summary IS NOT NULL
+                     AND bill_mention_speakers.input_hash IS DISTINCT FROM EXCLUDED.input_hash
+                    THEN COALESCE(bill_mention_speakers.summary_stale_at, now())
+                    ELSE bill_mention_speakers.summary_stale_at
+                END,
                 speech_count       = EXCLUDED.speech_count,
-                contributions_text = EXCLUDED.contributions_text
+                contributions_text = EXCLUDED.contributions_text,
+                active = true,
+                last_seen_at = now(),
+                input_hash = EXCLUDED.input_hash
             "#,
         )
         .persistent(false)
@@ -928,7 +1547,8 @@ impl DataStore for PostgresStore {
             FROM bill_mentions bm
             JOIN bills b ON b.id = bm.bill_id
             JOIN sittings s ON s.id = bm.sitting_id
-            WHERE bm.summary IS NULL AND bm.speech_count > 0
+            WHERE bm.active AND bm.speech_count > 0
+              AND (bm.summary IS NULL OR bm.summary_stale_at IS NOT NULL)
             ORDER BY bm.date DESC
             LIMIT $1
             "#,
@@ -974,13 +1594,22 @@ impl DataStore for PostgresStore {
         summary: &str,
         model: &str,
     ) -> Result<()> {
-        sqlx::query("UPDATE bill_mentions SET summary = $1, summary_model = $2 WHERE id = $3")
-            .persistent(false)
-            .bind(summary)
-            .bind(model)
-            .bind(bill_mention_id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            r#"
+            UPDATE bill_mentions SET
+                summary = $1, summary_model = $2,
+                summary_input_hash = input_hash,
+                summary_generated_at = now(),
+                summary_stale_at = NULL
+            WHERE id = $3
+            "#,
+        )
+        .persistent(false)
+        .bind(summary)
+        .bind(model)
+        .bind(bill_mention_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -1011,7 +1640,8 @@ impl DataStore for PostgresStore {
                        'speakers_text', (
                          SELECT string_agg(bms.contributions_text, E'\n\n')
                          FROM bill_mention_speakers bms
-                         WHERE bms.bill_mention_id = bm.id
+                          WHERE bms.bill_mention_id = bm.id
+                            AND bms.active
                            AND bms.contributions_text IS NOT NULL
                        )
                      )
@@ -1019,7 +1649,8 @@ impl DataStore for PostgresStore {
                    ) AS mentions
             FROM bills b
             JOIN bill_mentions bm ON bm.bill_id = b.id
-            WHERE b.summary IS NULL
+            WHERE bm.active
+              AND (b.summary IS NULL OR b.summary_stale_at IS NOT NULL)
             GROUP BY b.id
             LIMIT $1
             "#,
@@ -1052,13 +1683,27 @@ impl DataStore for PostgresStore {
         summary: &str,
         model: &str,
     ) -> Result<()> {
-        sqlx::query("UPDATE bills SET summary = $1, summary_model = $2 WHERE id = $3")
-            .persistent(false)
-            .bind(summary)
-            .bind(model)
-            .bind(bill_id)
-            .execute(&self.pool)
-            .await?;
+        sqlx::query(
+            r#"
+            UPDATE bills SET
+                summary = $1, summary_model = $2,
+                summary_input_hash = (
+                    SELECT md5(COALESCE(string_agg(
+                        bm.id::text || ':' || bm.input_hash, ',' ORDER BY bm.date, bm.id
+                    ) FILTER (WHERE bm.active), ''))
+                    FROM bill_mentions bm WHERE bm.bill_id = bills.id
+                ),
+                summary_generated_at = now(),
+                summary_stale_at = NULL
+            WHERE id = $3
+            "#,
+        )
+        .persistent(false)
+        .bind(summary)
+        .bind(model)
+        .bind(bill_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -1078,7 +1723,7 @@ impl DataStore for PostgresStore {
             r#"
             SELECT id, url, date, house, session_type, summary AS existing_summary, raw_json
             FROM sittings
-            WHERE generated_summary IS NULL
+            WHERE generated_summary IS NULL OR generated_summary_stale_at IS NOT NULL
             ORDER BY date DESC
             LIMIT $1
             "#,
@@ -1112,9 +1757,23 @@ impl DataStore for PostgresStore {
         summary: &str,
         model: &str,
     ) -> Result<()> {
-        sqlx::query("UPDATE sittings SET generated_summary = $1, generated_summary_model = $2 WHERE id = $3")
-            .persistent(false)
-            .bind(summary).bind(model).bind(sitting_id).execute(&self.pool).await?;
+        sqlx::query(
+            r#"
+            UPDATE sittings SET
+                generated_summary = $1,
+                generated_summary_model = $2,
+                generated_summary_input_hash = md5(raw_json::text),
+                generated_summary_generated_at = now(),
+                generated_summary_stale_at = NULL
+            WHERE id = $3
+            "#,
+        )
+        .persistent(false)
+        .bind(summary)
+        .bind(model)
+        .bind(sitting_id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 }
@@ -1122,14 +1781,41 @@ impl DataStore for PostgresStore {
 #[cfg(test)]
 mod tests {
     use super::{
-        FIND_CANONICAL_MEMBER_SQL, FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL,
-        FIND_MEMBER_SOURCE_BY_URL_SQL, INSERT_MEMBER_SOURCE_SQL, INSERT_SITTING_SQL, MIGRATIONS,
-        SOURCE_IDENTITY_MIGRATION, UPDATE_CANONICAL_MEMBER_SQL, UPDATE_SITTING_SQL,
+        DERIVED_RECONCILIATION_MIGRATION, FIND_CANONICAL_MEMBER_SQL,
+        FIND_MEMBER_SOURCE_BY_EXTERNAL_KEY_SQL, FIND_MEMBER_SOURCE_BY_URL_SQL,
+        INGESTION_RUN_ACCOUNTING_MIGRATION, INSERT_MEMBER_SOURCE_SQL, INSERT_SITTING_SQL,
+        MIGRATIONS, SOURCE_IDENTITY_MIGRATION, UPDATE_CANONICAL_MEMBER_SQL, UPDATE_SITTING_SQL,
     };
 
     #[test]
     fn source_identity_migration_is_in_runtime_migrations() {
-        assert!(MIGRATIONS.ends_with(SOURCE_IDENTITY_MIGRATION));
+        assert!(MIGRATIONS.contains(SOURCE_IDENTITY_MIGRATION));
+        let derived_position = MIGRATIONS.find(DERIVED_RECONCILIATION_MIGRATION).unwrap();
+        let run_position = MIGRATIONS.find(INGESTION_RUN_ACCOUNTING_MIGRATION).unwrap();
+        assert!(derived_position < run_position);
+        assert!(MIGRATIONS.ends_with(INGESTION_RUN_ACCOUNTING_MIGRATION));
+    }
+
+    #[test]
+    fn derived_migration_is_additive_and_backfills_hashes() {
+        for table in [
+            "sitting_speakers",
+            "bill_mentions",
+            "bill_mention_speakers",
+            "topics",
+            "topic_speakers",
+        ] {
+            assert!(
+                DERIVED_RECONCILIATION_MIGRATION.contains(&format!("ALTER TABLE {table}")),
+                "missing lifecycle metadata for {table}"
+            );
+        }
+        for column in ["active", "first_seen_at", "last_seen_at", "input_hash"] {
+            assert!(DERIVED_RECONCILIATION_MIGRATION.contains(column));
+        }
+        assert!(!DERIVED_RECONCILIATION_MIGRATION.contains("DELETE FROM"));
+        assert!(DERIVED_RECONCILIATION_MIGRATION.contains("md5(speech_count::text"));
+        assert!(DERIVED_RECONCILIATION_MIGRATION.contains("summary_input_hash"));
     }
 
     #[test]
@@ -1171,13 +1857,9 @@ mod tests {
     #[test]
     fn canonical_sitting_updates_do_not_overwrite_derived_or_lifecycle_data() {
         for protected_column in [
-            "generated_summary",
-            "generated_summary_model",
             "embedding",
-            "generated_summary_input_hash",
             "generated_summary_prompt_version",
             "generated_summary_generated_at",
-            "generated_summary_stale_at",
             "ingested_at",
         ] {
             assert!(
@@ -1190,7 +1872,15 @@ mod tests {
             );
         }
 
+        assert!(!UPDATE_SITTING_SQL.contains("generated_summary ="));
+        assert!(!UPDATE_SITTING_SQL.contains("generated_summary_model ="));
+        assert!(!UPDATE_SITTING_SQL.contains("generated_summary_input_hash ="));
+        assert!(!INSERT_SITTING_SQL.contains("generated_summary ="));
+        assert!(!INSERT_SITTING_SQL.contains("generated_summary_model ="));
+        assert!(!INSERT_SITTING_SQL.contains("generated_summary_input_hash ="));
         assert!(UPDATE_SITTING_SQL.contains("WHERE id = $5"));
+        assert!(UPDATE_SITTING_SQL.contains("generated_summary_input_hash IS DISTINCT FROM"));
+        assert!(UPDATE_SITTING_SQL.contains("COALESCE(generated_summary_stale_at, now())"));
         assert!(INSERT_SITTING_SQL.contains("ON CONFLICT (url) DO UPDATE"));
     }
 

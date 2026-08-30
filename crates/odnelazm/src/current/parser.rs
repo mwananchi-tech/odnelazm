@@ -5,8 +5,8 @@ use regex::Regex;
 use scraper::{ElementRef, Html, Selector, error::SelectorErrorKind};
 
 use super::types::{
-    Bill, Contribution, HansardListing, HansardSection, HansardSitting, HansardSubsection, House,
-    Member, MemberProfile, ParliamentaryActivity, VoteRecord,
+    Bill, Contribution, HansardListing, HansardListingKind, HansardSection, HansardSitting,
+    HansardSubsection, House, Member, MemberProfile, ParliamentaryActivity, VoteRecord,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -54,6 +54,15 @@ fn elem_text(element: ElementRef) -> String {
 
 fn normalize_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn classify_hansard_listing(url: &str) -> HansardListingKind {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    if path.to_ascii_lowercase().ends_with(".pdf") {
+        HansardListingKind::ExternalPdf
+    } else {
+        HansardListingKind::Transcript
+    }
 }
 
 fn parse_month(month: &str) -> Result<u32, ParseError> {
@@ -443,14 +452,19 @@ pub fn parse_hansard_list(
     let link_selector = Selector::parse("div.hansard-document h3 a")?;
 
     let mut listings = Vec::new();
+    let mut recognized_rows = 0;
 
     for row in document.select(&row_selector) {
-        let Some(link_elem) = row.select(&row_link_selector).next() else {
-            continue;
-        };
-        let Some(url) = link_elem.value().attr("href").map(str::to_string) else {
-            continue;
-        };
+        recognized_rows += 1;
+        let link_elem = row
+            .select(&row_link_selector)
+            .next()
+            .ok_or_else(|| ParseError::MissingField("Hansard listing link element".to_owned()))?;
+        let url = link_elem
+            .value()
+            .attr("href")
+            .map(str::to_string)
+            .ok_or_else(|| ParseError::MissingField("Hansard listing URL".to_owned()))?;
         let title = link_elem
             .select(&row_title_selector)
             .next()
@@ -466,35 +480,32 @@ pub fn parse_hansard_list(
         } else if house_text.contains("Senate") {
             House::Senate
         } else {
-            log::warn!(
-                "Skipping listing with unknown house '{}': {}",
-                house_text,
-                title
-            );
-            continue;
+            return Err(ParseError::MissingField(format!(
+                "Unknown Hansard listing house '{house_text}' for '{title}'"
+            )));
         };
 
         if house_filter.as_ref().is_some_and(|f| f != &house) {
             continue;
         }
 
-        match parse_date_from_title(&title) {
-            Ok((date, _, session_type)) => listings.push(HansardListing {
-                house,
-                date,
-                session_type,
-                url,
-                title,
-            }),
-            Err(e) => log::warn!("Skipping listing '{}': {}", title, e),
-        }
+        let (date, _, session_type) = parse_date_from_title(&title)?;
+        listings.push(HansardListing {
+            house,
+            date,
+            session_type,
+            kind: classify_hansard_listing(&url),
+            url,
+            title,
+        });
     }
 
-    if !listings.is_empty() {
+    if recognized_rows > 0 {
         return Ok(listings);
     }
 
     for (i, split_div) in document.select(&split_selector).enumerate() {
+        recognized_rows += 1;
         let house = if i == 0 {
             House::NationalAssembly
         } else {
@@ -506,32 +517,36 @@ pub fn parse_hansard_list(
         }
 
         for link_elem in split_div.select(&link_selector) {
-            let url = match link_elem.value().attr("href") {
-                Some(href) => href.to_string(),
-                None => continue,
-            };
+            let url = link_elem
+                .value()
+                .attr("href")
+                .map(str::to_string)
+                .ok_or_else(|| ParseError::MissingField("Hansard listing URL".to_owned()))?;
 
             let title = normalize_whitespace(&elem_text(link_elem));
             if title.is_empty() {
-                continue;
+                return Err(ParseError::MissingField("Hansard listing title".to_owned()));
             }
 
-            match parse_date_from_title(&title) {
-                Ok((date, _, session_type)) => {
-                    listings.push(HansardListing {
-                        house,
-                        date,
-                        session_type,
-                        url,
-                        title,
-                    });
-                }
-                Err(e) => log::warn!("Skipping listing '{}': {}", title, e),
-            }
+            let (date, _, session_type) = parse_date_from_title(&title)?;
+            listings.push(HansardListing {
+                house,
+                date,
+                session_type,
+                kind: classify_hansard_listing(&url),
+                url,
+                title,
+            });
         }
     }
 
-    Ok(listings)
+    if recognized_rows == 0 {
+        Err(ParseError::MissingField(
+            "No recognized Hansard listings".to_owned(),
+        ))
+    } else {
+        Ok(listings)
+    }
 }
 
 pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, ParseError> {
@@ -935,10 +950,11 @@ pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseE
     let mut members = Vec::new();
 
     for item in document.select(&item_sel) {
-        let url = match item.value().attr("href") {
-            Some(href) => href.to_string(),
-            None => continue,
-        };
+        let url = item
+            .value()
+            .attr("href")
+            .map(str::to_string)
+            .ok_or_else(|| ParseError::MissingField("Member profile URL".to_owned()))?;
 
         let name = item
             .select(&name_sel)
@@ -947,7 +963,7 @@ pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseE
             .unwrap_or_default();
 
         if name.is_empty() {
-            continue;
+            return Err(ParseError::MissingField("Member name".to_owned()));
         }
 
         let role = item
@@ -983,7 +999,11 @@ pub fn parse_member_list(html: &str, house: House) -> Result<Vec<Member>, ParseE
         });
     }
 
-    Ok(members)
+    if members.is_empty() {
+        Err(ParseError::MissingField("No recognized members".to_owned()))
+    } else {
+        Ok(members)
+    }
 }
 
 pub fn parse_member_profile(html: &str, url: &str) -> Result<MemberProfile, ParseError> {
@@ -1295,6 +1315,23 @@ mod tests {
         assert_eq!(listings[0].session_type, "Morning Sitting");
         assert_eq!(listings[0].url, "/democracy-tools/hansard/document/3096/");
         assert_eq!(listings[1].house, House::Senate);
+    }
+
+    #[test]
+    fn classifies_direct_parliament_pdf_listing() {
+        let html = r#"
+            <div class="leg-row leg-row--inline">
+              <a class="leg-row__link" href="https://www.parliament.go.ke/sites/default/files/2026-07/Hansard.pdf?download=1">
+                <span class="leg-row__title">Wednesday, 1st July, 2026 - Morning Sitting</span>
+                <span class="leg-row__meta"><span class="leg-badge">National Assembly</span></span>
+              </a>
+            </div>
+        "#;
+
+        let listings = parse_hansard_list(html, None).unwrap();
+
+        assert_eq!(listings.len(), 1);
+        assert_eq!(listings[0].kind, HansardListingKind::ExternalPdf);
     }
 
     #[test]

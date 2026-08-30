@@ -10,6 +10,8 @@ pub enum IngestError {
     Embed(String),
     #[error("Serialization error: {0}")]
     Serialize(#[from] serde_json::Error),
+    #[error("Incomplete {operation} ingestion: {details}")]
+    Incomplete { operation: String, details: String },
 }
 
 impl From<sqlx::Error> for IngestError {

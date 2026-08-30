@@ -78,10 +78,7 @@ impl WebScraper {
                 .map(|page| self.fetch_hansard_list(page, house))
                 .collect();
             while let Some(result) = futs.next().await {
-                match result {
-                    Ok(page_listings) => listings.extend(page_listings),
-                    Err(e) => log::warn!("Failed to fetch hansard list page: {}", e),
-                }
+                extend_page(&mut listings, result)?;
             }
         }
 
@@ -154,10 +151,7 @@ impl WebScraper {
                 .map(|page| self.fetch_members(house, parliament, page))
                 .collect();
             while let Some(result) = futs.next().await {
-                match result {
-                    Ok(page_members) => members.extend(page_members),
-                    Err(e) => log::warn!("Failed to fetch members page: {}", e),
-                }
+                extend_page(&mut members, result)?;
             }
         }
 
@@ -175,15 +169,8 @@ impl WebScraper {
         )
         .await;
 
-        let mut members = Vec::new();
-        match na_result {
-            Ok(m) => members.extend(m),
-            Err(e) => log::warn!("Failed to fetch National Assembly members: {}", e),
-        }
-        match senate_result {
-            Ok(m) => members.extend(m),
-            Err(e) => log::warn!("Failed to fetch Senate members: {}", e),
-        }
+        let mut members = na_result?;
+        members.extend(senate_result?);
 
         Ok(members)
     }
@@ -213,16 +200,17 @@ impl WebScraper {
                     let mut futs: FuturesUnordered<_> = (2..=profile.activity_pages)
                         .map(|page| self.fetch_member_activity(&url, page))
                         .collect();
-                    let mut all = Vec::new();
+                    let mut all = Ok(Vec::new());
                     while let Some(result) = futs.next().await {
-                        match result {
-                            Ok(items) => all.extend(items),
-                            Err(e) => log::warn!("Failed to fetch activity page: {}", e),
+                        match (&mut all, result) {
+                            (Ok(items), Ok(page_items)) => items.extend(page_items),
+                            (slot @ Ok(_), Err(error)) => *slot = Err(error),
+                            (Err(_), _) => {}
                         }
                     }
                     all
                 } else {
-                    Vec::new()
+                    Ok(Vec::new())
                 }
             },
             async {
@@ -234,23 +222,24 @@ impl WebScraper {
                     let mut futs: FuturesUnordered<_> = (2..=profile.bills_pages)
                         .map(|page| self.fetch_member_bills(&url, page))
                         .collect();
-                    let mut all = Vec::new();
+                    let mut all = Ok(Vec::new());
                     while let Some(result) = futs.next().await {
-                        match result {
-                            Ok(items) => all.extend(items),
-                            Err(e) => log::warn!("Failed to fetch bills page: {}", e),
+                        match (&mut all, result) {
+                            (Ok(items), Ok(page_items)) => items.extend(page_items),
+                            (slot @ Ok(_), Err(error)) => *slot = Err(error),
+                            (Err(_), _) => {}
                         }
                     }
                     all
                 } else {
-                    Vec::new()
+                    Ok(Vec::new())
                 }
             },
         )
         .await;
 
-        profile.activity.extend(extra_activity);
-        profile.bills.extend(extra_bills);
+        profile.activity.extend(extra_activity?);
+        profile.bills.extend(extra_bills?);
 
         Ok(profile)
     }
@@ -337,6 +326,14 @@ fn deduplicate_members(members: &mut Vec<Member>) {
     members.retain(|member| seen.insert(member.url.clone()));
 }
 
+fn extend_page<T>(
+    items: &mut Vec<T>,
+    page: Result<Vec<T>, ScraperError>,
+) -> Result<(), ScraperError> {
+    items.extend(page?);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,5 +370,17 @@ mod tests {
         assert_eq!(members.len(), 2);
         assert_eq!(members[0].role.as_deref(), Some("Majority Leader"));
         assert_eq!(members[1].name, "Another Member");
+    }
+
+    #[test]
+    fn failed_pagination_page_is_propagated() {
+        let mut items = vec![1];
+        let error = ScraperError::PageOutOfRange {
+            requested: 2,
+            last: 1,
+        };
+
+        assert!(extend_page(&mut items, Err(error)).is_err());
+        assert_eq!(items, vec![1]);
     }
 }
