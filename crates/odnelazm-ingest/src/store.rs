@@ -167,24 +167,6 @@ pub struct BillRecord {
 }
 
 #[derive(Debug, Clone)]
-pub struct BillMentionRecord {
-    pub sitting_id: Uuid,
-    pub house: String,
-    pub date: NaiveDate,
-    pub stage: Option<String>,
-    pub section_title: String,
-    pub speech_count: u32,
-}
-
-#[derive(Debug, Clone)]
-pub struct TopicRecord {
-    pub sitting_id: Uuid,
-    pub section_type: String,
-    pub title: String,
-    pub speech_count: u32,
-}
-
-#[derive(Debug, Clone)]
 pub struct MemberRecord {
     pub name: String,
     pub url: String,
@@ -368,7 +350,6 @@ pub struct PendingBillJourneySummary {
 #[derive(Debug)]
 pub struct PendingSittingSummary {
     pub sitting_id: Uuid,
-    pub url: String,
     pub date: NaiveDate,
     pub house: String,
     pub session_type: String,
@@ -391,7 +372,6 @@ pub trait DataStore: Send + Sync {
         completion: &IngestionRunCompletion,
     ) -> Result<()>;
 
-    async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid>;
     /// Atomically replace all sitting-scoped derived projections with one
     /// extraction snapshot. Missing rows are retained but marked inactive.
     async fn reconcile_sitting(
@@ -404,34 +384,6 @@ pub trait DataStore: Send + Sync {
     ) -> Result<SittingReconciliation>;
     async fn list_ingested_sitting_sources(&self) -> Result<Vec<SittingSourceIdentity>>;
     async fn store_sitting_embedding(&self, sitting_id: Uuid, embedding: Vec<f32>) -> Result<()>;
-
-    async fn upsert_speaker(&self, speaker: &SpeakerRecord) -> Result<Uuid>;
-    async fn link_speaker_to_sitting(
-        &self,
-        speaker_id: Uuid,
-        sitting_id: Uuid,
-        speech_count: u32,
-    ) -> Result<()>;
-
-    async fn upsert_bill(&self, bill: &BillRecord) -> Result<Uuid>;
-    async fn upsert_bill_mention(&self, bill_id: Uuid, mention: &BillMentionRecord)
-    -> Result<Uuid>;
-    async fn link_speaker_to_bill_mention(
-        &self,
-        bill_mention_id: Uuid,
-        speaker_id: Uuid,
-        speech_count: u32,
-        contributions_text: &str,
-    ) -> Result<()>;
-
-    async fn upsert_topic(&self, topic: &TopicRecord) -> Result<Uuid>;
-    async fn link_speaker_to_topic(
-        &self,
-        topic_id: Uuid,
-        speaker_id: Uuid,
-        speech_count: u32,
-        contributions_text: &str,
-    ) -> Result<()>;
 
     async fn upsert_member(&self, member: &MemberRecord) -> Result<Uuid>;
     async fn link_speakers_to_members(&self, parliament: &str) -> Result<u64>;
