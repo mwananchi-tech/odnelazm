@@ -10,6 +10,14 @@ pub struct HansardListing {
     pub session_type: String,
     pub url: String,
     pub title: String,
+    pub kind: HansardListingKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HansardListingKind {
+    Transcript,
+    ExternalPdf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

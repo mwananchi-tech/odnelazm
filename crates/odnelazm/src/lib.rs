@@ -6,7 +6,7 @@ pub mod unified;
 pub use types::House;
 pub use unified::scraper::{HansardScraper, ScraperError};
 pub use unified::types::{
-    Bill, Contribution, DataSource, HansardListing, HansardSection, HansardSitting,
-    HansardSubsection, Member, MemberProfile, ParliamentaryActivity, SittingListOptions,
-    VoteRecord,
+    Bill, Contribution, DataSource, HansardListing, HansardListingKind, HansardSection,
+    HansardSitting, HansardSubsection, Member, MemberProfile, ParliamentaryActivity,
+    SittingListOptions, VoteRecord,
 };
