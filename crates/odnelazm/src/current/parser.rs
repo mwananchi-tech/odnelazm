@@ -30,7 +30,7 @@ impl<'a> From<SelectorErrorKind<'a>> for ParseError {
 }
 
 static RE_LISTING_TITLE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(\w+),\s+(\d+)\w*\s+(\w+),?\s+(\d{4})\s*[-–]\s*(.+)")
+    Regex::new(r"(?i)(\w+),\s+(\d+)\w*\s+(\w+),?\s+(\d{4})(?:\s*[-–]\s*(.+))?")
         .expect("invalid regex: listing title")
 });
 
@@ -137,7 +137,10 @@ fn parse_date_from_title(title: &str) -> Result<(NaiveDate, String, String), Par
     let year: i32 = caps[4]
         .parse()
         .map_err(|_| ParseError::DateParse(format!("Invalid year: {}", &caps[4])))?;
-    let session_type = normalize_whitespace(caps[5].trim());
+    let session_type = caps
+        .get(5)
+        .map(|session| normalize_whitespace(session.as_str()))
+        .unwrap_or_default();
 
     let date = NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
         ParseError::DateParse(format!("Invalid date: {}-{}-{}", year, month, day))
@@ -1812,6 +1815,7 @@ mod tests {
                 "Thursday",
                 "Evening Sitting",
             ),
+            ("Thursday, 20th August, 2026", (2026, 8, 20), "Thursday", ""),
         ];
 
         for (title, (year, month, day), weekday, session) in cases {
