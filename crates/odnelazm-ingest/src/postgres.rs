@@ -10,11 +10,11 @@ use crate::{
     Result,
     extract::{ExtractedBillMention, ExtractedTopic},
     store::{
-        BillMentionContext, BillMentionRecord, BillRecord, DataStore, IngestionRunCompletion,
-        MemberProfileData, MemberRecord, MemberSourceIdentity, PendingBillAppearanceSummary,
-        PendingBillJourneySummary, PendingBillSummary, PendingSittingSummary,
-        PendingTopicAppearanceSummary, PendingTopicSummary, SittingReconciliation,
-        SittingSourceIdentity, SpeakerRecord, TopicRecord, normalize_member_name,
+        BillMentionContext, DataStore, IngestionRunCompletion, MemberProfileData, MemberRecord,
+        MemberSourceIdentity, PendingBillAppearanceSummary, PendingBillJourneySummary,
+        PendingBillSummary, PendingSittingSummary, PendingTopicAppearanceSummary,
+        PendingTopicSummary, SittingReconciliation, SittingSourceIdentity, SpeakerRecord,
+        normalize_member_name,
     },
 };
 
@@ -167,7 +167,7 @@ impl PostgresStore {
     async fn upsert_sitting_in_tx(
         tx: &mut Transaction<'_, Postgres>,
         sitting: &HansardSitting,
-        parliament: Option<&str>,
+        parliament: &str,
     ) -> Result<Uuid> {
         let raw_json = serde_json::to_value(sitting)?;
         let house = sitting.house.to_string();
@@ -508,13 +508,6 @@ impl DataStore for PostgresStore {
         Ok(())
     }
 
-    async fn upsert_sitting(&self, sitting: &HansardSitting) -> Result<Uuid> {
-        let mut tx = self.pool.begin().await?;
-        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting, None).await?;
-        tx.commit().await?;
-        Ok(sitting_id)
-    }
-
     async fn reconcile_sitting(
         &self,
         sitting: &HansardSitting,
@@ -524,7 +517,7 @@ impl DataStore for PostgresStore {
         topics: &[ExtractedTopic],
     ) -> Result<SittingReconciliation> {
         let mut tx = self.pool.begin().await?;
-        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting, Some(parliament)).await?;
+        let sitting_id = Self::upsert_sitting_in_tx(&mut tx, sitting, parliament).await?;
 
         // Inactivation first makes the final active set exactly match this
         // extraction snapshot. It remains invisible until the transaction commits.
@@ -866,167 +859,6 @@ impl DataStore for PostgresStore {
             .bind(sitting_id)
             .execute(&self.pool)
             .await?;
-        Ok(())
-    }
-
-    async fn upsert_speaker(&self, speaker: &SpeakerRecord) -> Result<Uuid> {
-        let row: (Uuid,) = sqlx::query_as(
-            r#"
-            INSERT INTO speakers (id, name, url)
-            VALUES (uuid_generate_v4(), $1, $2)
-            ON CONFLICT (name, url, house, parliament) DO UPDATE
-                SET name = EXCLUDED.name
-            RETURNING id
-            "#,
-        )
-        .persistent(false)
-        .bind(&speaker.name)
-        .bind(speaker.url.as_deref())
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(row.0)
-    }
-
-    async fn link_speaker_to_sitting(
-        &self,
-        speaker_id: Uuid,
-        sitting_id: Uuid,
-        speech_count: u32,
-    ) -> Result<()> {
-        sqlx::query(
-            r#"
-            INSERT INTO sitting_speakers
-                (sitting_id, speaker_id, speech_count, active, input_hash)
-            VALUES ($1, $2, $3, true, md5($3::text))
-            ON CONFLICT (sitting_id, speaker_id) DO UPDATE
-                SET speech_count = EXCLUDED.speech_count,
-                    active = true,
-                    last_seen_at = now(),
-                    input_hash = EXCLUDED.input_hash
-            "#,
-        )
-        .persistent(false)
-        .bind(sitting_id)
-        .bind(speaker_id)
-        .bind(speech_count as i32)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    async fn upsert_bill(&self, bill: &BillRecord) -> Result<Uuid> {
-        let row: (Uuid,) = sqlx::query_as(
-            r#"
-            INSERT INTO bills (id, name, bill_number, year, sponsor, updated_at)
-            VALUES (uuid_generate_v4(), $1, $2, $3, $4, now())
-            ON CONFLICT (name) DO UPDATE SET
-                bill_number = COALESCE(EXCLUDED.bill_number, bills.bill_number),
-                year        = COALESCE(EXCLUDED.year,        bills.year),
-                sponsor     = COALESCE(EXCLUDED.sponsor,     bills.sponsor),
-                updated_at  = now()
-            RETURNING id
-            "#,
-        )
-        .persistent(false)
-        .bind(&bill.name)
-        .bind(bill.bill_number.as_deref())
-        .bind(bill.year)
-        .bind(bill.sponsor.as_deref())
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(row.0)
-    }
-
-    async fn upsert_bill_mention(
-        &self,
-        bill_id: Uuid,
-        mention: &BillMentionRecord,
-    ) -> Result<Uuid> {
-        let row: (Uuid,) = sqlx::query_as(
-            r#"
-            INSERT INTO bill_mentions
-                (id, bill_id, sitting_id, house, date, stage, section_title, speech_count)
-            VALUES
-                (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (bill_id, sitting_id, stage) DO UPDATE SET
-                speech_count  = EXCLUDED.speech_count,
-                section_title = EXCLUDED.section_title,
-                active = true,
-                last_seen_at = now()
-            RETURNING id
-            "#,
-        )
-        .persistent(false)
-        .bind(bill_id)
-        .bind(mention.sitting_id)
-        .bind(&mention.house)
-        .bind(mention.date)
-        .bind(mention.stage.as_deref())
-        .bind(&mention.section_title)
-        .bind(mention.speech_count as i32)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(row.0)
-    }
-
-    async fn upsert_topic(&self, topic: &TopicRecord) -> Result<Uuid> {
-        let row: (Uuid,) = sqlx::query_as(
-            r#"
-            INSERT INTO topics (id, sitting_id, section_type, title, speech_count)
-            VALUES (uuid_generate_v4(), $1, $2, $3, $4)
-            ON CONFLICT (sitting_id, section_type, title) DO UPDATE SET
-                speech_count = EXCLUDED.speech_count,
-                active = true,
-                last_seen_at = now()
-            RETURNING id
-            "#,
-        )
-        .persistent(false)
-        .bind(topic.sitting_id)
-        .bind(&topic.section_type)
-        .bind(&topic.title)
-        .bind(topic.speech_count as i32)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(row.0)
-    }
-
-    async fn link_speaker_to_topic(
-        &self,
-        topic_id: Uuid,
-        speaker_id: Uuid,
-        speech_count: u32,
-        contributions_text: &str,
-    ) -> Result<()> {
-        sqlx::query(
-            r#"
-            INSERT INTO topic_speakers
-                (topic_id, speaker_id, speech_count, contributions_text, active, input_hash)
-            VALUES ($1, $2, $3, $4, true,
-                    md5($3::text || chr(31) || COALESCE($4, '')))
-            ON CONFLICT (topic_id, speaker_id) DO UPDATE SET
-                summary_stale_at = CASE
-                    WHEN topic_speakers.summary IS NOT NULL
-                     AND topic_speakers.input_hash IS DISTINCT FROM EXCLUDED.input_hash
-                    THEN COALESCE(topic_speakers.summary_stale_at, now())
-                    ELSE topic_speakers.summary_stale_at
-                END,
-                speech_count       = EXCLUDED.speech_count,
-                contributions_text = EXCLUDED.contributions_text,
-                active = true,
-                last_seen_at = now(),
-                input_hash = EXCLUDED.input_hash
-            "#,
-        )
-        .persistent(false)
-        .bind(topic_id)
-        .bind(speaker_id)
-        .bind(speech_count as i32)
-        .bind(contributions_text)
-        .execute(&self.pool)
-        .await?;
         Ok(())
     }
 
@@ -1574,43 +1406,6 @@ impl DataStore for PostgresStore {
         Ok(linked as u64)
     }
 
-    async fn link_speaker_to_bill_mention(
-        &self,
-        bill_mention_id: Uuid,
-        speaker_id: Uuid,
-        speech_count: u32,
-        contributions_text: &str,
-    ) -> Result<()> {
-        sqlx::query(
-            r#"
-            INSERT INTO bill_mention_speakers
-                (bill_mention_id, speaker_id, speech_count, contributions_text, active, input_hash)
-            VALUES ($1, $2, $3, $4, true,
-                    md5($3::text || chr(31) || COALESCE($4, '')))
-            ON CONFLICT (bill_mention_id, speaker_id) DO UPDATE SET
-                summary_stale_at = CASE
-                    WHEN bill_mention_speakers.summary IS NOT NULL
-                     AND bill_mention_speakers.input_hash IS DISTINCT FROM EXCLUDED.input_hash
-                    THEN COALESCE(bill_mention_speakers.summary_stale_at, now())
-                    ELSE bill_mention_speakers.summary_stale_at
-                END,
-                speech_count       = EXCLUDED.speech_count,
-                contributions_text = EXCLUDED.contributions_text,
-                active = true,
-                last_seen_at = now(),
-                input_hash = EXCLUDED.input_hash
-            "#,
-        )
-        .persistent(false)
-        .bind(bill_mention_id)
-        .bind(speaker_id)
-        .bind(speech_count as i32)
-        .bind(contributions_text)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     async fn pending_bill_appearance_summaries(
         &self,
         limit: u32,
@@ -1800,7 +1595,6 @@ impl DataStore for PostgresStore {
             _,
             (
                 Uuid,
-                String,
                 NaiveDate,
                 String,
                 String,
@@ -1809,7 +1603,7 @@ impl DataStore for PostgresStore {
             ),
         >(
             r#"
-            SELECT id, url, date, house, session_type, summary AS existing_summary, raw_json
+            SELECT id, date, house, session_type, summary AS existing_summary, raw_json
             FROM sittings
             WHERE generated_summary IS NULL OR generated_summary_stale_at IS NOT NULL
             ORDER BY date DESC
@@ -1824,10 +1618,9 @@ impl DataStore for PostgresStore {
         Ok(rows
             .into_iter()
             .map(
-                |(id, url, date, house, session_type, existing_summary, raw_json)| {
+                |(id, date, house, session_type, existing_summary, raw_json)| {
                     PendingSittingSummary {
                         sitting_id: id,
-                        url,
                         date,
                         house,
                         session_type,
