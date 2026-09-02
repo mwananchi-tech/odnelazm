@@ -80,6 +80,14 @@ pub struct HansardListing {
     pub start_time: Option<NaiveTime>,
     pub end_time: Option<NaiveTime>,
     pub source: DataSource,
+    pub kind: HansardListingKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HansardListingKind {
+    Transcript,
+    ExternalPdf,
 }
 
 impl From<crate::archive::types::HansardListing> for HansardListing {
@@ -93,6 +101,7 @@ impl From<crate::archive::types::HansardListing> for HansardListing {
             start_time: l.start_time,
             end_time: l.end_time,
             source: DataSource::Archive,
+            kind: HansardListingKind::Transcript,
         }
     }
 }
@@ -108,6 +117,14 @@ impl From<crate::current::types::HansardListing> for HansardListing {
             start_time: None,
             end_time: None,
             source: DataSource::Current,
+            kind: match l.kind {
+                crate::current::types::HansardListingKind::Transcript => {
+                    HansardListingKind::Transcript
+                }
+                crate::current::types::HansardListingKind::ExternalPdf => {
+                    HansardListingKind::ExternalPdf
+                }
+            },
         }
     }
 }

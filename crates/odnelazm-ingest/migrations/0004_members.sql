@@ -136,17 +136,22 @@ LANGUAGE plpgsql AS $$
 DECLARE
     linked BIGINT := 0;
 BEGIN
-    WITH best_match AS (
+    WITH ranked_matches AS (
         SELECT
             sp.id AS speaker_id,
-            (SELECT mm.id
-             FROM match_member(sp.name, min_score) mm
-             ORDER BY score DESC
-             LIMIT 1) AS member_id
+            mm.id AS member_id,
+            mm.score,
+            row_number() OVER (PARTITION BY sp.id ORDER BY mm.score DESC) AS rank,
+            lead(mm.score) OVER (PARTITION BY sp.id ORDER BY mm.score DESC) AS next_score
         FROM speakers sp
+        CROSS JOIN LATERAL match_member(sp.name, min_score) mm
         WHERE sp.url IS NULL
           AND sp.member_id IS NULL
           AND length(sp.name) > 5
+    ), best_match AS (
+        SELECT speaker_id, member_id
+        FROM ranked_matches
+        WHERE rank = 1 AND (next_score IS NULL OR score > next_score)
     )
     UPDATE speakers sp
     SET    member_id = bm.member_id

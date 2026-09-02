@@ -168,24 +168,15 @@ impl HansardScraper {
                 )
                 .await;
 
-                let mut listings: Vec<HansardListing> = Vec::new();
-
-                match archive_result {
-                    Ok(items) => listings.extend(items),
-                    Err(e) => log::warn!("Archive fetch failed during cross-source query: {e}"),
+                let mut listings = archive_result?;
+                let mut current_listings: Vec<HansardListing> = current_result?
+                    .into_iter()
+                    .map(HansardListing::from)
+                    .collect();
+                if let Some(end) = opts.end_date {
+                    current_listings.retain(|l| l.date <= end);
                 }
-
-                match current_result {
-                    Ok(items) => {
-                        let mut current_listings: Vec<HansardListing> =
-                            items.into_iter().map(HansardListing::from).collect();
-                        if let Some(end) = opts.end_date {
-                            current_listings.retain(|l| l.date <= end);
-                        }
-                        listings.extend(current_listings);
-                    }
-                    Err(e) => log::warn!("Current fetch failed during cross-source query: {e}"),
-                }
+                listings.extend(current_listings);
 
                 listings.sort_by_key(|l| std::cmp::Reverse(l.date));
                 opts.apply_slice(&mut listings);
