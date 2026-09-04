@@ -28,6 +28,7 @@ pub struct IngestPipeline<S: DataStore> {
     pub summarizer: Option<Arc<dyn Summarizer>>,
     pub metrics: Option<Arc<dyn MetricsSink>>,
     dry_run: bool,
+    refresh_existing: bool,
 }
 
 impl<S: DataStore> IngestPipeline<S> {
@@ -39,6 +40,7 @@ impl<S: DataStore> IngestPipeline<S> {
             summarizer: None,
             metrics: None,
             dry_run: false,
+            refresh_existing: false,
         }
     }
 
@@ -59,6 +61,11 @@ impl<S: DataStore> IngestPipeline<S> {
 
     pub fn with_dry_run(mut self, dry_run: bool) -> Self {
         self.dry_run = dry_run;
+        self
+    }
+
+    pub fn with_refresh_existing(mut self, refresh_existing: bool) -> Self {
+        self.refresh_existing = refresh_existing;
         self
     }
 
@@ -170,6 +177,7 @@ impl<S: DataStore> IngestPipeline<S> {
                     serde_json::json!({
                         "operation": "sittings",
                         "dry_run": self.dry_run,
+                        "refresh_existing": self.refresh_existing,
                         "start_date": options.start_date,
                         "end_date": options.end_date,
                     }),
@@ -212,7 +220,7 @@ impl<S: DataStore> IngestPipeline<S> {
             accumulator.discovered += 1;
             if listing.kind == HansardListingKind::ExternalPdf {
                 accumulator.record_unsupported(&listing);
-            } else if is_ingested_listing(&listing, &ingested_sources) {
+            } else if !self.refresh_existing && is_ingested_listing(&listing, &ingested_sources) {
                 accumulator.record_already_ingested();
             } else {
                 actionable.push(listing);

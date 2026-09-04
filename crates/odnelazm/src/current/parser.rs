@@ -1,12 +1,12 @@
 use std::sync::LazyLock;
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::NaiveDate;
 use regex::Regex;
 use scraper::{ElementRef, Html, Selector, error::SelectorErrorKind};
 
 use super::types::{
-    Bill, Contribution, HansardListing, HansardListingKind, HansardSection, HansardSitting,
-    HansardSubsection, House, Member, MemberProfile, ParliamentaryActivity, VoteRecord,
+    Bill, HansardListing, HansardListingKind, House, Member, MemberProfile, ParliamentaryActivity,
+    VoteRecord,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -15,8 +15,6 @@ pub enum ParseError {
     UrlParse(String),
     #[error("Failed to parse date: {0}")]
     DateParse(String),
-    #[error("Failed to parse time: {0}")]
-    TimeParse(String),
     #[error("Missing required field: {0}")]
     MissingField(String),
     #[error("Failed to parse selector: {0}")]
@@ -56,15 +54,6 @@ fn normalize_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn classify_hansard_listing(url: &str) -> HansardListingKind {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    if path.to_ascii_lowercase().ends_with(".pdf") {
-        HansardListingKind::ExternalPdf
-    } else {
-        HansardListingKind::Transcript
-    }
-}
-
 fn parse_month(month: &str) -> Result<u32, ParseError> {
     match month.to_lowercase().as_str() {
         "january" => Ok(1),
@@ -81,47 +70,6 @@ fn parse_month(month: &str) -> Result<u32, ParseError> {
         "december" => Ok(12),
         _ => Err(ParseError::DateParse(format!("Unknown month: {}", month))),
     }
-}
-
-fn parse_time_12h(time_str: &str) -> Result<NaiveTime, ParseError> {
-    let s = time_str.trim();
-    let pos = s
-        .rfind(' ')
-        .ok_or_else(|| ParseError::TimeParse(format!("Invalid time: {}", s)))?;
-    let (t, ampm) = (&s[..pos], s[pos + 1..].trim());
-
-    let parts: Vec<&str> = t.split(':').collect();
-    if parts.len() != 2 {
-        return Err(ParseError::TimeParse(format!("Invalid time format: {}", s)));
-    }
-
-    let hour: u32 = parts[0]
-        .parse()
-        .map_err(|_| ParseError::TimeParse(format!("Invalid hour: {}", parts[0])))?;
-    let minute: u32 = parts[1]
-        .parse()
-        .map_err(|_| ParseError::TimeParse(format!("Invalid minute: {}", parts[1])))?;
-
-    let hour_24 = match ampm.to_uppercase().as_str() {
-        "AM" => {
-            if hour == 12 {
-                0
-            } else {
-                hour
-            }
-        }
-        "PM" => {
-            if hour == 12 {
-                12
-            } else {
-                hour + 12
-            }
-        }
-        _ => return Err(ParseError::TimeParse(format!("Invalid AM/PM: {}", ampm))),
-    };
-
-    NaiveTime::from_hms_opt(hour_24, minute, 0)
-        .ok_or_else(|| ParseError::TimeParse(format!("Invalid time: {}:{}", hour_24, minute)))
 }
 
 fn parse_date_from_title(title: &str) -> Result<(NaiveDate, String, String), ParseError> {
@@ -141,55 +89,6 @@ fn parse_date_from_title(title: &str) -> Result<(NaiveDate, String, String), Par
         .get(5)
         .map(|session| normalize_whitespace(session.as_str()))
         .unwrap_or_default();
-
-    let date = NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
-        ParseError::DateParse(format!("Invalid date: {}-{}-{}", year, month, day))
-    })?;
-
-    Ok((date, day_of_week, session_type))
-}
-
-fn parse_date_from_url_slug(url: &str) -> Result<(NaiveDate, String, String), ParseError> {
-    let slug = url
-        .trim_end_matches('/')
-        .split('/')
-        .next_back()
-        .ok_or_else(|| ParseError::UrlParse(format!("Invalid URL: {}", url)))?;
-
-    let parts: Vec<&str> = slug.split('-').collect();
-    if parts.len() < 5 {
-        return Err(ParseError::UrlParse(format!(
-            "Slug has too few parts: {}",
-            slug
-        )));
-    }
-
-    let day_of_week = parts[0].to_string();
-    let day_str = parts[1].trim_end_matches(|c: char| c.is_alphabetic());
-    let day: u32 = day_str
-        .parse()
-        .map_err(|_| ParseError::DateParse(format!("Invalid day: {}", parts[1])))?;
-    let month = parse_month(parts[2])?;
-    let year: i32 = parts[3]
-        .parse()
-        .map_err(|_| ParseError::DateParse(format!("Invalid year: {}", parts[3])))?;
-
-    let session_words: Vec<&str> = parts[4..]
-        .iter()
-        .take_while(|p| !p.chars().all(|c| c.is_ascii_digit()))
-        .cloned()
-        .collect();
-    let session_type = session_words
-        .iter()
-        .map(|w| {
-            let mut c = w.chars();
-            match c.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + c.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
 
     let date = NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
         ParseError::DateParse(format!("Invalid date: {}-{}-{}", year, month, day))
@@ -497,7 +396,7 @@ pub fn parse_hansard_list(
             house,
             date,
             session_type,
-            kind: classify_hansard_listing(&url),
+            kind: HansardListingKind::Transcript,
             url,
             title,
         });
@@ -536,7 +435,7 @@ pub fn parse_hansard_list(
                 house,
                 date,
                 session_type,
-                kind: classify_hansard_listing(&url),
+                kind: HansardListingKind::Transcript,
                 url,
                 title,
             });
@@ -552,382 +451,93 @@ pub fn parse_hansard_list(
     }
 }
 
-pub fn parse_hansard_sitting(html: &str, url: &str) -> Result<HansardSitting, ParseError> {
+pub fn parse_hansard_pdf_url(html: &str, page_url: &str) -> Result<String, ParseError> {
     let document = Html::parse_document(html);
+    let selector = Selector::parse(
+        "div.document-thumbnail a, a[href*='/source/'], a[href*='.pdf'], a[href*='.PDF']",
+    )?;
 
-    let house_selector = Selector::parse("span.house")?;
+    document
+        .select(&selector)
+        .filter_map(|element| element.value().attr("href"))
+        .find(|href| {
+            let path = href.split(['?', '#']).next().unwrap_or(href);
+            path.to_ascii_lowercase().ends_with(".pdf") || path.ends_with("/source/")
+        })
+        .map(|href| resolve_url(page_url, href))
+        .ok_or_else(|| ParseError::MissingField("Hansard PDF URL".to_owned()))
+}
+
+#[derive(Clone)]
+pub struct HansardPageIdentity {
+    pub house: House,
+    pub date: NaiveDate,
+    pub session_type: String,
+    pub summary: Option<String>,
+    pub sentiment: Option<String>,
+}
+
+pub fn parse_hansard_page_identity(html: &str) -> Result<HansardPageIdentity, ParseError> {
+    let document = Html::parse_document(html);
+    let house_selector = Selector::parse("span.house, h1.house-title")?;
     let house_text = document
         .select(&house_selector)
-        .next()
-        .map(|e| normalize_whitespace(&elem_text(e)))
-        .unwrap_or_default();
-
-    let house = if house_text.contains("National Assembly") {
-        House::NationalAssembly
-    } else if house_text.contains("Senate") {
-        House::Senate
-    } else {
-        let house_title_sel = Selector::parse("h1.house-title")?;
-        let house_title = document
-            .select(&house_title_sel)
-            .next()
-            .map(|e| normalize_whitespace(&elem_text(e)))
-            .unwrap_or_default();
-        if house_title.contains("NATIONAL ASSEMBLY") {
+        .map(elem_text)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let house =
+        if house_text.contains("National Assembly") || house_text.contains("NATIONAL ASSEMBLY") {
             House::NationalAssembly
-        } else {
+        } else if house_text.contains("Senate") || house_text.contains("SENATE") {
             House::Senate
-        }
-    };
+        } else {
+            return Err(ParseError::MissingField("Hansard house".to_owned()));
+        };
 
-    let title_sel = Selector::parse("meta[property='og:title']")?;
-    let title_text = document
-        .select(&title_sel)
-        .next()
-        .and_then(|e| e.value().attr("content"))
-        .map(normalize_whitespace)
-        .unwrap_or_default();
-    let breadcrumb_sel = Selector::parse("li.breadcrumb-item.current")?;
-    let breadcrumb_text = document
-        .select(&breadcrumb_sel)
-        .next()
-        .map(|e| normalize_whitespace(&elem_text(e)))
-        .unwrap_or_default();
-
-    let (date, day_of_week, session_type) = if !breadcrumb_text.is_empty() {
-        parse_date_from_title(&breadcrumb_text).or_else(|_| parse_date_from_url_slug(url))?
-    } else if !title_text.is_empty() {
-        parse_date_from_title(&title_text).or_else(|_| parse_date_from_url_slug(url))?
-    } else {
-        parse_date_from_url_slug(url)?
-    };
-
-    // XXX: do not trust span.session — it can contain stale/incorrect metadata on the site
-    // (e.g. shows "Afternoon Sitting" for a morning sitting). the breadcrumb and URL slug
-    // parsed above are the authoritative source for session_type.
-
-    let time_sel = Selector::parse("span.time")?;
-    let time = document
-        .select(&time_sel)
-        .next()
-        .map(|e| {
-            normalize_whitespace(&elem_text(e))
-                .replace("Time:", "")
-                .trim()
-                .to_string()
+    let title_selector =
+        Selector::parse("li.breadcrumb-item.current, meta[property='og:title'], title")?;
+    let (date, _, session_type) = document
+        .select(&title_selector)
+        .filter_map(|element| {
+            let value = element
+                .value()
+                .attr("content")
+                .map(str::to_owned)
+                .unwrap_or_else(|| elem_text(element));
+            parse_date_from_title(&value).ok()
         })
-        .filter(|s| !s.is_empty())
-        .and_then(|t| parse_time_12h(&t).ok());
-
-    let pdf_sel =
-        Selector::parse("div.document-thumbnail a, a[href$='/source/'], a[href$='.pdf']")?;
-    let pdf_url = document
-        .select(&pdf_sel)
         .next()
-        .and_then(|e| e.value().attr("href"))
-        .filter(|h| h.ends_with(".pdf") || h.ends_with("/source/"))
-        .map(|href| resolve_url(url, href));
-
-    let doc_summary_sel = Selector::parse("div.doc-summary")?;
+        .ok_or_else(|| ParseError::MissingField("Hansard date".to_owned()))?;
+    let summary_selector = Selector::parse("div.doc-summary")?;
     let (summary, sentiment) = document
-        .select(&doc_summary_sel)
+        .select(&summary_selector)
         .next()
-        .map(|elem| parse_doc_summary(elem))
+        .map(parse_doc_summary)
         .unwrap_or((None, None));
 
-    let sections = parse_sitting_sections(&document)?;
-
-    Ok(HansardSitting {
+    Ok(HansardPageIdentity {
         house,
         date,
-        day_of_week,
         session_type,
-        time,
         summary,
         sentiment,
-        pdf_url,
-        sections,
     })
 }
 
-fn parse_doc_summary(elem: ElementRef) -> (Option<String>, Option<String>) {
-    let full = normalize_whitespace(&elem_text(elem));
-
+fn parse_doc_summary(element: ElementRef<'_>) -> (Option<String>, Option<String>) {
+    let full = normalize_whitespace(&elem_text(element));
     let body = full
         .strip_prefix("Hansard Summary")
-        .map(|s| s.trim())
-        .unwrap_or(full.as_str());
-
-    let (summary_raw, sentiment_raw) = if let Some(pos) = body.find("Sentimental Analysis") {
-        let s = body[..pos].trim();
-        let rest = body[pos..]
-            .strip_prefix("Sentimental Analysis")
-            .map(|r| r.trim())
-            .unwrap_or_default();
-        (s, rest)
-    } else {
-        (body, "")
-    };
-
-    let summary = if summary_raw.is_empty() {
-        None
-    } else {
-        Some(summary_raw.to_string())
-    };
-
-    let sentiment = if sentiment_raw.is_empty() {
-        None
-    } else {
-        Some(sentiment_raw.to_string())
-    };
-
-    (summary, sentiment)
-}
-
-fn parse_sitting_sections(document: &Html) -> Result<Vec<HansardSection>, ParseError> {
-    // XXX: support both HTML formats:
-    //   old: article.hansard-document → semantic elements as direct children
-    //   new: div.hansard-content → div.chunk-wrapper → semantic elements
-    let article_sel = Selector::parse("article.hansard-document")?;
-    let content_sel = Selector::parse(".hansard-content")?;
-
-    let container = document
-        .select(&article_sel)
-        .next()
-        .or_else(|| document.select(&content_sel).next());
-
-    let Some(container) = container else {
-        return Ok(Vec::new());
-    };
-
-    // XXX: flatten chunk-wrappers so the state machine sees a uniform element stream
-    // regardless of format. in the new format contributor-name and speech-content
-    // are paired inside the same chunk-wrapper; unwrapping produces the same
-    // sequential order as the old format.
-    let elements: Vec<ElementRef> = container
-        .children()
-        .filter_map(ElementRef::wrap)
-        .flat_map(|child| -> Vec<ElementRef> {
-            let tag = child.value().name();
-            let class = child.value().attr("class").unwrap_or_default();
-            if tag == "div" && class.contains("chunk-wrapper") {
-                child.children().filter_map(ElementRef::wrap).collect()
-            } else {
-                vec![child]
-            }
-        })
-        .collect();
-
-    let mut sections: Vec<HansardSection> = Vec::new();
-    let mut current_section: Option<HansardSection> = None;
-    let mut current_subsection: Option<HansardSubsection> = None;
-    let mut pending_speaker: Option<(String, Option<String>)> = None;
-
-    for element in elements {
-        let tag = element.value().name();
-        let class = element.value().attr("class").unwrap_or_default();
-
-        if tag == "h2" && class.contains("major-section-header") {
-            if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
-                push_contribution(contrib, &mut current_subsection, &mut current_section);
-            }
-            flush_subsection(&mut current_subsection, &mut current_section);
-            if let Some(section) = current_section.take() {
-                sections.push(section);
-            }
-
-            let heading = normalize_whitespace(&elem_text(element));
-            if !heading.is_empty() {
-                current_section = Some(HansardSection {
-                    section_type: heading,
-                    subsections: Vec::new(),
-                    contributions: Vec::new(),
-                });
-            }
-        } else if tag == "h2" && class.contains("header-section") {
-            if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
-                push_contribution(contrib, &mut current_subsection, &mut current_section);
-            }
-            flush_subsection(&mut current_subsection, &mut current_section);
-
-            let heading = normalize_whitespace(&elem_text(element));
-            if !heading.is_empty() {
-                // XXX: for resumption sittings there may be no preceding major-section-header;
-                // create an implicit unnamed section so subsections are not silently dropped.
-                if current_section.is_none() {
-                    current_section = Some(HansardSection {
-                        section_type: String::new(),
-                        subsections: Vec::new(),
-                        contributions: Vec::new(),
-                    });
-                }
-                current_subsection = Some(HansardSubsection {
-                    title: heading,
-                    contributions: Vec::new(),
-                });
-            }
-        } else if tag == "div" && class.contains("contributor-name") {
-            if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
-                push_contribution(contrib, &mut current_subsection, &mut current_section);
-            }
-
-            let a_sel = Selector::parse("a")?;
-            let (name, speaker_url) = if let Some(a) = element.select(&a_sel).next() {
-                let name = normalize_whitespace(&elem_text(a));
-                let url = a.value().attr("href").map(str::to_string);
-                (name, url)
-            } else {
-                (normalize_whitespace(&elem_text(element)), None)
-            };
-
-            if !name.is_empty() {
-                pending_speaker = Some((name, speaker_url));
-            }
-        } else if tag == "div" && class.contains("speech-content") {
-            if let Some((name, url)) = pending_speaker.take() {
-                let p_sel = Selector::parse("p")?;
-                let procedural_sel = Selector::parse("aside.procedural-note")?;
-
-                let content = element
-                    .select(&p_sel)
-                    .map(|p| normalize_whitespace(&elem_text(p)))
-                    .collect::<Vec<_>>()
-                    .join("\n\n");
-
-                let procedural_notes = element
-                    .select(&procedural_sel)
-                    .map(|a| normalize_whitespace(&elem_text(a)))
-                    .collect();
-
-                push_contribution(
-                    Contribution {
-                        speaker_name: name,
-                        speaker_url: url,
-                        content,
-                        procedural_notes,
-                    },
-                    &mut current_subsection,
-                    &mut current_section,
-                );
-            }
-        } else if tag == "div" && class.contains("scene-description") {
-            let scene = normalize_whitespace(&elem_text(element));
-            if !scene.is_empty() {
-                if let Some(ref mut sub) = current_subsection {
-                    if let Some(last) = sub.contributions.last_mut() {
-                        last.procedural_notes.push(scene);
-                    }
-                } else if let Some(ref mut sec) = current_section
-                    && let Some(last) = sec.contributions.last_mut()
-                {
-                    last.procedural_notes.push(scene);
-                }
-            }
-        } else if tag == "p" {
-            let text = normalize_whitespace(&elem_text(element));
-            if !text.is_empty() {
-                append_text_to_active("\n\n", text, &mut current_subsection, &mut current_section);
-            }
-        } else if tag == "ol" && class.contains("content-list") {
-            // XXX: auto-generated list from PDF conversion — often a direct continuation of a
-            // preceding <p> (e.g. bill metadata or NG-CDF constituency lists). flatten all
-            // <li> text and append with a space so it reads as part of the same sentence.
-            let li_sel = Selector::parse("li")?;
-            let text = element
-                .select(&li_sel)
-                .map(|li| normalize_whitespace(&elem_text(li)))
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ");
-            if !text.is_empty() {
-                append_text_to_active(" ", text, &mut current_subsection, &mut current_section);
-            }
-        }
-    }
-
-    if let Some(contrib) = take_pending_contribution(&mut pending_speaker) {
-        push_contribution(contrib, &mut current_subsection, &mut current_section);
-    }
-    flush_subsection(&mut current_subsection, &mut current_section);
-    if let Some(section) = current_section {
-        sections.push(section);
-    }
-
-    Ok(sections)
-}
-
-// XXX: appends `text` to the last contribution in the active target (subsection → section).
-// `sep` is the separator inserted when content is non-empty (e.g. `"\n\n"` for paragraphs,
-// `" "` for inline continuations like ol.content-list fragments).
-fn append_text_to_active(
-    sep: &str,
-    text: String,
-    current_subsection: &mut Option<HansardSubsection>,
-    current_section: &mut Option<HansardSection>,
-) {
-    let target_contributions = if let Some(sub) = current_subsection {
-        &mut sub.contributions
-    } else if let Some(sec) = current_section {
-        &mut sec.contributions
-    } else {
-        return;
-    };
-
-    if let Some(last) = target_contributions.last_mut() {
-        if !last.content.is_empty() {
-            last.content.push_str(sep);
-        }
-        last.content.push_str(&text);
-    } else {
-        target_contributions.push(Contribution {
-            speaker_name: String::new(),
-            speaker_url: None,
-            content: text,
-            procedural_notes: Vec::new(),
-        });
-    }
-}
-
-fn take_pending_contribution(
-    pending: &mut Option<(String, Option<String>)>,
-) -> Option<Contribution> {
-    pending.take().map(|(name, url)| Contribution {
-        speaker_name: name,
-        speaker_url: url,
-        content: String::new(),
-        procedural_notes: Vec::new(),
-    })
-}
-
-// XXX: pushes a contribution to the active subsection or section. if neither exists
-// (content before any section header), creates an implicit unnamed section so
-// contributions from resumption sittings are not silently dropped.
-fn push_contribution(
-    contrib: Contribution,
-    current_subsection: &mut Option<HansardSubsection>,
-    current_section: &mut Option<HansardSection>,
-) {
-    if let Some(sub) = current_subsection {
-        sub.contributions.push(contrib);
-    } else {
-        let sec = current_section.get_or_insert_with(|| HansardSection {
-            section_type: String::new(),
-            subsections: Vec::new(),
-            contributions: Vec::new(),
-        });
-        sec.contributions.push(contrib);
-    }
-}
-
-fn flush_subsection(
-    current_subsection: &mut Option<HansardSubsection>,
-    current_section: &mut Option<HansardSection>,
-) {
-    if let Some(subsection) = current_subsection.take()
-        && let Some(section) = current_section
-    {
-        section.subsections.push(subsection);
-    }
+        .map(str::trim)
+        .unwrap_or(&full);
+    let (summary, sentiment) = body
+        .split_once("Sentimental Analysis")
+        .map(|(summary, sentiment)| (summary.trim(), sentiment.trim()))
+        .unwrap_or((body, ""));
+    (
+        (!summary.is_empty()).then(|| summary.to_owned()),
+        (!sentiment.is_empty()).then(|| sentiment.to_owned()),
+    )
 }
 
 fn resolve_url(base: &str, href: &str) -> String {
@@ -1321,7 +931,7 @@ mod tests {
     }
 
     #[test]
-    fn classifies_direct_parliament_pdf_listing() {
+    fn treats_direct_parliament_pdf_listing_as_actionable() {
         let html = r#"
             <div class="leg-row leg-row--inline">
               <a class="leg-row__link" href="https://www.parliament.go.ke/sites/default/files/2026-07/Hansard.pdf?download=1">
@@ -1334,242 +944,36 @@ mod tests {
         let listings = parse_hansard_list(html, None).unwrap();
 
         assert_eq!(listings.len(), 1);
-        assert_eq!(listings[0].kind, HansardListingKind::ExternalPdf);
+        assert_eq!(listings[0].kind, HansardListingKind::Transcript);
     }
 
     #[test]
-    fn test_parse_id_based_hansard_sitting() {
+    fn extracts_pdf_url_without_parsing_transcript_content() {
         let html = r#"
-            <meta property="og:title" content="Wednesday, 1st July, 2026 - Morning Sitting">
+            <meta property="og:title" content="Thursday, 2nd July, 2026">
             <span class="house"><strong>House:</strong> National Assembly</span>
-            <span class="time"><strong>Time:</strong> 9:30 AM</span>
-            <article class="hansard-content">
-              <p class="hansard-provenance"><a href="/democracy-tools/hansard/document/3096/source/">Read the official PDF</a></p>
-              <h2 class="major-section-header">PAPERS</h2>
-              <div class="contributor-name">The Temporary Speaker</div>
-              <div class="speech-content"><p>Next Order.</p></div>
-            </article>
+            <div class="doc-summary">
+              Hansard Summary Debate summary. Sentimental Analysis Constructive.
+            </div>
+            <article class="hansard-content"><div>Unstable transcript markup</div></article>
+            <a href="/democracy-tools/hansard/document/3137/source/">Official PDF</a>
         "#;
-        let url = "https://mzalendo.com/democracy-tools/hansard/document/3096/";
 
-        let sitting = parse_hansard_sitting(html, url).unwrap();
-
-        assert_eq!(sitting.date.to_string(), "2026-07-01");
-        assert_eq!(sitting.day_of_week, "Wednesday");
-        assert_eq!(sitting.session_type, "Morning Sitting");
         assert_eq!(
-            sitting.pdf_url.as_deref(),
-            Some("https://mzalendo.com/democracy-tools/hansard/document/3096/source/")
-        );
-        assert_eq!(sitting.sections.len(), 1);
-        assert_eq!(sitting.sections[0].contributions[0].content, "Next Order.");
-    }
-
-    #[test]
-    fn test_parse_national_assembly_sitting() {
-        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
-            .expect("Failed to read fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
-
-        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
-
-        assert_eq!(sitting.house, House::NationalAssembly);
-        assert_eq!(sitting.date.to_string(), "2026-02-12");
-        assert_eq!(sitting.session_type, "Afternoon Sitting");
-        assert!(sitting.time.is_some(), "Should have a time");
-        assert!(sitting.summary.is_some(), "Should have a summary");
-        assert!(sitting.pdf_url.is_some(), "Should have a PDF URL");
-        assert!(
-            !sitting.sections.is_empty(),
-            "Should have at least one section"
+            parse_hansard_pdf_url(
+                html,
+                "https://mzalendo.com/democracy-tools/hansard/document/3137/"
+            )
+            .unwrap(),
+            "https://mzalendo.com/democracy-tools/hansard/document/3137/source/"
         );
 
-        let has_contributions = sitting.sections.iter().any(|s| !s.contributions.is_empty());
-        assert!(has_contributions, "Should have at least one contribution");
-
-        println!("Sitting: {:#?}", sitting);
-    }
-
-    #[test]
-    fn test_parse_national_assembly_sitting_new_format() {
-        let html =
-            fs::read_to_string("fixtures/current/national_assembly_hansard_sitting_new_format")
-                .expect("Failed to read new-format fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-19th-february-2026-afternoon-sitting-2440/";
-
-        let sitting =
-            parse_hansard_sitting(&html, url).expect("Failed to parse new-format sitting");
-
-        assert_eq!(sitting.house, House::NationalAssembly);
-        assert_eq!(sitting.date.to_string(), "2026-02-19");
-        assert!(
-            !sitting.sections.is_empty(),
-            "New-format sitting should have sections"
-        );
-
-        let all_contributions: Vec<_> = sitting
-            .sections
-            .iter()
-            .flat_map(|s| {
-                s.contributions.iter().chain(
-                    s.subsections
-                        .iter()
-                        .flat_map(|sub| sub.contributions.iter()),
-                )
-            })
-            .collect();
-        assert!(
-            !all_contributions.is_empty(),
-            "New-format sitting should have contributions"
-        );
-
-        let notices = sitting
-            .sections
-            .iter()
-            .find(|s| s.section_type == "NOTICES OF MOTIONS");
-        assert!(
-            notices.is_some(),
-            "New-format sitting should have NOTICES OF MOTIONS section"
-        );
-    }
-
-    #[test]
-    fn test_parse_senate_sitting() {
-        let html = fs::read_to_string("fixtures/current/senate_hansard_sitting")
-            .expect("Failed to read fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2434/";
-
-        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
-
-        assert_eq!(sitting.house, House::Senate);
-        assert_eq!(sitting.date.to_string(), "2026-02-12");
-        assert!(!sitting.sections.is_empty(), "Should have sections");
-    }
-
-    #[test]
-    fn test_parse_sitting_contributions_have_speaker_urls() {
-        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
-            .expect("Failed to read fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
-
-        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
-
-        let with_url = sitting
-            .sections
-            .iter()
-            .flat_map(|s| {
-                s.contributions.iter().chain(
-                    s.subsections
-                        .iter()
-                        .flat_map(|sub| sub.contributions.iter()),
-                )
-            })
-            .any(|c| c.speaker_url.is_some());
-        assert!(
-            with_url,
-            "Should have at least one contribution with a speaker URL"
-        );
-    }
-
-    #[test]
-    fn test_parse_sitting_subsections_notices_of_motions() {
-        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
-            .expect("Failed to read fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
-
-        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
-
-        let notices = sitting
-            .sections
-            .iter()
-            .find(|s| s.section_type == "NOTICES OF MOTIONS")
-            .expect("Should have a NOTICES OF MOTIONS section");
-
-        assert!(
-            !notices.subsections.is_empty(),
-            "NOTICES OF MOTIONS should have subsections"
-        );
-
-        let titles: Vec<&str> = notices
-            .subsections
-            .iter()
-            .map(|s| s.title.as_str())
-            .collect();
-        assert!(
-            titles.iter().any(|t| t.contains("POLLUTION OF ATHI RIVER")),
-            "Should include Athi River motion subsection, got: {:?}",
-            titles
-        );
-        assert!(
-            titles
-                .iter()
-                .any(|t| t.contains("HARDSHIP AREAS") || t.contains("MWALA")),
-            "Should include Mwala/Kalama hardship areas subsection, got: {:?}",
-            titles
-        );
-    }
-
-    #[test]
-    fn test_parse_sitting_subsections_questions_and_statements() {
-        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
-            .expect("Failed to read fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
-
-        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
-
-        let qs = sitting
-            .sections
-            .iter()
-            .find(|s| s.section_type == "QUESTIONS AND STATEMENTS")
-            .expect("Should have a QUESTIONS AND STATEMENTS section");
-
-        assert!(
-            !qs.subsections.is_empty(),
-            "QUESTIONS AND STATEMENTS should have subsections"
-        );
-
-        let titles: Vec<&str> = qs.subsections.iter().map(|s| s.title.as_str()).collect();
-        assert!(
-            titles.iter().any(|t| t.contains("REQUESTS FOR STATEMENTS")),
-            "Should include REQUESTS FOR STATEMENTS subsection, got: {:?}",
-            titles
-        );
-        assert!(
-            titles.iter().any(|t| t.contains("MURDER OF CHIEF")),
-            "Should include MURDER OF CHIEF AND TEACHER subsection, got: {:?}",
-            titles
-        );
-    }
-
-    #[test]
-    fn test_parse_sitting_subsections_bills() {
-        let html = fs::read_to_string("fixtures/current/national_assembly_hansard_sitting")
-            .expect("Failed to read fixture");
-        let url = "https://mzalendo.com/democracy-tools/hansard/thursday-12th-february-2026-afternoon-sitting-2438/";
-
-        let sitting = parse_hansard_sitting(&html, url).expect("Failed to parse sitting");
-
-        let bills_section = sitting
-            .sections
-            .iter()
-            .find(|s| s.section_type == "BILLS" || s.section_type == "BILL")
-            .expect("Should have a BILLS section");
-
-        assert!(
-            !bills_section.subsections.is_empty(),
-            "BILLS section should have subsections"
-        );
-
-        let titles: Vec<&str> = bills_section
-            .subsections
-            .iter()
-            .map(|s| s.title.as_str())
-            .collect();
-        assert!(
-            titles.iter().any(|t| t.contains("HEALTH")),
-            "Should include Health Amendment Bill subsection, got: {:?}",
-            titles
-        );
+        let identity = parse_hansard_page_identity(html).unwrap();
+        assert_eq!(identity.house, House::NationalAssembly);
+        assert_eq!(identity.date.to_string(), "2026-07-02");
+        assert_eq!(identity.session_type, "");
+        assert_eq!(identity.summary.as_deref(), Some("Debate summary."));
+        assert_eq!(identity.sentiment.as_deref(), Some("Constructive."));
     }
 
     #[test]
@@ -1825,25 +1229,5 @@ mod tests {
             assert_eq!(dow.to_lowercase(), weekday.to_lowercase());
             assert_eq!(sess, session);
         }
-    }
-
-    #[test]
-    fn test_parse_time_12h() {
-        assert_eq!(
-            parse_time_12h("2:30 PM").unwrap(),
-            NaiveTime::from_hms_opt(14, 30, 0).unwrap()
-        );
-        assert_eq!(
-            parse_time_12h("10:00 AM").unwrap(),
-            NaiveTime::from_hms_opt(10, 0, 0).unwrap()
-        );
-        assert_eq!(
-            parse_time_12h("12:00 PM").unwrap(),
-            NaiveTime::from_hms_opt(12, 0, 0).unwrap()
-        );
-        assert_eq!(
-            parse_time_12h("12:00 AM").unwrap(),
-            NaiveTime::from_hms_opt(0, 0, 0).unwrap()
-        );
     }
 }

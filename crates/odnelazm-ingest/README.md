@@ -42,16 +42,17 @@ Scrapes parliamentary sittings and member profiles from mzalendo.com and stores 
 odnelazm-pipeline ingest [OPTIONS]
 ```
 
-| Flag                | Description                                       | Default           |
-| ------------------- | ------------------------------------------------- | ----------------- |
-| `--start-date`      | Only ingest sittings from this date (YYYY-MM-DD)  |                   |
-| `--end-date`        | Only ingest sittings up to this date (YYYY-MM-DD) |                   |
-| `--concurrency`     | Number of concurrent scrape requests              | `4`               |
-| `--parliament`      | Parliament session to import members from         | `13th-parliament` |
-| `--skip-sittings`   | Skip scraping sittings                            |                   |
-| `--skip-members`    | Skip importing members                            |                   |
-| `--import-profiles` | Fetch and store individual member profile pages   |                   |
-| `--dry-run`         | Resolve and report outcomes without data writes   |                   |
+| Flag                 | Description                                       | Default           |
+| -------------------- | ------------------------------------------------- | ----------------- |
+| `--start-date`       | Only ingest sittings from this date (YYYY-MM-DD)  |                   |
+| `--end-date`         | Only ingest sittings up to this date (YYYY-MM-DD) |                   |
+| `--concurrency`      | Number of concurrent scrape requests              | `4`               |
+| `--parliament`       | Parliament session to import members from         | `13th-parliament` |
+| `--skip-sittings`    | Skip scraping sittings                            |                   |
+| `--skip-members`     | Skip importing members                            |                   |
+| `--refresh-existing` | Re-fetch and reconcile already-ingested sittings  |                   |
+| `--import-profiles`  | Fetch and store individual member profile pages   |                   |
+| `--dry-run`          | Resolve and report outcomes without data writes   |                   |
 
 ```bash
 # Ingest everything

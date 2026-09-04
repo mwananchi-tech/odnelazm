@@ -76,6 +76,10 @@ struct IngestCmd {
     /// Scrape, resolve, and report outcomes without canonical or derived writes
     #[arg(long)]
     dry_run: bool,
+
+    /// Re-fetch and transactionally reconcile sittings already in the database
+    #[arg(long)]
+    refresh_existing: bool,
 }
 
 impl IngestCmd {
@@ -605,10 +609,12 @@ async fn main() {
                     log::info!("Metrics: pushing to {url}");
                     IngestPipeline::new(scraper, store)
                         .with_dry_run(cmd.dry_run)
+                        .with_refresh_existing(cmd.refresh_existing)
                         .with_metrics(PrometheusPushSink::new(url, "odnelazm-pipeline"))
                 }
                 None => IngestPipeline::new(scraper, store)
                     .with_dry_run(cmd.dry_run)
+                    .with_refresh_existing(cmd.refresh_existing)
                     .with_metrics(NoopSink),
             };
             cmd.run(&pipeline).await;

@@ -1,16 +1,18 @@
 use super::parser::{
     ParseError, parse_activity_page_info, parse_bills, parse_bills_page_info, parse_hansard_list,
-    parse_hansard_sitting, parse_member_list, parse_member_profile, parse_page_info,
-    parse_parliamentary_activity,
+    parse_hansard_page_identity, parse_hansard_pdf_url, parse_member_list, parse_member_profile,
+    parse_page_info, parse_parliamentary_activity,
 };
+use super::pdf::{self, PdfError};
 use super::types::{
     Bill, HansardListing, HansardSitting, House, Member, MemberProfile, ParliamentaryActivity,
 };
 
 use futures::stream::FuturesUnordered;
 use futures::{StreamExt, future};
-use reqwest::Client;
-use std::collections::HashSet;
+use reqwest::{Client, Url, redirect::Policy};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Debug, thiserror::Error)]
@@ -19,6 +21,12 @@ pub enum ScraperError {
     HttpError(#[from] reqwest::Error),
     #[error("Parse error: {0}")]
     ParseError(#[from] ParseError),
+    #[error("PDF error: {0}")]
+    PdfError(#[from] PdfError),
+    #[error("Document exceeds the 50 MiB download limit")]
+    DocumentTooLarge,
+    #[error("Unsupported Hansard PDF host: {0}")]
+    UnsupportedPdfHost(String),
     #[error("Page {requested} is out of range (last page is {last})")]
     PageOutOfRange { requested: u32, last: u32 },
 }
@@ -27,12 +35,23 @@ pub enum ScraperError {
 pub struct WebScraper {
     client: Client,
     base_url: String,
+    /// Preserves listing metadata because the sitting API receives only a URL.
+    listings: Arc<Mutex<HashMap<String, HansardListing>>>,
 }
 
 impl WebScraper {
     pub fn new() -> Result<Self, ScraperError> {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
+            .redirect(Policy::custom(|attempt| {
+                if attempt.previous().len() >= 10 {
+                    attempt.error("too many redirects")
+                } else if is_trusted_pdf_host(attempt.url()) {
+                    attempt.follow()
+                } else {
+                    attempt.error("redirected to an unsupported host")
+                }
+            }))
             .user_agent(format!(
                 "{}/{}",
                 env!("CARGO_PKG_NAME"),
@@ -43,6 +62,7 @@ impl WebScraper {
         Ok(Self {
             client,
             base_url: super::BASE_URL.to_string(),
+            listings: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -55,7 +75,9 @@ impl WebScraper {
         log::debug!("Fetching hansard list page {}...", page);
         let html = self.get_html(&url).await?;
         self.check_page(page, &html)?;
-        Ok(parse_hansard_list(&html, house)?)
+        let listings = parse_hansard_list(&html, house)?;
+        self.remember_listings(&listings);
+        Ok(listings)
     }
 
     pub async fn fetch_all_sittings(
@@ -68,6 +90,7 @@ impl WebScraper {
             .map(|(_, total)| total)
             .unwrap_or(1);
         let mut listings = parse_hansard_list(&first_html, house)?;
+        self.remember_listings(&listings);
 
         if total_pages > 1 {
             log::info!(
@@ -96,8 +119,39 @@ impl WebScraper {
             format!("{}{}", self.base_url, url_or_slug.trim_end_matches('/'))
         };
         log::info!("Fetching hansard sitting: {}", url);
-        let html = self.get_html(&url).await?;
-        Ok(parse_hansard_sitting(&html, &url)?)
+        let remembered_identity = self.remembered_identity(&url);
+        let (pdf_url, page_identity) = if is_pdf_url(&url) {
+            (url.clone(), remembered_identity)
+        } else {
+            let html = self.get_html(&url).await?;
+            let identity = match parse_hansard_page_identity(&html) {
+                Ok(identity) => identity,
+                Err(error) => remembered_identity.ok_or(error)?,
+            };
+            (parse_hansard_pdf_url(&html, &url)?, Some(identity))
+        };
+        if !is_trusted_pdf_url(&pdf_url) {
+            return Err(ScraperError::UnsupportedPdfHost(pdf_url));
+        }
+        log::info!("Fetching hansard PDF: {}", pdf_url);
+        let pdf_bytes = self.get_bytes(&pdf_url).await?;
+        let text = pdf::extract_text(pdf_bytes).await?;
+        let mut sitting = pdf::parse_sitting(&text, &pdf_url)?;
+        if let Some(identity) = page_identity {
+            if identity.house != sitting.house || identity.date != sitting.date {
+                return Err(PdfError::Validation(format!(
+                    "Mzalendo listing identifies {:?} {}, but PDF identifies {:?} {}",
+                    identity.house, identity.date, sitting.house, sitting.date
+                ))
+                .into());
+            }
+            if !identity.session_type.is_empty() {
+                sitting.session_type = identity.session_type;
+            }
+            sitting.summary = identity.summary;
+            sitting.sentiment = identity.sentiment;
+        }
+        Ok(sitting)
     }
 
     pub async fn fetch_members(
@@ -319,6 +373,86 @@ impl WebScraper {
 
         Ok(html)
     }
+
+    async fn get_bytes(&self, url: &str) -> Result<Vec<u8>, ScraperError> {
+        const MAX_PDF_BYTES: usize = 50 * 1024 * 1024;
+
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .inspect_err(|e| log::error!("HTTP error: {e:?}"))?
+            .error_for_status()?;
+        if !is_trusted_pdf_host(response.url()) {
+            return Err(ScraperError::UnsupportedPdfHost(response.url().to_string()));
+        }
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_PDF_BYTES as u64)
+        {
+            return Err(ScraperError::DocumentTooLarge);
+        }
+        let mut stream = response.bytes_stream();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            if bytes.len().saturating_add(chunk.len()) > MAX_PDF_BYTES {
+                return Err(ScraperError::DocumentTooLarge);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(bytes)
+    }
+
+    fn remember_listings(&self, listings: &[HansardListing]) {
+        let Ok(mut remembered) = self.listings.lock() else {
+            return;
+        };
+        for listing in listings {
+            let url = if listing.url.starts_with("http") {
+                listing.url.clone()
+            } else {
+                format!("{}{}", self.base_url, listing.url)
+            };
+            remembered.insert(url.trim_end_matches('/').to_owned(), listing.clone());
+        }
+    }
+
+    fn remembered_identity(&self, url: &str) -> Option<super::parser::HansardPageIdentity> {
+        let remembered = self.listings.lock().ok()?;
+        let listing = remembered.get(url.trim_end_matches('/'))?;
+        Some(super::parser::HansardPageIdentity {
+            house: listing.house,
+            date: listing.date,
+            session_type: listing.session_type.clone(),
+            summary: None,
+            sentiment: None,
+        })
+    }
+}
+
+fn is_pdf_url(url: &str) -> bool {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    path.to_ascii_lowercase().ends_with(".pdf") || path.ends_with("/source/")
+}
+
+fn is_trusted_pdf_url(url: &str) -> bool {
+    Url::parse(url).is_ok_and(|url| is_trusted_pdf_host(&url))
+}
+
+fn is_trusted_pdf_host(url: &Url) -> bool {
+    if url.scheme() != "https" {
+        return false;
+    }
+    url.host_str().is_some_and(|host| {
+        let official_host = ["mzalendo.com", "parliament.go.ke", "senate.go.ke"]
+            .iter()
+            .any(|domain| host == *domain || host.ends_with(&format!(".{domain}")));
+        let mzalendo_storage = host == "mzdocs.fra1.digitaloceanspaces.com"
+            || (host == "fra1.digitaloceanspaces.com" && url.path().starts_with("/mzdocs/"));
+        official_host || mzalendo_storage
+    })
 }
 
 fn deduplicate_members(members: &mut Vec<Member>) {
@@ -337,6 +471,67 @@ fn extend_page<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remembers_listing_identity_for_direct_pdf_fetches() {
+        let scraper = WebScraper::new().unwrap();
+        let url = "https://www.parliament.go.ke/hansard.pdf";
+        scraper.remember_listings(&[HansardListing {
+            house: House::Senate,
+            date: chrono::NaiveDate::from_ymd_opt(2026, 8, 20).unwrap(),
+            session_type: "Evening Sitting".to_owned(),
+            url: url.to_owned(),
+            title: "Thursday, 20th August, 2026 - Evening Sitting".to_owned(),
+            kind: super::super::types::HansardListingKind::Transcript,
+        }]);
+
+        let identity = scraper.remembered_identity(url).unwrap();
+        assert_eq!(identity.house, House::Senate);
+        assert_eq!(identity.date.to_string(), "2026-08-20");
+        assert_eq!(identity.session_type, "Evening Sitting");
+    }
+
+    #[test]
+    fn normalizes_listing_cache_trailing_slashes() {
+        let scraper = WebScraper::new().unwrap();
+        scraper.remember_listings(&[HansardListing {
+            house: House::Senate,
+            date: chrono::NaiveDate::from_ymd_opt(2026, 8, 5).unwrap(),
+            session_type: "Afternoon Sitting".to_owned(),
+            url: "/democracy-tools/hansard/document/3157/".to_owned(),
+            title: "Wednesday, 5th August, 2026 - Afternoon Sitting".to_owned(),
+            kind: super::super::types::HansardListingKind::Transcript,
+        }]);
+
+        assert!(
+            scraper
+                .remembered_identity("https://mzalendo.com/democracy-tools/hansard/document/3157")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn restricts_pdf_downloads_to_official_hosts() {
+        assert!(is_trusted_pdf_url(
+            "https://www.parliament.go.ke/sites/default/files/hansard.pdf"
+        ));
+        assert!(is_trusted_pdf_url(
+            "https://mzalendo.com/democracy-tools/hansard/document/3157/source/"
+        ));
+        assert!(is_trusted_pdf_url(
+            "https://fra1.digitaloceanspaces.com/mzdocs/prod/media/hansard.pdf"
+        ));
+        assert!(!is_trusted_pdf_url("https://127.0.0.1/hansard.pdf"));
+        assert!(!is_trusted_pdf_url(
+            "http://www.parliament.go.ke/hansard.pdf"
+        ));
+        assert!(!is_trusted_pdf_url(
+            "https://fra1.digitaloceanspaces.com/another-bucket/hansard.pdf"
+        ));
+        assert!(!is_trusted_pdf_url(
+            "https://parliament.go.ke.attacker.example/hansard.pdf"
+        ));
+    }
 
     #[test]
     fn deduplicates_members_by_url_and_preserves_first_record() {
