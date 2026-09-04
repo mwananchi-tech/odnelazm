@@ -37,4 +37,4 @@ tokio = { version = "1.50.0", features = [
   "signal",
 ] }
 tokio-util = "0.7.18"
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.7", features = ["cors"] }
