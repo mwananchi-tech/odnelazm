@@ -1,8 +1,10 @@
 # odnelazm
 
-The core [mzalendo.com](https://mzalendo.com) hansard scraper and parser.
+The core [mzalendo.com](https://mzalendo.com) Hansard scraper and parser. Current sitting metadata and PDF links are discovered through Mzalendo, while transcript content is extracted deterministically from the official PDF. Archived sittings continue to use the archive HTML parser.
 
 Source routing is automatic: archive (`info.mzalendo.com`) is used for sittings before 2013-03-28, current (`mzalendo.com`) for those after, and both are merged in parallel for ranges that span the cutoff.
+
+Current Hansard PDFs are classified and extracted in-process with the pure-Rust `pdf-inspector` crate. PDFs containing pages that require OCR are rejected explicitly.
 
 ## Usage
 

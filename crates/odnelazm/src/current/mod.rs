@@ -1,4 +1,5 @@
 mod parser;
+mod pdf;
 pub(crate) mod scraper;
 pub(crate) mod types;
 

@@ -141,7 +141,7 @@ enum Commands {
     /// Fetch the full transcript of a sitting. Source is detected automatically from the URL.
     ///
     /// Archive URLs: https://info.mzalendo.com/hansard/sitting/...
-    /// Current URLs: https://mzalendo.com/democracy-tools/hansard/...
+    /// Current URLs: Mzalendo sitting pages or direct Parliament PDF URLs.
     Sitting {
         #[arg(help = "URL or slug of the sitting to fetch")]
         url_or_slug: String,
